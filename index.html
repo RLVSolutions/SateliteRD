@@ -212,7 +212,7 @@ textarea.inp { height: auto; min-height: 90px; font-size: 14px; font-family: "Co
 
 <script src="bridge.js"></script>
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '1.9.0', build: '2026-10-07', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '1.9.3', build: '2026-10-10', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1037,12 +1037,38 @@ function entrarDatos(fn) {
 
 var Sync = {
   _t: null, _enCurso: false, _cola: [],
+  _via: '',
+  FUNCIONES: ['satInfo','satSubir','satBajar','satCatalogo','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar'],
   gas: function () { try { return typeof google !== 'undefined' && !!google.script && !!google.script.run; } catch (e) { return false; } },
-  modo: function () { return Sync.gas() ? 'gas' : (window.SAT_BRIDGE && SAT_BRIDGE.configurado() ? 'bridge' : (U.trim(DB.cfg.sync.url) ? 'url' : 'local')); },
+  urlServidor: function () {
+    var u = U.trim((DB.cfg && DB.cfg.sync && DB.cfg.sync.url) || '');
+    if (!u && window.SAT_CONFIG) u = String(SAT_CONFIG.API_URL || '');
+    u = u.replace(/\s/g, '');
+    return /^https:\/\/script\.google(usercontent)?\.com\/.+/.test(u) ? u : '';
+  },
+  tokenActual: function () { return DB.cfg.sync.token || (window.SAT_CONFIG && SAT_CONFIG.API_TOKEN) || ''; },
+  modo: function () { return Sync.gas() ? 'gas' : (Sync.urlServidor() ? 'url' : 'local'); },
   transitorio: function (msg) {
     var m = String(msg || '').toLowerCase();
-    if (/inválida|invalida|no permitida|no autorizado|clave/i.test(m)) return false;
+    if (/inválida|invalida|no permitida|no autorizado|clave|sat_id|sat_allowed_origin/i.test(m)) return false;
     return true;
+  },
+  _http: function (url, fn, arg, ok, err) {
+    try {
+      var x = new XMLHttpRequest(), hecho = false;
+      x.open('POST', url, true);
+      x.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+      x.onreadystatechange = function () {
+        if (x.readyState !== 4 || hecho) return;
+        hecho = true;
+        if (x.status >= 200 && x.status < 300) {
+          var txt = String(x.responseText || ''), r;
+          try { r = JSON.parse(txt); } catch (e) { err(/^\s*</.test(txt) ? 'El servidor devolvió HTML en vez de JSON: revise que el despliegue sea «Cualquier usuario» y una versión nueva' : 'Respuesta inválida del servidor', true); return; }
+          if (r && r.error) err(r.error, false); else ok(r ? r.resultado : null);
+        } else err(x.status ? 'HTTP ' + x.status : 'Sin conexión o bloqueo CORS', !x.status || x.status >= 400);
+      };
+      x.send(JSON.stringify({ fn: fn, arg: arg }));
+    } catch (e) { err(String(e && e.message || e), true); }
   },
   llamar: function (fn, arg, ok, err) {
     var fin = false;
@@ -1050,42 +1076,20 @@ var Sync = {
     var bien = function (r) { if (fin) return; fin = true; clearTimeout(to); ok(r); };
     var mal = function (e) { if (fin) return; fin = true; clearTimeout(to); err(e && e.message ? e.message : String(e)); };
     arg = arg || {};
-    arg.token = DB.cfg.sync.token || '';
-    if (!Sync.gas() && window.SAT_BRIDGE && SAT_BRIDGE.configurado()) { SAT_BRIDGE.llamar(fn,arg,bien,mal); return; }
+    arg.token = Sync.tokenActual();
+    if (Sync.FUNCIONES.indexOf(fn) < 0) { mal('Función de servidor no registrada: ' + fn); return; }
     if (Sync.gas()) {
-      try {
-        var runner = google.script.run.withSuccessHandler(bien).withFailureHandler(mal);
-        if (fn === 'satInfo') runner.satInfo(arg);
-        else if (fn === 'satSubir') runner.satSubir(arg);
-        else if (fn === 'satBajar') runner.satBajar(arg);
-        else if (fn === 'satCatalogo') runner.satCatalogo(arg);
-        else if (fn === 'satCubicaciones') runner.satCubicaciones(arg);
-        else if (fn === 'satGuardarCubicaciones') runner.satGuardarCubicaciones(arg);
-        else if (fn === 'satPdfCubicacion') runner.satPdfCubicacion(arg);
-        else if (fn === 'satEnviarPdfCubicacion') runner.satEnviarPdfCubicacion(arg);
-        else if (fn === 'satPedidosListar') runner.satPedidosListar(arg);
-        else if (fn === 'satPedidoGuardar') runner.satPedidoGuardar(arg);
-        else if (fn === 'satPedidosGuardar') runner.satPedidosGuardar(arg);
-        else mal('Función de servidor no registrada: ' + fn);
-      } catch (e) { mal(e); }
+      try { google.script.run.withSuccessHandler(bien).withFailureHandler(mal)[fn](arg); } catch (e) { mal(e); }
       return;
     }
-    var url = U.trim(DB.cfg.sync.url);
+    var url = Sync.urlServidor();
     if (!url) { mal('Sin conexión configurada'); return; }
-    try {
-      var x = new XMLHttpRequest();
-      x.open('POST', url, true);
-      x.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
-      x.onreadystatechange = function () {
-        if (x.readyState !== 4) return;
-        if (x.status >= 200 && x.status < 300) {
-          var r;
-          try { r = JSON.parse(x.responseText); } catch (e) { mal('Respuesta inválida del servidor'); return; }
-          if (r && r.error) mal(r.error); else bien(r ? r.resultado : null);
-        } else mal(x.status ? 'HTTP ' + x.status : 'Sin conexión');
-      };
-      x.send(JSON.stringify({ fn: fn, arg: arg }));
-    } catch (e) { mal(e); }
+    var puente = window.SAT_BRIDGE && /\/exec(\?.*)?$/.test(url);
+    if (Sync._via === 'bridge' && puente) { SAT_BRIDGE.llamar(url, fn, arg, bien, mal); return; }
+    Sync._http(url, fn, arg, function (r) { Sync._via = 'http'; bien(r); }, function (msg, red) {
+      if (!red || !puente || Sync._via === 'http') { mal(msg); return; }
+      SAT_BRIDGE.llamar(url, fn, arg, function (r) { Sync._via = 'bridge'; bien(r); }, function (m2) { mal('HTTP: ' + msg + ' · Puente: ' + m2); });
+    });
   },
   nPend: function () { var s = DB.cfg.sync, n = 0, k; for (k in s.pendOT) n++; for (k in s.elimOT) n++; return n; },
   marcarOT: function (id) { DB.cfg.sync.pendOT[id] = 1; DB.guardarCfg(); Sync.programar(); },
@@ -1644,8 +1648,6 @@ var App = {
     if (UI.abierto()) return;
     var ae = document.activeElement, escribiendo = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && ae.value;
     if (escribiendo) return;
-    // Background sync never rebuilds the current screen or erases partially entered forms.
-    // Data is available at the next intentional navigation.
   },
   init: function () {
     window.onerror = function (msg, src, lin) {
@@ -3165,11 +3167,11 @@ Pantallas.datos = function (m) {
   var sy = c.sync, modo = Sync.modo();
   h += '<div class="card"><h2>Sincronización</h2>' +
     '<div class="aviso ' + (modo === 'local' ? 'gris' : (sy.ultimoError ? 'rojo' : 'verde')) + '">' +
-    (modo === 'gas' ? 'Conectado desde la hoja Google' : (modo === 'url' ? 'Conectado por URL' : 'SOLO ESTE EQUIPO (sin sincronización)')) + '</div>' +
+    (modo === 'gas' ? 'Conectado desde la hoja Google' : (modo === 'url' ? 'Conectado por URL' + (Sync._via === 'bridge' ? ' (puente)' : (Sync._via === 'http' ? ' (directo)' : '')) : 'SOLO ESTE EQUIPO (sin sincronización)')) + '</div>' +
     '<div class="tot">Pendientes: <b>' + Sync.nPend() + '</b> · Intentos fallidos: <b>' + (sy.intentosFallidos || 0) + '</b><br>Última sincronización: <b>' + (sy.ultimoOk ? U.fechaCL(U.fechaISO(new Date(sy.ultimoOk))) + ' ' + U.hora(new Date(sy.ultimoOk)) : '—') + '</b>' +
     (sy.proximoIntento && sy.proximoIntento > new Date().getTime() ? '<br>Próximo intento en <b>' + Math.ceil((sy.proximoIntento - new Date().getTime()) / 1000) + ' s</b>' : '') +
     (sy.ultimoError ? '<br><span style="color:#c00000">' + U.esc(sy.ultimoError) + '</span>' : '') + '</div>' +
-    (modo === 'gas' ? '' : '<label class="lbl">URL DE LA HOJA (termina en /exec)</label><input id="syUrl" class="inp sm" autocapitalize="off" autocorrect="off" spellcheck="false" value="' + U.esc(sy.url) + '">') +
+    (modo === 'gas' ? '' : '<label class="lbl">URL DE LA HOJA (termina en /exec)</label><input id="syUrl" class="inp sm" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="' + U.esc((window.SAT_CONFIG && /^https:/.test(SAT_CONFIG.API_URL || '')) ? SAT_CONFIG.API_URL : '') + '" value="' + U.esc(sy.url) + '">') +
     '<label class="lbl">CLAVE DE ACCESO</label><input id="syTok" class="inp sm" type="password" value="' + U.esc(sy.token) + '">' +
     '<button class="btn" data-a="syGuardar">GUARDAR CONEXIÓN</button>' +
     '<div class="btns"><button class="btn btn-ok btn-sm" data-a="syAhora">SINCRONIZAR AHORA</button><button class="btn btn-sec btn-sm" data-a="syProbar">PROBAR</button></div>' +
@@ -3243,6 +3245,7 @@ Pantallas.datos = function (m) {
       c.sync.token = U.trim(U.$('syTok').value);
       c.sync.ultimoError = '';
       c.sync.intentosFallidos = 0;
+      Sync._via = '';
       DB.guardarCfg();
       UI.toast('Conexión guardada', 'ok');
       App.ir('datos');
