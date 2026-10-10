@@ -1,8 +1,7 @@
-/* Configuración pública. API_TOKEN se deja vacío deliberadamente. */
 window.SAT_CONFIG = {
-  API_URL: 'PEGAR_AQUI_URL_APPS_SCRIPT_EXEC_DEL_SATELITE',
-  API_TOKEN: '',
-  WHATSAPP: '56962789403',
+  API_URL: 'https://script.google.com/u/0/home/projects/1zR4z0ZWJq5xljLxNuUSl3l8KGpHDQEShOz_HVTP-_ShS_GVQDq3sqqNo/edit',
+  API_TOKEN: '6nFo0UHekK9at6KPntSKXiwRO_70IWvGVStVNo1Wk5U',
+  WHATSAPP: '',
   EMPRESA: 'RD Músico',
   INICIALES: 'RD',
   LOGO: 'logo.png',
