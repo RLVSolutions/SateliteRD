@@ -42,4 +42,7 @@ var SAT_BRIDGE=(function(){
  return {llamar:llamar,reiniciar:reiniciar};
 })();
 
+ return {llamar:llamar,reiniciar:reiniciar};
+})();
+
 
