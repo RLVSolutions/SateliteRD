@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#6b2a72">
 <script>
 window.SAT_CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbwB8Sd2WsZZYHjtJ3DCnj1gta_kLcQlZUGqpV0PlAW4CMWdI-65SwVZAJ4ZAfGlyhHd/exec',
+  API_URL: 'PEGAR_AQUI_URL_APPS_SCRIPT_EXEC',
   API_TOKEN: ''
 };
 </script>
@@ -181,6 +181,29 @@ textarea.inp { height: auto; min-height: 90px; font-size: 14px; font-family: "Co
 .ma .fir { margin-top: 8mm; font-size: 11pt; line-height: 2.4; }
 * { -webkit-print-color-adjust: exact; }
 .ep { text-align: center; }
+.ebt { box-sizing: border-box; overflow: hidden; text-align: center; color: #000; background: #fff; font-family: Arial, Helvetica, sans-serif; padding: 1.2mm 2mm; }
+.ebt .ln { white-space: nowrap; overflow: hidden; font-weight: bold; }
+.ebt .r1 .k { font-size: 9pt; vertical-align: middle; margin-right: 1.5mm; }
+.ebt .r1 .n { vertical-align: middle; }
+.ebt .r2 { border-top: .4mm solid #000; }
+.ebt .r3 { font-weight: normal; }
+.e29 { width: 60mm; height: 29mm; }
+.e29 .r1 { height: 11.5mm; line-height: 11.5mm; }
+.e29 .r2 { height: 9mm; line-height: 9mm; }
+.e29 .r3 { height: 5mm; line-height: 5mm; }
+.e40 { width: 60mm; height: 40mm; }
+.e40 .r1 { height: 13mm; line-height: 13mm; }
+.e40 .r2 { height: 9.5mm; line-height: 9.5mm; }
+.e40 .r3 { height: 5.5mm; line-height: 5.5mm; }
+.e40 .r4 { height: 4.8mm; line-height: 4.8mm; border-top: .3mm solid #000; }
+.e40 .r5 { height: 4mm; line-height: 4mm; font-weight: normal; }
+.fmt-op { display: block; border: 1px solid #dadce0; border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; background: #fff; }
+.fmt-op.on { border-color: #6b2a72; box-shadow: inset 0 0 0 1px #6b2a72; background: #faf5fb; }
+.fmt-op input { vertical-align: middle; margin-right: 8px; }
+.fmt-op b { font-size: 14px; }
+.fmt-op small { display: block; color: #5f5a63; font-size: 12px; margin: 2px 0 0 26px; }
+.fmt-prev { background: #e9e5ea; border-radius: 10px; padding: 12px; text-align: center; overflow: auto; margin-top: 4px; }
+.fmt-prev .hoja { display: inline-block; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
 .ep .ln { line-height: 1.12; word-wrap: break-word; }
 @media print {
   html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
@@ -317,7 +340,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.0.1', build: '2026-10-10', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.1.0', build: '2026-10-10', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -471,7 +494,7 @@ var CONFIG_DEFECTO = {
   empresa: 'RD MUSICO', subtitulo: 'CONTROL BULTOS', factorVol: 5000,
   facturaNumerica: true, barraBulto: true, autoImprimir: false,
   otActivaId: null, contadoresOT: {},
-  formatoRapida: 'prod-58-std', formatoRotulo: 'prod-58-std', escaneoImprime: false,
+  formatoRapida: 'prod-58-std', formatoRotulo: 'prod-58-std', formatoBulto: 'bul-60x29', escaneoImprime: false,
   rotuloLibre: null,
   couriers: ['STARKEN', 'CHILEXPRESS', 'BLUE EXPRESS', 'CORREOS DE CHILE', '99MINUTOS', 'ENVIA', 'RETIRO EN TIENDA', 'REPARTO PROPIO'],
   courierActual: '', equipo: '', claveAdmin: '', nombreAdmin: '',
@@ -491,6 +514,11 @@ var FORMATOS_DEFECTO = [
     campos: [{ k: 'descripcion', pt: 9, b: true }, { k: 'codigo', pt: 10, b: true }] },
   { id: 'prod-50x30', nombre: 'Troquelada 50×30', tipo: 'troquel', ancho: 50, alto: 30, barra: true, campoBarra: 'auto', altoBarra: 8, textoBarra: false,
     campos: [{ k: 'descripcion', pt: 9, b: false }, { k: 'precio', pt: 12, b: true }] }
+];
+var FORMATOS_BULTO = [
+  { id: 'bul-60x29', nombre: 'Troquelada 60×29', detalle: 'Bulto · Orden/Ticket · Documento', tipo: 'troquel', ancho: 60, alto: 29 },
+  { id: 'bul-60x40', nombre: 'Troquelada 60×40', detalle: 'Bulto · Orden/Ticket · Documento · Courier · OT', tipo: 'troquel', ancho: 60, alto: 40 },
+  { id: 'bul-58-rollo', nombre: 'Rollo 58 mm completo', detalle: 'Incluye medidas, peso, courier, fecha y código de barras opcional', tipo: 'rollo', ancho: 58 }
 ];
 var ROTULO_LIBRE_DEFECTO = { cantidad: 1, prefijo: '', orden: '', cliente: '',
   lineas: [{ t: '{bulto}', pt: 26, b: true }, { t: '{orden}', pt: 16, b: true }, { t: '{cliente}', pt: 12, b: false }, { t: '{fecha}', pt: 10, b: false }] };
@@ -1489,11 +1517,36 @@ var Impresion = {
 
 var Plantillas = {
   med: function (b) { return b.ancho + ' × ' + b.alto + ' × ' + b.largo + ' cm'; },
-  etiquetaBulto: function (ot, b) {
-    var docBultos=OT.bultosDoc(ot,b.docKey), tot=docBultos.length, pos=U.findIdx(docBultos,function(x){return x.id===b.id;})+1, cfg = DB.cfg;
+  _ptAjustado: function (txt, base, anchoMm, factor) {
+    var n = String(txt || '').length || 1, max = anchoMm / (n * (factor || 0.62) * 0.3528);
+    return Math.max(7, Math.min(base, Math.floor(max * 2) / 2));
+  },
+  _posBulto: function (ot, b) {
+    var docBultos = OT.bultosDoc(ot, b.docKey), tot = docBultos.length, pos = U.findIdx(docBultos, function (x) { return x.id === b.id; }) + 1;
+    return { pos: pos || b.numero, tot: tot };
+  },
+  formatoBulto: function (id) { return U.find(FORMATOS_BULTO, function (f) { return f.id === id; }) || FORMATOS_BULTO[0]; },
+  etiquetaBulto: function (ot, b, fmtId) {
+    var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto);
+    if (f.id === 'bul-58-rollo') return Plantillas._bultoRollo(ot, b);
+    var pb = Plantillas._posBulto(ot, b), util = f.ancho - 4, grande = f.id === 'bul-60x40';
+    var num = pb.pos + '/' + pb.tot, orden = String(b.orden || '-'), doc = OT.etiquetaDoc(b);
+    var h = '<div class="hoja ebt ' + (grande ? 'e40' : 'e29') + '">' +
+      '<div class="ln r1"><span class="k">BULTO</span><span class="n" style="font-size:' + Plantillas._ptAjustado(num, grande ? 34 : 30, util - 12, 0.6) + 'pt">' + U.esc(num) + '</span></div>' +
+      '<div class="ln r2" style="font-size:' + Plantillas._ptAjustado(orden, 20, util) + 'pt">' + U.esc(orden) + '</div>' +
+      '<div class="ln r3" style="font-size:' + Plantillas._ptAjustado(doc, grande ? 11 : 10, util, 0.58) + 'pt">' + U.esc(doc) + '</div>';
+    if (grande) {
+      var cou = ((b.courier || '') + (b.ordenCourier ? ' ' + b.ordenCourier : '')).replace(/^\s+|\s+$/g, '') || 'SIN COURIER';
+      h += '<div class="ln r4" style="font-size:' + Plantillas._ptAjustado(cou, 9, util) + 'pt">' + U.esc(cou) + '</div>' +
+        '<div class="ln r5" style="font-size:' + Plantillas._ptAjustado('OT ' + ot.numero, 8, util, 0.55) + 'pt">OT ' + U.esc(ot.numero) + '</div>';
+    }
+    return h + '</div>';
+  },
+  _bultoRollo: function (ot, b) {
+    var pb = Plantillas._posBulto(ot, b), cfg = DB.cfg;
     return '<div class="hoja eb">' +
       '<div class="emp">' + U.esc(cfg.empresa) + '</div>' +
-      '<div class="bt">BULTO</div><div class="num">' + (pos||b.numero) + ' DE ' + tot + '</div>' +
+      '<div class="bt">BULTO</div><div class="num">' + pb.pos + ' DE ' + pb.tot + '</div>' +
       '<div class="otl">OT: ' + U.esc(ot.numero) + '</div>' +
       '<div class="kv"><div class="k">OC / TICKET:</div><div class="v">' + U.esc(b.orden) + '</div></div>' +
       '<div class="kv"><div class="k">DOCUMENTO:</div><div class="v">' + U.esc(OT.etiquetaDoc(b)) + '</div></div>' +
@@ -1503,7 +1556,11 @@ var Plantillas = {
       '<div class="fec">' + U.fechaCL(b.fecha) + ' ' + U.esc(b.hora) + '</div>' +
       '</div>';
   },
-  etiquetasDe: function (ot, bultos) { return U.map(bultos, function (b) { return Plantillas.etiquetaBulto(ot, b); }).join(''); },
+  etiquetasDe: function (ot, bultos, fmtId) { return U.map(bultos, function (b) { return Plantillas.etiquetaBulto(ot, b, fmtId); }).join(''); },
+  imprimirBultos: function (ot, bultos, fmtId) {
+    var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto);
+    Impresion.imprimir(Plantillas.etiquetasDe(ot, bultos, f.id), f.tipo === 'troquel' ? { tipo: 'troquel', ancho: f.ancho, alto: f.alto } : { tipo: 'rollo', ancho: f.ancho, margen: 2 });
+  },
   voucher: function (ot, key) {
     var doc = OT.documento(ot, key), bs = OT.bultosDoc(ot, key), t = OT.totalesDoc(ot, key), d = new Date(), h = '';
     h += '<div class="hoja vo">';
@@ -2259,9 +2316,41 @@ var PackingUI = {
     var opts='', i;
     for(i=0;i<bs.length;i++) opts+='<label class="chk" style="display:block;padding:9px;border-bottom:1px solid #ddd"><input type="checkbox" data-et-b="'+U.esc(bs[i].id)+'" checked> BULTO '+(i+1)+' DE '+bs.length+' · '+U.fx(bs[i].peso,2)+' kg</label>';
     UI.modal({titulo:'Etiquetas · '+d.orden+' · '+OT.etiquetaDoc(d),html:'<div class="msg">Orden/Ticket: <b>'+U.esc(d.orden)+'</b><br>Documento: <b>'+U.esc(OT.etiquetaDoc(d))+'</b><br>'+bs.length+' bulto(s)</div><div class="btns"><button id="etTodos" class="btn btn-sec">TODOS</button><button id="etNinguno" class="btn btn-sec">NINGUNO</button></div>'+opts,botones:[
-      {txt:'IMPRIMIR SELECCIÓN',cls:'btn-ok',fn:function(){var seleccion=[],checks=U.qa(U.$('modalHost'),'input[data-et-b]');U.each(checks,function(c){if(c.checked){var b=U.find(bs,function(x){return x.id===c.getAttribute('data-et-b');});if(b)seleccion.push(b);}});if(!seleccion.length){UI.toast('Seleccione al menos un bulto','warn');return false;}Impresion.imprimir(Plantillas.etiquetasDe(ot,seleccion),{tipo:'rollo'});return false;}},
-      {txt:'IMPRIMIR TODAS',cls:'btn-sec',fn:function(){Impresion.imprimir(Plantillas.etiquetasDe(ot,bs),{tipo:'rollo'});return false;}},
+      {txt:'IMPRIMIR SELECCIÓN',cls:'btn-ok',fn:function(){var seleccion=[],checks=U.qa(U.$('modalHost'),'input[data-et-b]');U.each(checks,function(c){if(c.checked){var b=U.find(bs,function(x){return x.id===c.getAttribute('data-et-b');});if(b)seleccion.push(b);}});if(!seleccion.length){UI.toast('Seleccione al menos un bulto','warn');return false;}PackingUI.elegirFormatoBulto(ot,seleccion);return false;}},
+      {txt:'IMPRIMIR TODAS',cls:'btn-sec',fn:function(){PackingUI.elegirFormatoBulto(ot,bs);return false;}},
       {txt:'CERRAR',cls:'btn-sec'}],alAbrir:function(){var h=U.$('modalHost');U.$('etTodos').onclick=function(){U.each(U.qa(h,'input[data-et-b]'),function(c){c.checked=true;});};U.$('etNinguno').onclick=function(){U.each(U.qa(h,'input[data-et-b]'),function(c){c.checked=false;});};}});
+  },
+  elegirFormatoBulto: function (ot, bultos) {
+    if (!bultos || !bultos.length) { UI.toast('No hay bultos', 'error'); return; }
+    var sel = Plantillas.formatoBulto(DB.cfg.formatoBulto).id, ops = '';
+    U.each(FORMATOS_BULTO, function (f) {
+      ops += '<label class="fmt-op' + (f.id === sel ? ' on' : '') + '"><input type="radio" name="fmtBul" value="' + f.id + '"' + (f.id === sel ? ' checked' : '') + '><b>' + U.esc(f.nombre) + '</b><small>' + U.esc(f.detalle) + '</small></label>';
+    });
+    var prev = function (id) { var p = U.$('fmtPrev'); if (p) p.innerHTML = Plantillas.etiquetaBulto(ot, bultos[0], id); };
+    UI.modal({
+      titulo: 'Formato de etiqueta · ' + bultos.length + ' bulto(s)',
+      html: ops + '<label class="lbl">VISTA PREVIA</label><div class="fmt-prev" id="fmtPrev"></div>',
+      botones: [
+        { txt: 'IMPRIMIR ' + bultos.length, cls: 'btn-ok', fn: function () {
+          var r = U.qa(U.$('modalHost'), 'input[name=fmtBul]'), id = sel;
+          for (var i = 0; i < r.length; i++) if (r[i].checked) id = r[i].value;
+          DB.cfg.formatoBulto = id; DB.guardarCfg();
+          UI.cerrarModal();
+          Plantillas.imprimirBultos(ot, bultos, id);
+          return false;
+        } },
+        { txt: 'CANCELAR', cls: 'btn-sec' }
+      ],
+      alAbrir: function (host) {
+        prev(sel);
+        host.onchange = function (e) {
+          if (!e.target || e.target.name !== 'fmtBul') return;
+          var ls = U.qa(host, '.fmt-op');
+          for (var i = 0; i < ls.length; i++) ls[i].className = 'fmt-op' + (U.qa(ls[i], 'input')[0].checked ? ' on' : '');
+          prev(e.target.value);
+        };
+      }
+    });
   },
   compartirVoucher: function(ot,key) {
     var d=OT.documento(ot,key),bs=OT.bultosDoc(ot,key);if(!d)return;
@@ -2578,7 +2667,7 @@ Pantallas.packing = function (m) {
     UI.delegar(sec, {
       voucher: function (k) { PackingUI.voucherPreview(ot, k); },
       etiquetas: function(k){PackingUI.etiquetasDocumento(ot,k);},
-      etiquetasRapidas: function(k){var bs=OT.bultosDoc(ot,k);if(bs.length)Impresion.imprimir(Plantillas.etiquetasDe(ot,bs),{tipo:'rollo'});},
+      etiquetasRapidas: function(k){PackingUI.elegirFormatoBulto(ot,OT.bultosDoc(ot,k));},
       reabrir: function () { Seguridad.admin('Reabrir ' + ot.numero, function (aut) { OT.reabrir(ot, aut); OT.setActiva(ot.id); App.ir('packing'); }); },
       ots: PackingUI.elegirOT,
       editarDoc: function (k) { PackingUI.editarDocumento(ot, k); },
@@ -2600,7 +2689,7 @@ var Packing = {
     var l = [];
     U.each(ot.documentos, function (d) { l = l.concat(OT.bultosDoc(ot, d.key)); });
     if (!l.length) { UI.toast('No hay bultos', 'error'); return; }
-    Impresion.imprimir(Plantillas.etiquetasDe(ot, l), { tipo: 'rollo' });
+    PackingUI.elegirFormatoBulto(ot, l);
   }
 };
 
@@ -3265,7 +3354,7 @@ Pantallas.datos = function (m) {
     '<label class="lbl">NOMBRE EMPRESA</label><input id="cfEmp" class="inp sm" value="' + U.esc(c.empresa) + '">' +
     '<label class="lbl">SUBTÍTULO VOUCHER</label><input id="cfSub" class="inp sm" value="' + U.esc(c.subtitulo) + '">' +
     '<label class="lbl">FACTOR VOLUMÉTRICO (cm³/kg)</label><input id="cfFv" class="inp sm" type="number" min="1000" max="10000" step="1" value="' + c.factorVol + '">' +
-    '<label class="chk"><input type="checkbox" id="cfBb"' + (c.barraBulto ? ' checked' : '') + '> Código de barras (Orden) en etiqueta de bulto</label>' +
+    '<label class="chk"><input type="checkbox" id="cfBb"' + (c.barraBulto ? ' checked' : '') + '> Código de barras (Orden) en etiqueta de bulto (solo formato rollo 58 mm)</label>' +
     '<label class="chk"><input type="checkbox" id="cfAi"' + (c.autoImprimir ? ' checked' : '') + '> Imprimir etiqueta al agregar bulto</label>' +
     '<label class="lbl">COURIERS (uno por línea)</label><textarea id="cfCou" class="inp" style="min-height:120px;font-family:Arial,sans-serif;font-size:15px">' + U.esc(c.couriers.join('\n')) + '</textarea>' +
     '<label class="lbl">CLAVE ADMINISTRADOR (acciones forzosas)</label><input id="cfAdm" class="inp sm" type="password" value="' + U.esc(c.claveAdmin || '') + '">' +
