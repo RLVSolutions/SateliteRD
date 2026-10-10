@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#6b2a72">
 <script>
 window.SAT_CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbwB8Sd2WsZZYHjtJ3DCnj1gta_kLcQlZUGqpV0PlAW4CMWdI-65SwVZAJ4ZAfGlyhHd/exec',
+  API_URL: 'PEGAR_AQUI_URL_APPS_SCRIPT_EXEC',
   API_TOKEN: ''
 };
 </script>
@@ -317,7 +317,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.0.0', build: '2026-10-10', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.0.1', build: '2026-10-10', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1154,7 +1154,7 @@ var Sync = {
   modo: function () { return Sync.gas() ? 'gas' : (Sync.urlServidor() ? 'url' : 'local'); },
   transitorio: function (msg) {
     var m = String(msg || '').toLowerCase();
-    if (/inválida|invalida|no permitida|no autorizado|clave|sat_id|sat_allowed_origin/i.test(m)) return false;
+    if (/inválida|invalida|no permitida|no autorizado|clave|sat_id|no es el servidor/i.test(m)) return false;
     return true;
   },
   _http: function (url, fn, arg, ok, err) {
@@ -1168,7 +1168,9 @@ var Sync = {
         if (x.status >= 200 && x.status < 300) {
           var txt = String(x.responseText || ''), r;
           try { r = JSON.parse(txt); } catch (e) { err(/^\s*</.test(txt) ? 'El servidor devolvió HTML en vez de JSON: revise que el despliegue sea «Cualquier usuario» y una versión nueva' : 'Respuesta inválida del servidor', true); return; }
-          if (r && r.error) err(r.error, false); else ok(r ? r.resultado : null);
+          if (r && r.error) err(r.error, false);
+          else if (!r || !r.hasOwnProperty('resultado')) err('La URL /exec configurada no es el servidor del Satélite' + (r && r.servicio ? ' (respondió: ' + r.servicio + ')' : (r && r.mensaje ? ' (respondió: ' + r.mensaje + ')' : '')) + '. Revise API_URL y DATOS → URL', false);
+          else ok(r.resultado);
         } else err(x.status ? 'HTTP ' + x.status : 'Sin conexión o bloqueo CORS', !x.status || x.status >= 400);
       };
       x.send(JSON.stringify({ fn: fn, arg: arg }));
