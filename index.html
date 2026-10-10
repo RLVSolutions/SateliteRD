@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#6b2a72">
 <script>
 window.SAT_CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbwB8Sd2WsZZYHjtJ3DCnj1gta_kLcQlZUGqpV0PlAW4CMWdI-65SwVZAJ4ZAfGlyhHd/exec',
+  API_URL: 'PEGAR_AQUI_URL_APPS_SCRIPT_EXEC',
   API_TOKEN: ''
 };
 </script>
@@ -340,7 +340,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.1.0', build: '2026-10-10', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.1.1', build: '2026-10-10', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -3354,6 +3354,7 @@ Pantallas.datos = function (m) {
     '<label class="lbl">NOMBRE EMPRESA</label><input id="cfEmp" class="inp sm" value="' + U.esc(c.empresa) + '">' +
     '<label class="lbl">SUBTÍTULO VOUCHER</label><input id="cfSub" class="inp sm" value="' + U.esc(c.subtitulo) + '">' +
     '<label class="lbl">FACTOR VOLUMÉTRICO (cm³/kg)</label><input id="cfFv" class="inp sm" type="number" min="1000" max="10000" step="1" value="' + c.factorVol + '">' +
+    '<label class="lbl" for="cfFb">FORMATO ETIQUETA DE BULTO (por defecto)</label><select id="cfFb" class="inp sm">' + U.map(FORMATOS_BULTO, function (f) { return '<option value="' + f.id + '"' + (f.id === Plantillas.formatoBulto(c.formatoBulto).id ? ' selected' : '') + '>' + U.esc(f.nombre + ' · ' + f.detalle) + '</option>'; }).join('') + '</select>' +
     '<label class="chk"><input type="checkbox" id="cfBb"' + (c.barraBulto ? ' checked' : '') + '> Código de barras (Orden) en etiqueta de bulto (solo formato rollo 58 mm)</label>' +
     '<label class="chk"><input type="checkbox" id="cfAi"' + (c.autoImprimir ? ' checked' : '') + '> Imprimir etiqueta al agregar bulto</label>' +
     '<label class="lbl">COURIERS (uno por línea)</label><textarea id="cfCou" class="inp" style="min-height:120px;font-family:Arial,sans-serif;font-size:15px">' + U.esc(c.couriers.join('\n')) + '</textarea>' +
@@ -3422,6 +3423,7 @@ Pantallas.datos = function (m) {
       c.subtitulo = U.trim(U.$('cfSub').value);
       c.factorVol = fv;
       c.barraBulto = U.$('cfBb').checked;
+      if (U.$('cfFb')) c.formatoBulto = U.$('cfFb').value;
       c.autoImprimir = U.$('cfAi').checked;
       var cous = [];
       U.each(U.$('cfCou').value.split(/\r?\n/), function (x) { x = U.norm(x); if (x && cous.indexOf(x) < 0) cous.push(x); });
