@@ -1,7 +1,9 @@
-/* Archivo público de GitHub Pages. Nunca poner contraseñas aquí. */
 window.SAT_CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbzWjde9cchTWD8J7hgjfDWYgIcJ6_rMrti_JCYeBebfA_iaD9DD4QFNijmYKrXFPJWo/exec',
+  API_URL: 'PEGAR_AQUI_URL_APPS_SCRIPT_EXEC_DEL_SATELITE',
   API_TOKEN: '',
+  WHATSAPP: '',
   EMPRESA: 'RD Músico',
+  INICIALES: 'RD',
+  LOGO: 'logo.png',
   COLOR_PRIMARIO: '#6b2a72'
 };
