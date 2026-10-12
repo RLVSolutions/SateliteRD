@@ -316,6 +316,25 @@ textarea.inp{font-size:13px;border-radius:8px}
 .tile .ts{display:block;font-size:12px;color:#5f5a63;line-height:16px;overflow:hidden}
 .res-l{font-size:14px;line-height:1.9;color:#49454f}
 .res-l b{float:right;color:#1d1b20}
+.seg-doc{border-left:6px solid #d6ced9}
+.seg-doc.seg-COMPLETO{border-left-color:#1b7a3d}
+.seg-doc.seg-PARCIAL{border-left-color:#6b2a72}
+.seg-doc.seg-PENDIENTE{border-left-color:#b8740b}
+.seg-doc.seg-ANULADO{border-left-color:#b3261e}
+.seg-doc{cursor:pointer}
+.seg-doc:active{background:#f6eef7}
+.seg-doc .s{margin-top:4px}
+.seg-doc .seg-mas{text-align:right;font-size:12px;font-weight:600;color:#6b2a72;letter-spacing:.3px;margin-top:6px}
+.seg-pasos{display:-webkit-box;display:-webkit-flex;display:flex;margin:8px 0 4px}
+.seg-pasos span{-webkit-box-flex:1;-webkit-flex:1;flex:1;height:6px;border-radius:3px;background:#e6e1e7;margin-right:4px}
+.seg-pasos span:last-child{margin-right:0}
+.seg-pasos span.on{background:#6b2a72}
+.seg-pasos.anul span.on{background:#b3261e}
+.seg-tl{margin:4px 0 6px 4px}
+.seg-tl .ev{position:relative;border-left:2px solid #e7e0ea;padding:0 0 12px 14px}
+.seg-tl .ev:last-child{padding-bottom:2px}
+.seg-tl .ev:before{content:"";position:absolute;left:-6px;top:3px;width:10px;height:10px;border-radius:50%;background:#6b2a72}
+.seg-tl .ev .t{font-weight:600;font-size:14px;color:#2b1232}
 .btns > .btn{min-width:0;padding-left:4px;padding-right:4px;font-size:13px;letter-spacing:0}
 </style>
 <style id="pageRule">@page { size: 58mm auto; margin: 2mm; }</style>
@@ -330,6 +349,7 @@ textarea.inp{font-size:13px;border-radius:8px}
   <button data-p="packing">PACKING</button>
   <button data-p="despacho">DESPACHO</button>
   <button data-p="manifiesto">MANIFIESTO</button>
+  <button data-p="seguimiento">SEGUIMIENTO</button>
   <button data-p="rotulado">ROTULADO</button>
   <button data-p="catalogo">CATÁLOGO</button>
   <button data-p="datos">DATOS</button>
@@ -340,7 +360,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.1.1', build: '2026-10-10', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.2.0', build: '2026-10-11', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -2012,7 +2032,7 @@ Pantallas.inicio = function (m) {
       acceso('packing','PK','Packing','Preparación de OT')+
       acceso('despacho','DE','Despacho','Courier y verificación')+
       acceso('manifiesto','MA','Manifiesto','Cierre y documentos')+
-      acceso('rotulado','RO','Rotulado','Etiquetas de producto')+
+      acceso('seguimiento','SG','Seguimiento','Consulta de documentos')+
     '</div></div>'+
     '<div class="card"><h2>RESUMEN</h2><div class="res-l">'+
       fila('Pedidos cubicados',pedCub)+
@@ -2020,6 +2040,7 @@ Pantallas.inicio = function (m) {
       fila('OT cerradas',otCer)+
     '</div></div>'+
     '<div class="card"><h2>HERRAMIENTAS</h2><div class="tiles">'+
+      acceso('rotulado','RO','Rotulado','Etiquetas de producto')+
       acceso('catalogo','CA','Catálogo','Productos y códigos')+
       acceso('datos','DA','Datos','Sincronización y respaldo')+
     '</div></div>';
@@ -2932,6 +2953,249 @@ var DespachoGrupo = {
 
 Pantallas.despacho = function (m) { DespachoGrupo.pantalla(m); };
 
+var Seguimiento = {
+  etapas: ['PEDIDO', 'CUBICADO', 'EN PACKING', 'DESPACHO PARCIAL', 'VERIFICADO', 'DESPACHADO', 'ENTREGADO', 'CANCELADO'],
+  clases: { 'PEDIDO': 'PENDIENTE', 'CUBICADO': 'PARCIAL', 'EN PACKING': 'PARCIAL', 'DESPACHO PARCIAL': 'PENDIENTE', 'VERIFICADO': 'COMPLETO', 'DESPACHADO': 'COMPLETO', 'ENTREGADO': 'COMPLETO', 'CANCELADO': 'ANULADO' },
+  pasos: ['PEDIDO', 'CUBICADO', 'EN PACKING', 'VERIFICADO', 'DESPACHADO'],
+  campos: [['TODOS', 'Todos los campos'], ['ORDEN', 'Orden / Ticket'], ['DOCUMENTO', 'N° Factura / Boleta'], ['COURIER', 'OT Courier'], ['OT', 'OT interna']],
+  filtro: { campo: 'TODOS', valor: '', etapa: 'TODAS', courier: 'TODOS', desde: '', hasta: '' },
+  max: 100,
+  _f: function (v) { return String(Pedidos.fechaCanon(v || '')).substr(0, 10); },
+  _ts: function (iso, fecha, hora) {
+    if (iso && String(iso).indexOf('T') > 0) { var d = new Date(iso); if (!isNaN(d.getTime())) return U.fechaISO(d) + ' ' + U.hora(d); }
+    var f = Seguimiento._f(fecha || iso);
+    return f ? f + (hora ? ' ' + hora : '') : '';
+  },
+  _add: function (arr, v) { v = U.trim(v); if (v && arr.indexOf(v) < 0) arr.push(v); },
+  indice: function () {
+    var mapa = {}, lista = [], usados = {}, pedPorId = {};
+    var reg = function (orden, tipo, num) {
+      var k = OT.docKey(orden, tipo, num), d = mapa[k];
+      if (!d) {
+        d = mapa[k] = { key: k, orden: U.norm(orden), tipoDocumento: OT.tipoDoc({ tipoDocumento: tipo }), numeroDocumento: OT.numeroDoc({ numeroDocumento: num }),
+          origen: '', fecha: '', pedido: null, cub: [], ots: [], bultos: [], couriers: [], ordenesCourier: [], verificados: 0, etapa: '' };
+        lista.push(d);
+      }
+      return d;
+    };
+    U.each(Pedidos.lista, function (p) { pedPorId[p.id] = p; });
+    U.each(OT.lista, function (ot) {
+      U.each(ot.bultos || [], function (b) {
+        var d = reg(b.orden, b.tipoDocumento, b.numeroDocumento);
+        d.bultos.push({ b: b, ot: ot });
+        if (d.ots.indexOf(ot) < 0) d.ots.push(ot);
+        Seguimiento._add(d.couriers, U.norm(b.courier));
+        Seguimiento._add(d.ordenesCourier, U.norm(b.ordenCourierEscaneada || b.ordenCourier));
+        if (b.verificadoCourier || b.despachoId || b.despachado) d.verificados++;
+      });
+    });
+    U.each(CubPool.lista, function (c) {
+      if (c.estado === 'ELIMINADO') return;
+      var d = reg(c.orden, c.tipoDocumento, c.numeroDocumento);
+      d.cub.push(c);
+      if (c.pedidoId && pedPorId[c.pedidoId] && !d.pedido) { d.pedido = pedPorId[c.pedidoId]; usados[c.pedidoId] = 1; }
+    });
+    U.each(Pedidos.lista, function (p) {
+      if (usados[p.id]) return;
+      var k = OT.docKey(p.numero, p.tipoDocumento, p.numeroDocumento), d = mapa[k] || reg(p.numero, p.tipoDocumento, p.numeroDocumento);
+      if (!d.pedido) d.pedido = p;
+    });
+    U.each(lista, function (d) {
+      var fs = [];
+      if (d.pedido) { d.origen = U.norm(d.pedido.origen); if (d.pedido.fecha) fs.push(Seguimiento._f(d.pedido.fecha)); }
+      U.each(d.cub, function (c) { if (c.fecha) fs.push(Seguimiento._f(c.fecha)); });
+      U.each(d.bultos, function (x) { if (x.b.fecha) fs.push(Seguimiento._f(x.b.fecha)); });
+      U.each(d.ots, function (o) { if (o.fecha) fs.push(Seguimiento._f(o.fecha)); });
+      fs.sort();
+      d.fecha = d.pedido && d.pedido.fecha ? Seguimiento._f(d.pedido.fecha) : (fs[0] || '');
+      d.etapa = Seguimiento.etapa(d);
+    });
+    lista.sort(function (a, b) { if (a.fecha !== b.fecha) return a.fecha < b.fecha ? 1 : -1; return a.orden < b.orden ? -1 : (a.orden > b.orden ? 1 : 0); });
+    return lista;
+  },
+  etapa: function (d) {
+    var pe = d.pedido ? d.pedido.estado : '';
+    if (pe === 'CANCELADO') return 'CANCELADO';
+    if (pe === 'ENTREGADO') return 'ENTREGADO';
+    if (d.bultos.length) {
+      var cerradas = true;
+      U.each(d.ots, function (o) { if (!(o.estado === 'CERRADA' && o.manifiesto && o.manifiesto.generado)) cerradas = false; });
+      if (cerradas) return 'DESPACHADO';
+      if (d.verificados >= d.bultos.length) return 'VERIFICADO';
+      if (d.verificados > 0) return 'DESPACHO PARCIAL';
+      return 'EN PACKING';
+    }
+    if (d.cub.length) return 'CUBICADO';
+    return 'PEDIDO';
+  },
+  nivel: function (e) {
+    if (e === 'ENTREGADO') return 5;
+    if (e === 'DESPACHO PARCIAL') return 3;
+    var i = Seguimiento.pasos.indexOf(e);
+    return i < 0 ? 0 : i + 1;
+  },
+  valores: function (txt) {
+    var r = [];
+    U.each(String(txt || '').split(/[\s,;]+/), function (v) { v = U.norm(v); if (v && r.indexOf(v) < 0) r.push(v); });
+    return r;
+  },
+  textoCampo: function (d, campo) {
+    if (campo === 'ORDEN') return [d.orden];
+    if (campo === 'DOCUMENTO') return [d.numeroDocumento];
+    if (campo === 'COURIER') return d.ordenesCourier;
+    if (campo === 'OT') return U.map(d.ots, function (o) { return U.norm(o.numero); });
+    var t = [d.orden, d.numeroDocumento, d.tipoDocumento + ' ' + d.numeroDocumento, d.origen].concat(d.ordenesCourier, d.couriers, U.map(d.ots, function (o) { return U.norm(o.numero); }));
+    U.each(d.cub, function (c) { t.push(U.norm(c.cubicacionId)); });
+    return t;
+  },
+  filtrar: function (lista) {
+    var f = Seguimiento.filtro, vs = Seguimiento.valores(f.valor);
+    return U.filter(lista, function (d) {
+      if (f.etapa !== 'TODAS' && d.etapa !== f.etapa) return false;
+      if (f.courier !== 'TODOS' && d.couriers.indexOf(f.courier) < 0) return false;
+      if ((f.desde || f.hasta) && !d.fecha) return false;
+      if (f.desde && d.fecha < f.desde) return false;
+      if (f.hasta && d.fecha > f.hasta) return false;
+      if (vs.length) {
+        var t = Seguimiento.textoCampo(d, f.campo), ok = false;
+        U.each(vs, function (v) { if (ok) return; U.each(t, function (x) { if (!ok && String(x || '').indexOf(v) >= 0) ok = true; }); });
+        if (!ok) return false;
+      }
+      return true;
+    });
+  },
+  barra: function (e) {
+    var n = Seguimiento.nivel(e), h = '<div class="seg-pasos' + (e === 'CANCELADO' ? ' anul' : '') + '">';
+    U.each(Seguimiento.pasos, function (p, i) { h += '<span class="' + (i < n ? 'on' : '') + '" title="' + U.esc(p) + '"></span>'; });
+    return h + '</div>';
+  },
+  tarjeta: function (d, i) {
+    var cls = Seguimiento.clases[d.etapa] || 'PENDIENTE', nb = d.bultos.length || d.cub.length;
+    var ots = U.map(d.ots, function (o) { return o.numero; }).join(', ');
+    return '<div class="doc seg-doc seg-' + cls + '" data-a="segVer" data-x="' + i + '"><div class="dh"><div class="cnt"><span class="est ' + cls + '">' + U.esc(d.etapa) + '</span></div>' +
+      '<div class="o">' + U.esc(d.orden || '—') + '</div>' +
+      '<div class="s"><b>' + U.esc(d.numeroDocumento ? d.tipoDocumento + ' ' + d.numeroDocumento : 'SIN DOCUMENTO') + '</b>' + (d.origen ? ' · ' + U.esc(d.origen) : '') + (d.fecha ? ' · ' + U.esc(U.fechaCL(d.fecha)) : '') + '</div>' +
+      Seguimiento.barra(d.etapa) +
+      '<div class="s">' + (nb ? 'Bultos: <b>' + nb + '</b>' : 'Sin bultos registrados') + (d.bultos.length ? ' · Verificados: <b>' + d.verificados + '/' + d.bultos.length + '</b>' : '') + (ots ? ' · OT: <b>' + U.esc(ots) + '</b>' : '') + '</div>' +
+      (d.couriers.length || d.ordenesCourier.length ? '<div class="s">' + U.esc(d.couriers.join(', ') || 'SIN COURIER') + (d.ordenesCourier.length ? ' · OT courier: <b style="word-break:break-all">' + U.esc(d.ordenesCourier.join(', ')) + '</b>' : '') + '</div>' : '') +
+      '<div class="seg-mas">VER DETALLE ›</div></div></div>';
+  },
+  eventos: function (d) {
+    var ev = [], p = d.pedido, cubs = {}, k;
+    if (p) {
+      ev.push({ ts: Seguimiento._ts(p.creado, p.fecha), t: 'Pedido registrado', s: (p.origen || '') + ' · ' + (p.tipo || 'PEDIDO') + ' ' + (p.numero || '') });
+      if (p.estado === 'ENTREGADO' || p.estado === 'CANCELADO') ev.push({ ts: Seguimiento._ts(p.actualizado, p.fecha), t: p.estado === 'ENTREGADO' ? 'Entregado' : 'Cancelado', s: p.observacion || '' });
+    }
+    U.each(d.cub, function (c) { var id = c.cubicacionId || 'CUBICACIÓN'; if (!cubs[id]) cubs[id] = { ts: Seguimiento._ts('', c.fecha, c.hora), n: 0 }; cubs[id].n++; });
+    for (k in cubs) ev.push({ ts: cubs[k].ts, t: 'Cubicación ' + k, s: cubs[k].n + ' bulto(s) medido(s)' });
+    U.each(d.ots, function (o) {
+      var bs = U.filter(d.bultos, function (x) { return x.ot === o; }), ver = 0, ultimo = '', cou = [];
+      U.each(bs, function (x) {
+        if (x.b.verificadoCourier || x.b.despachoId || x.b.despachado) ver++;
+        if (x.b.verificadoCourierAt && x.b.verificadoCourierAt > ultimo) ultimo = x.b.verificadoCourierAt;
+        Seguimiento._add(cou, U.norm(x.b.courier));
+      });
+      ev.push({ ts: Seguimiento._ts('', o.fecha, o.hora), t: 'Asignado a ' + o.numero, s: bs.length + ' bulto(s) en packing' });
+      if (cou.length) ev.push({ ts: Seguimiento._ts('', o.fecha, o.hora), t: 'Courier asignado', s: cou.join(', ') });
+      if (ver) ev.push({ ts: Seguimiento._ts(ultimo, o.fecha, o.hora), t: 'Verificación de despacho', s: ver + ' de ' + bs.length + ' bulto(s) escaneados' });
+      if (o.manifiesto && o.manifiesto.generado) ev.push({ ts: Seguimiento._ts('', o.manifiesto.fecha, o.manifiesto.hora), t: 'Manifiesto ' + o.numero + (o.manifiesto.version > 1 ? ' v' + o.manifiesto.version : ''), s: o.estado === 'CERRADA' ? 'OT cerrada' : 'OT reabierta' + (o.manifiesto.desactualizado ? ' · manifiesto desactualizado' : '') });
+    });
+    ev.sort(function (a, b) { return a.ts < b.ts ? -1 : (a.ts > b.ts ? 1 : 0); });
+    return ev;
+  },
+  detalle: function (d) {
+    var h = '<div class="msg"><b style="font-size:20px">' + U.esc(d.orden || '—') + '</b><br>' + U.esc(d.numeroDocumento ? d.tipoDocumento + ' ' + d.numeroDocumento : 'SIN DOCUMENTO') +
+      (d.origen ? '<br>Origen: <b>' + U.esc(d.origen) + '</b>' : '') + '<br>Etapa: <span class="est ' + (Seguimiento.clases[d.etapa] || 'PENDIENTE') + '">' + U.esc(d.etapa) + '</span></div>' + Seguimiento.barra(d.etapa);
+    var ev = Seguimiento.eventos(d);
+    h += '<label class="lbl">HISTORIAL</label><div class="seg-tl">';
+    U.each(ev, function (e) { h += '<div class="ev"><div class="t">' + U.esc(e.t) + '</div><div class="muted">' + U.esc(e.ts ? U.fechaCL(e.ts.substr(0, 10)) + (e.ts.length > 10 ? ' ' + e.ts.substr(11, 5) : '') : 'Sin fecha') + (e.s ? ' · ' + U.esc(e.s) : '') + '</div></div>'; });
+    h += ev.length ? '</div>' : '<div class="muted">Sin movimientos registrados.</div></div>';
+    if (d.bultos.length) {
+      h += '<label class="lbl">BULTOS EN OT</label><div class="scroll-list"><table class="tbl"><tr><th>N°</th><th>Medidas · Peso</th><th>OT</th><th>Courier</th><th>✓</th></tr>';
+      var ls = d.bultos.slice(0);
+      ls.sort(function (a, b) { return a.ot.numero === b.ot.numero ? a.b.numero - b.b.numero : (a.ot.numero < b.ot.numero ? -1 : 1); });
+      U.each(ls, function (x) {
+        var b = x.b, v = b.verificadoCourier || b.despachoId || b.despachado;
+        h += '<tr><td>' + b.numero + '</td><td>' + U.esc(b.ancho + '×' + b.alto + '×' + b.largo) + ' · ' + U.fx(b.peso, 2) + ' kg</td><td>' + U.esc(x.ot.numero) + '</td><td>' + U.esc((b.courier || '—') + (b.ordenCourierEscaneada || b.ordenCourier ? ' ' + (b.ordenCourierEscaneada || b.ordenCourier) : '')) + '</td><td>' + (v ? '✓' : '—') + '</td></tr>';
+      });
+      h += '</table></div>';
+    } else if (d.cub.length) {
+      h += '<label class="lbl">BULTOS CUBICADOS</label><div class="scroll-list"><table class="tbl"><tr><th>N°</th><th>Medidas · Peso</th><th>Cubicación</th><th>Estado</th></tr>';
+      U.each(d.cub, function (c) { h += '<tr><td>' + c.numero + '</td><td>' + U.esc(c.ancho + '×' + c.alto + '×' + c.largo) + ' · ' + U.fx(c.peso, 2) + ' kg</td><td>' + U.esc(c.cubicacionId || '') + '</td><td>' + U.esc(c.estado || '') + '</td></tr>'; });
+      h += '</table></div>';
+    }
+    var abierta = U.find(d.ots, function (o) { return o.estado === 'ABIERTA'; }), bt = [];
+    if (abierta) bt.push({ txt: 'IR A PACKING', cls: 'btn-ok', fn: function () { OT.setActiva(abierta.id); UI.cerrarModal(); App.ir('packing'); return false; } });
+    else if (d.ots.length) bt.push({ txt: 'IR A MANIFIESTO', cls: 'btn-ok', fn: function () { Manif.otId = d.ots[d.ots.length - 1].id; UI.cerrarModal(); App.ir('manifiesto'); return false; } });
+    else if (d.pedido && !d.cub.length) bt.push({ txt: 'CUBICAR →', cls: 'btn-ok', fn: function () { CubUI.pedidoId = d.pedido.id; UI.cerrarModal(); App.ir('cubicacion'); return false; } });
+    bt.push({ txt: 'CERRAR', cls: 'btn-sec' });
+    UI.modal({ titulo: 'Seguimiento de documento', html: h, botones: bt });
+  },
+  csv: function (l) {
+    var sep = ';', r = ['ORDEN_TICKET;TIPO_DOCUMENTO;N_DOCUMENTO;ORIGEN;FECHA;ETAPA;BULTOS_CUBICADOS;BULTOS_OT;VERIFICADOS;OT_INTERNA;COURIER;OT_COURIER;MANIFIESTO'];
+    U.each(l, function (d) {
+      var man = U.map(U.filter(d.ots, function (o) { return o.manifiesto && o.manifiesto.generado; }), function (o) { return o.numero + ' ' + U.fechaCL(o.manifiesto.fecha) + ' ' + o.manifiesto.hora; }).join(' | ');
+      r.push(U.map([d.orden, d.numeroDocumento ? d.tipoDocumento : '', d.numeroDocumento, d.origen, U.fechaCL(d.fecha), d.etapa, d.cub.length, d.bultos.length, d.verificados,
+        U.map(d.ots, function (o) { return o.numero; }).join(' | '), d.couriers.join(' | '), d.ordenesCourier.join(' | '), man], function (v) { return CSV.campo(v, sep); }).join(sep));
+    });
+    return '﻿' + r.join('\r\n');
+  }
+};
+
+Pantallas.seguimiento = function (m) {
+  Pedidos.reconciliarEstados();
+  var f = Seguimiento.filtro, todos = Seguimiento.indice(), vista = [], cous = DB.cfg.couriers.slice(0);
+  U.each(todos, function (d) { U.each(d.couriers, function (c) { if (cous.indexOf(c) < 0) cous.push(c); }); });
+  var opt = function (v, t, sel) { return '<option value="' + U.esc(v) + '"' + (v === sel ? ' selected' : '') + '>' + U.esc(t) + '</option>'; };
+  m.innerHTML = '<div class="otbar"><div class="n">SEGUIMIENTO DE DOCUMENTOS</div><div class="muted">Consulta el avance de uno o varios documentos mandantes: pedido, cubicación, packing, despacho y manifiesto.</div></div>' +
+    '<div class="card"><label class="lbl" for="sgCampo">BUSCAR EN</label><select id="sgCampo" class="inp sm">' + U.map(Seguimiento.campos, function (c) { return opt(c[0], c[1], f.campo); }).join('') + '</select>' +
+    '<label class="lbl" for="sgValor">VALOR(ES)</label><input id="sgValor" class="inp sm" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="Uno o varios, separados por coma o espacio" value="' + U.esc(f.valor) + '">' +
+    '<div class="fila"><div class="c"><label class="lbl" for="sgEtapa">ETAPA</label><select id="sgEtapa" class="inp sm">' + opt('TODAS', 'TODAS', f.etapa) + U.map(Seguimiento.etapas, function (e) { return opt(e, e, f.etapa); }).join('') + '</select></div>' +
+    '<div class="c"><label class="lbl" for="sgCourier">COURIER</label><select id="sgCourier" class="inp sm">' + opt('TODOS', 'TODOS', f.courier) + U.map(cous, function (c) { return opt(c, c, f.courier); }).join('') + '</select></div></div>' +
+    '<div class="fila"><div class="c"><label class="lbl" for="sgDesde">DESDE</label><input id="sgDesde" class="inp sm" type="date" value="' + U.esc(f.desde) + '"></div>' +
+    '<div class="c"><label class="lbl" for="sgHasta">HASTA</label><input id="sgHasta" class="inp sm" type="date" value="' + U.esc(f.hasta) + '"></div></div>' +
+    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="segRango" data-x="0">HOY</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="7">7 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="30">30 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segLimpiar">LIMPIAR</button></div></div>' +
+    '<div id="sgKpis" class="kpis"></div>' +
+    '<div class="card"><div class="fila"><div class="c2"><div id="sgConteo" class="muted" style="padding-top:12px"></div></div><div class="c"><button class="btn btn-sec btn-sm" data-a="segCsv">EXPORTAR CSV</button></div></div><div id="sgLista"></div></div>';
+  var kpi = function (n, t, s, c) { return '<div class="kpi ' + (c || '') + '"><div class="v">' + n + '</div><div class="t">' + U.esc(t) + '</div><div class="s">' + U.esc(s) + '</div></div>'; };
+  var render = function () {
+    vista = Seguimiento.filtrar(todos);
+    var nb = 0, pend = 0, desp = 0, h = '';
+    U.each(vista, function (d) {
+      nb += d.bultos.length || d.cub.length;
+      if (d.etapa === 'DESPACHADO' || d.etapa === 'ENTREGADO') desp++;
+      else if (d.etapa !== 'CANCELADO') pend++;
+    });
+    U.$('sgKpis').innerHTML = kpi(vista.length, 'DOCUMENTOS', 'En la consulta') + kpi(nb, 'BULTOS', 'Cubicados o en OT', 'k4') + kpi(pend, 'EN PROCESO', 'Sin despachar', 'k2') + kpi(desp, 'DESPACHADOS', 'Manifiesto cerrado', 'k3');
+    U.each(vista.slice(0, Seguimiento.max), function (d, i) { h += Seguimiento.tarjeta(d, i); });
+    if (vista.length > Seguimiento.max) h += '<div class="muted" style="padding:10px">Se muestran ' + Seguimiento.max + ' de ' + vista.length + '. Ajuste los filtros o exporte a CSV.</div>';
+    U.$('sgLista').innerHTML = h || '<div class="muted" style="padding:12px">Sin documentos para estos filtros.</div>';
+    U.$('sgConteo').innerHTML = vista.length + ' documento(s) de ' + todos.length;
+  };
+  var leer = function () {
+    f.campo = U.$('sgCampo').value; f.valor = U.$('sgValor').value; f.etapa = U.$('sgEtapa').value; f.courier = U.$('sgCourier').value;
+    f.desde = U.$('sgDesde').value; f.hasta = U.$('sgHasta').value;
+    if (f.desde && f.hasta && f.desde > f.hasta) { var t = f.desde; f.desde = f.hasta; f.hasta = t; U.$('sgDesde').value = f.desde; U.$('sgHasta').value = f.hasta; }
+    render();
+  };
+  m.oninput = function (e) { if (e.target.id === 'sgValor') leer(); };
+  m.onchange = function (e) { if (/^sg/.test(e.target.id || '')) leer(); };
+  UI.delegar(m, {
+    segRango: function (x) {
+      var d = new Date(), n = parseInt(x, 10) || 0, ini = new Date(d.getFullYear(), d.getMonth(), d.getDate() - n);
+      U.$('sgDesde').value = U.fechaISO(ini); U.$('sgHasta').value = U.fechaISO(d); leer();
+    },
+    segLimpiar: function () {
+      Seguimiento.filtro = f = { campo: 'TODOS', valor: '', etapa: 'TODAS', courier: 'TODOS', desde: '', hasta: '' };
+      U.$('sgCampo').value = 'TODOS'; U.$('sgValor').value = ''; U.$('sgEtapa').value = 'TODAS'; U.$('sgCourier').value = 'TODOS'; U.$('sgDesde').value = ''; U.$('sgHasta').value = '';
+      render();
+    },
+    segVer: function (i) { var d = vista[parseInt(i, 10)]; if (d) Seguimiento.detalle(d); },
+    segCsv: function () { if (!vista.length) { UI.toast('No hay documentos para exportar', 'warn'); return; } UI.descargar('rdm_seguimiento_' + U.sello() + '.csv', Seguimiento.csv(vista), 'text/csv'); }
+  });
+  render();
+};
+
 var Manif = { otId: null, vista: 'vigentes' };
 
 Pantallas.manifiesto = function (m) {
@@ -3494,7 +3758,7 @@ var Integridad = {
     var req = { U: typeof U, StorageManager: typeof StorageManager, DB: typeof DB, OT: typeof OT, CubPool: typeof CubPool, Catalogo: typeof Catalogo, CSV: typeof CSV, Sync: typeof Sync,
       Code128: typeof Code128, Impresion: typeof Impresion, Plantillas: typeof Plantillas, UI: typeof UI, App: typeof App, Pantallas: typeof Pantallas, PackingUI: typeof PackingUI, DespachoGrupo: typeof DespachoGrupo };
     for (var k in req) { n++; if (req[k] !== 'object') fallas.push('módulo ' + k); }
-    var pant = ['inicio', 'pedidos', 'cubicacion', 'packing', 'despacho', 'manifiesto', 'rotulado', 'catalogo', 'datos'];
+    var pant = ['inicio', 'pedidos', 'cubicacion', 'packing', 'despacho', 'manifiesto', 'seguimiento', 'rotulado', 'catalogo', 'datos'];
     for (var i = 0; i < pant.length; i++) { n++; if (typeof Pantallas[pant[i]] !== 'function') fallas.push('pantalla ' + pant[i]); }
     n++; if (typeof RDM_FIN_SCRIPT === 'undefined' || RDM_FIN_SCRIPT !== APP.version) fallas.push('fin de script');
     n++; if (!document.getElementById('printArea') || !document.getElementById('pageRule')) fallas.push('estructura HTML');
