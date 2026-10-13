@@ -407,7 +407,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.3.0', build: '2026-10-13', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.4.0', build: '2026-10-13', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1885,6 +1885,7 @@ var App = {
     };
     StorageManager.backupLegacy();
     DB.cargar();
+    Alta.aplicar();
     U.$('nav').onclick = function (e) { var b = U.cerca(e.target, 'data-p', this); if (b) App.ir(b.getAttribute('data-p')); };
     var integ = Integridad.verificar();
     if (!integ.ok) { var bn = U.$('banner'); bn.style.display = 'block'; bn.innerHTML = 'ARCHIVO INCOMPLETO O DAÑADO: ' + U.esc(integ.fallas.join(', ')); }
@@ -3001,6 +3002,55 @@ var DespachoGrupo = {
 
 Pantallas.despacho = function (m) { DespachoGrupo.pantalla(m); };
 
+var Alta = {
+  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'couriers', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto'],
+  cod: function (o) { return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
+  dec: function (t) {
+    t = String(t || '').replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    return JSON.parse(decodeURIComponent(escape(atob(t))));
+  },
+  link: function () {
+    var c = DB.cfg, o = { v: 1, u: Sync.urlServidor(), t: c.sync.token || '', k: {} };
+    U.each(Alta.CAMPOS, function (k) { if (c[k] != null && c[k] !== '') o.k[k] = c[k]; });
+    var base = String(location.href).replace(/#.*$/, '').replace(/\?.*$/, '');
+    return base + '#alta=' + Alta.cod(o);
+  },
+  aplicar: function () {
+    var m = String(location.hash || '').match(/[#&]alta=([A-Za-z0-9\-_]+)/);
+    if (!m) return false;
+    var o = null;
+    try { o = Alta.dec(m[1]); } catch (e) { o = null; }
+    try { history.replaceState(null, '', String(location.href).replace(/#.*$/, '')); } catch (e2) { location.hash = ''; }
+    if (!o || o.v !== 1) { setTimeout(function () { UI.toast('Link de alta inválido o incompleto', 'error', 5000); }, 300); return false; }
+    var c = DB.cfg, s = c.sync;
+    if (o.u && /^https:\/\/script\.google(usercontent)?\.com\//.test(o.u)) s.url = (window.SAT_CONFIG && SAT_CONFIG.API_URL === o.u) ? '' : o.u;
+    if (o.t) s.token = o.t;
+    U.each(Alta.CAMPOS, function (k) { if (o.k && o.k[k] != null) c[k] = U.clone(o.k[k]); });
+    s.ultimoError = ''; s.intentosFallidos = 0;
+    DB.guardarCfg();
+    setTimeout(function () { UI.toast('Equipo configurado desde link de alta', 'ok', 4000); }, 300);
+    return true;
+  },
+  compartir: function () {
+    if (!Sync.urlServidor() || !DB.cfg.sync.token) { UI.toast('Primero configure URL y clave en este equipo', 'error', 4000); return; }
+    var l = Alta.link();
+    UI.modal({ titulo: 'Link de alta para otro equipo',
+      html: '<div class="msg">Abra este link en el equipo nuevo y quedará configurado: conexión, clave de acceso, contraseña de DATOS, couriers, WhatsApp y formato de etiqueta.</div>' +
+        '<div class="aviso amar">El link incluye la clave de acceso. Envíelo solo al personal autorizado.</div>' +
+        '<textarea id="altaLink" class="inp" readonly style="min-height:110px;font-size:12px">' + U.esc(l) + '</textarea>',
+      botones: [
+        { txt: 'ENVIAR POR WHATSAPP', cls: 'btn-ok', fn: function () { window.location.href = 'https://wa.me/?text=' + encodeURIComponent('Link de alta Satélite RD Músico (abrir en el equipo nuevo):\n' + l); return false; } },
+        { txt: 'COPIAR', cls: 'btn-sec', fn: function () {
+          var ta = U.$('altaLink'), ok = false;
+          try { ta.focus(); ta.select(); ta.setSelectionRange(0, 99999); ok = document.execCommand('copy'); } catch (e) {}
+          UI.toast(ok ? 'Link copiado' : 'Mantenga presionado el texto para copiarlo', ok ? 'ok' : 'warn', 3500); return false;
+        } },
+        { txt: 'CERRAR', cls: 'btn-sec' }
+      ] });
+  }
+};
+
 var Seguimiento = {
   etapas: ['PEDIDO', 'CUBICADO', 'EN PACKING', 'DESPACHO PARCIAL', 'VERIFICADO', 'DESPACHADO', 'ENTREGADO', 'CANCELADO'],
   clases: { 'PEDIDO': 'PENDIENTE', 'CUBICADO': 'PARCIAL', 'EN PACKING': 'PARCIAL', 'DESPACHO PARCIAL': 'PENDIENTE', 'VERIFICADO': 'COMPLETO', 'DESPACHADO': 'COMPLETO', 'ENTREGADO': 'COMPLETO', 'CANCELADO': 'ANULADO' },
@@ -3926,6 +3976,7 @@ Pantallas.datos = function (m) {
     '<button class="btn" data-a="syGuardar">GUARDAR CONEXIÓN</button>' +
     '<div class="btns"><button class="btn btn-ok btn-sm" data-a="syAhora">SINCRONIZAR AHORA</button><button class="btn btn-sec btn-sm" data-a="syProbar">PROBAR</button></div>' +
     '<button class="btn btn-sec btn-sm" data-a="syTodo">VOLVER A DESCARGAR TODO</button>' +
+    '<button class="btn btn-sec btn-sm" data-a="syAlta">LINK DE ALTA PARA OTRO EQUIPO</button>' +
     '<div class="muted">Equipo: ' + U.esc(sy.dispositivo) + '</div></div>';
   h += '<div class="card"><h2>Respaldo</h2>' +
     '<div class="tot">OT: <b>' + OT.lista.length + '</b> · Bultos: <b>' + nb + '</b> · Productos: <b>' + Catalogo.lista.length + '</b> · Formatos: <b>' + DB.formatos.length + '</b><br>' +
@@ -4008,6 +4059,7 @@ Pantallas.datos = function (m) {
       UI.toast('Sincronizando…', '', 8000);
       Sync.ejecutar(function (ok, msg) { UI.toast(ok ? 'Sincronizado' : 'Error: ' + msg, ok ? 'ok' : 'error', 4000); if (App.pantalla === 'datos' && !UI.abierto()) App.ir('datos'); });
     },
+    syAlta: function () { Alta.compartir(); },
     syProbar: function () {
       if (Sync.modo() === 'local') { UI.toast('Sin conexión configurada', 'error'); return; }
       Sync.llamar('satInfo', {}, function (r) {
