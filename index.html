@@ -207,7 +207,7 @@ textarea.inp { height: auto; min-height: 90px; font-size: 14px; font-family: "Co
 .ep .ln { line-height: 1.12; word-wrap: break-word; }
 @media print {
   html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-  #hdr, #nav, #main, #toast, #modalHost, #banner { display: none !important; }
+  #hdr, #nav, #main, #toast, #modalHost, #banner, #wsp { display: none !important; }
   #printArea { display: block !important; position: static !important; }
   .prev { display: none !important; }
 }
@@ -335,6 +335,44 @@ textarea.inp{font-size:13px;border-radius:8px}
 .seg-tl .ev:last-child{padding-bottom:2px}
 .seg-tl .ev:before{content:"";position:absolute;left:-6px;top:3px;width:10px;height:10px;border-radius:50%;background:#6b2a72}
 .seg-tl .ev .t{font-weight:600;font-size:14px;color:#2b1232}
+.wsp{position:fixed;right:14px;bottom:14px;z-index:700;text-align:right}
+.wsp-btn{width:56px;height:56px;border-radius:50%;border:0;background:#25d366;color:#fff;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.22);padding:0;line-height:0;display:inline-block}
+.wsp-btn svg{vertical-align:middle}
+.wsp-panel{position:fixed;right:10px;bottom:80px;width:380px;max-width:calc(100% - 20px);height:560px;max-height:calc(100% - 100px);background:#efeae2;border-radius:14px;overflow:hidden;box-shadow:0 12px 34px rgba(0,0,0,.25);display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-orient:vertical;-webkit-flex-direction:column;flex-direction:column;text-align:left}
+.wsp-head{background:#075e54;color:#fff;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;padding:10px 12px}
+.wsp-av{width:38px;height:38px;line-height:38px;border-radius:50%;background:#6b2a72;text-align:center;font-weight:700;font-size:13px;margin-right:10px;-webkit-flex:none;flex:none}
+.wsp-tt{-webkit-box-flex:1;-webkit-flex:1;flex:1;min-width:0}
+.wsp-tt b{display:block;font-size:15px}
+.wsp-tt span{font-size:12px;opacity:.85}
+.wsp-x{background:none;border:0;color:#fff;font-size:24px;cursor:pointer;line-height:1;padding:0 6px;margin-left:4px}
+.wsp-body{padding:12px;overflow-y:auto;-webkit-overflow-scrolling:touch;-webkit-box-flex:1;-webkit-flex:1;flex:1;background:#efeae2}
+.msj{max-width:86%;padding:8px 11px;margin-bottom:6px;border-radius:10px;font-size:14px;line-height:1.45;box-shadow:0 1px 1px rgba(0,0,0,.08);color:#1f2c34;word-wrap:break-word;clear:both}
+.msj.bot{background:#fff;float:left;border-top-left-radius:2px}
+.msj.yo{background:#d9fdd3;float:right;border-top-right-radius:2px}
+.msj .tb{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.msj .tb td{border-top:1px solid #e7e0ea;padding:3px 2px;vertical-align:top}
+.bot-ops{clear:both;margin:2px 0 8px}
+.bot-ops.usado{opacity:.5;pointer-events:none}
+.bot-op{display:block;width:100%;text-align:left;background:#fff;border:1px solid #cfd8d4;border-radius:10px;padding:9px 12px;margin-bottom:6px;font-family:inherit;font-size:14px;cursor:pointer;color:#075e54;font-weight:600}
+.bot-op:active{background:#f6fff9;border-color:#25d366}
+.bot-op.verde{background:#25d366;border-color:#25d366;color:#06351a}
+.bot-op.mor{background:#f1e3f3;border-color:#f1e3f3;color:#4a1b52}
+.tipeo i{display:inline-block;width:7px;height:7px;margin-right:4px;border-radius:50%;background:#9aa7ad;-webkit-animation:tip 1s infinite;animation:tip 1s infinite}
+.tipeo i:nth-child(2){-webkit-animation-delay:.15s;animation-delay:.15s}
+.tipeo i:nth-child(3){-webkit-animation-delay:.3s;animation-delay:.3s}
+@-webkit-keyframes tip{0%,60%,100%{opacity:.3}30%{opacity:1}}
+@keyframes tip{0%,60%,100%{opacity:.3}30%{opacity:1}}
+.wsp-input{display:-webkit-box;display:-webkit-flex;display:flex;padding:8px;background:#f0f2f5;border-top:1px solid #dcd6cc;margin:0}
+.wsp-input input{-webkit-box-flex:1;-webkit-flex:1;flex:1;min-width:0;border:1px solid #dcd6cc;border-radius:20px;font-size:16px;padding:9px 14px;background:#fff;color:#1d1b20;font-family:inherit}
+.wsp-input input:focus{outline:none;border-color:#00a884}
+.wsp-input button{width:40px;height:40px;-webkit-flex:none;flex:none;border-radius:50%;background:#00a884;border:0;color:#fff;cursor:pointer;margin-left:6px;padding:0;line-height:0}
+.wsp-input button.mic{background:#fff;color:#075e54;border:1px solid #dcd6cc}
+.wsp-input button.mic.on{background:#b3261e;color:#fff;border-color:#b3261e}
+.wsp-pop{position:relative;display:inline-block;background:#fff;border:1px solid #e7e0ea;border-radius:14px;box-shadow:0 10px 26px rgba(43,18,50,.2);padding:8px 34px 8px 14px;margin:0 6px 10px 0;font-size:14px;color:#1d1b20;text-align:left;cursor:pointer}
+.wsp-pop b{color:#6b2a72}
+.wsp-pop .x{position:absolute;right:4px;top:50%;margin-top:-15px;width:30px;height:30px;border:0;background:none;color:#5f5a63;font-size:20px;line-height:1;cursor:pointer}
+.wsp-pop:after{content:"";position:absolute;right:22px;bottom:-7px;width:12px;height:12px;background:#fff;border-right:1px solid #e7e0ea;border-bottom:1px solid #e7e0ea;-webkit-transform:rotate(45deg);transform:rotate(45deg)}
+.wsp-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#25d366;margin-right:8px;box-shadow:0 0 0 3px rgba(37,211,102,.2)}
 .btns > .btn{min-width:0;padding-left:4px;padding-right:4px;font-size:13px;letter-spacing:0}
 </style>
 <style id="pageRule">@page { size: 58mm auto; margin: 2mm; }</style>
@@ -355,12 +393,21 @@ textarea.inp{font-size:13px;border-radius:8px}
   <button data-p="datos">DATOS</button>
 </div>
 <div id="main"></div>
+<div id="wsp" class="wsp">
+<div id="wspPanel" class="wsp-panel" style="display:none">
+<div class="wsp-head"><div class="wsp-av">RD</div><div class="wsp-tt"><b>Asistente Satélite</b><span>Productos, órdenes y despachos</span></div><button type="button" id="wspReset" class="wsp-x" title="Volver al inicio">↺</button><button type="button" id="wspX" class="wsp-x" title="Cerrar">×</button></div>
+<div class="wsp-body" id="wspChat"></div>
+<form class="wsp-input" id="wspForm" autocomplete="off"><input id="wspIn" type="text" maxlength="200" placeholder="Escribe tu pregunta…" autocomplete="off" autocorrect="off" spellcheck="false"><button type="button" id="wspMic" class="mic" style="display:none" title="Dictar"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2Z"/></svg></button><button type="submit" title="Enviar"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 20.5 21 12 3 3.5l.01 6.6L15 12 3.01 13.9z"/></svg></button></form>
+</div>
+<div id="wspGlobo" class="wsp-pop" style="display:none"><span class="wsp-dot"></span><b>¿Dudas?</b> Pregúntale al asistente<button type="button" class="x" id="wspPopX">×</button></div><br>
+<button type="button" id="wspBtn" class="wsp-btn" title="Asistente"><svg width="30" height="30" viewBox="0 0 32 32" fill="currentColor"><path d="M16 3C9 3 3.3 8.6 3.3 15.6c0 2.3.6 4.5 1.8 6.4L3 29l7.2-1.9c1.8 1 3.8 1.5 5.8 1.5 7 0 12.7-5.6 12.7-12.6S23 3 16 3Zm0 23.2c-1.9 0-3.7-.5-5.3-1.4l-.4-.2-4.3 1.1 1.2-4.2-.3-.4a10.4 10.4 0 0 1-1.6-5.5C5.3 9.8 10.1 5.1 16 5.1s10.7 4.7 10.7 10.5S21.9 26.2 16 26.2Zm5.9-7.8c-.3-.2-1.9-.9-2.2-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7.1a8.7 8.7 0 0 1-4.3-3.7c-.3-.6.3-.5.9-1.7.1-.2 0-.4 0-.5l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.9.4 3.6 3.6 0 0 0-1.1 2.7 6.3 6.3 0 0 0 1.3 3.3c.2.2 2.2 3.4 5.4 4.8 2 .8 2.8.9 3.8.8.6-.1 1.9-.8 2.2-1.5s.3-1.4.2-1.5-.3-.2-.6-.3Z"/></svg></button>
+</div>
 <div id="toast"></div>
 <div id="modalHost"></div>
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.2.0', build: '2026-10-11', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.3.0', build: '2026-10-13', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -517,7 +564,7 @@ var CONFIG_DEFECTO = {
   formatoRapida: 'prod-58-std', formatoRotulo: 'prod-58-std', formatoBulto: 'bul-60x29', escaneoImprime: false,
   rotuloLibre: null,
   couriers: ['STARKEN', 'CHILEXPRESS', 'BLUE EXPRESS', 'CORREOS DE CHILE', '99MINUTOS', 'ENVIA', 'RETIRO EN TIENDA', 'REPARTO PROPIO'],
-  courierActual: '', equipo: '', claveAdmin: '', nombreAdmin: '',
+  courierActual: '', equipo: '', claveAdmin: '', nombreAdmin: '', whatsapp: '56962789403',
   sync: null
 };
 var SYNC_DEFECTO = { url: '', token: '', dispositivo: '', pendOT: {}, elimOT: {}, ultimaBajada: '', ultimoOk: '', ultimoError: '', intentosFallidos: 0, proximoIntento: 0 };
@@ -1853,6 +1900,7 @@ var App = {
       } else App.ir('datos');
     };
     App.ir('inicio');
+    Asistente.init();
     setTimeout(function () { if (Sync.modo() !== 'local') Sync.ejecutar(); }, 1200);
     setInterval(function () {
       if (Sync.modo() === 'local') return;
@@ -3196,6 +3244,244 @@ Pantallas.seguimiento = function (m) {
   render();
 };
 
+var Asistente = {
+  modo: '', intento: '', ult: null, cand: [], rec: null, escuchando: false,
+  STOP: ['el','la','los','las','un','una','unos','unas','de','del','al','a','en','y','o','que','cual','cuales','cuantos','cuantas','cuanto','cuando','donde','como','es','son','esta','estan','fue','iba','iban','va','van','se','me','mi','por','para','con','sin','su','sus','lo','le','hay','tiene','tienen','tenia','x','numero','nro','n','favor','porfa','hola','dime','saber','quiero','necesito','busco','producto','articulo','item','orden','ticket','factura','boleta','guia','despacho','documento','doc','oc','compra','pedido','web','ot','courier','bulto','bultos','codigo','id','sku','ubicado','ubicada','ubicacion','medida','medidas','precio','valor','despacho','despacharon','despacho','envio','enviado','envie','envio','salio','cuantos','iban','llevaba','lleva','tracking','seguimiento','estado','etapa','dimension','dimensiones','peso','pesa','mide','tamano','barra','barras','cuesta','vale','queda','encuentra','esta'],
+  norm: function (s) { return U.sinAcentos(String(s || '')).toLowerCase().replace(/[^a-z0-9ñ\-\/ ]/g, ' ').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, ''); },
+  hay: function (t, l) { t = ' ' + t + ' '; for (var i = 0; i < l.length; i++) if (t.indexOf(' ' + l[i]) >= 0) return true; return false; },
+  intencion: function (txt) {
+    var t = Asistente.norm(txt), h = Asistente.hay;
+    if (h(t, ['persona', 'humano', 'alguien', 'ejecutivo', 'whatsapp', 'wsp', 'contacto', 'contactar', 'hablar con'])) return 'humano';
+    if (/^(menu|inicio|opciones|ayuda)$/.test(t)) return 'menu';
+    if (/^(gracias|grax|genial|perfecto|listo|excelente|ok|vale)( .*)?$/.test(t) && t.split(' ').length <= 3) return 'gracias';
+    if (/^(hola|buenas|buenos dias|buenas tardes|buenas noches|alo)$/.test(t)) return 'hola';
+    if (h(t, ['donde', 'ubica', 'pasillo', 'estante', 'rack', 'gondola'])) return 'ubicacion';
+    if (h(t, ['medida', 'dimension', 'tamano', 'mide', 'peso', 'pesa', 'cubica'])) return 'medida';
+    if (h(t, ['precio', 'cuesta', 'vale ', 'valor'])) return 'precio';
+    if (h(t, ['bulto', 'caja', 'paquete', 'cuantos iban', 'cuantas iban'])) return 'bultos';
+    if (h(t, ['cuando', 'despach', 'envi', 'salio', 'manifiesto', 'fecha'])) return 'despacho';
+    if (h(t, ['ot ', 'ot de', 'orden de trabajo', 'courier', 'tracking', 'seguimiento'])) return 'ot';
+    if (h(t, ['codigo', 'sku', 'id ', 'barra'])) return 'codigo';
+    if (h(t, ['estado', 'etapa', 'como va', 'en que va'])) return 'estado';
+    return '';
+  },
+  claves: function (txt) {
+    var r = [];
+    U.each(Asistente.norm(txt).split(' '), function (w) { if (w.length >= 3 && /[0-9]/.test(w) && r.indexOf(w) < 0) r.push(w.toUpperCase()); });
+    return r;
+  },
+  palabras: function (txt) {
+    var r = [];
+    U.each(Asistente.norm(txt).split(' '), function (w) { if (w.length >= 2 && Asistente.STOP.indexOf(w) < 0 && !/^[0-9\-\/]+$/.test(w)) r.push(w); });
+    return r;
+  },
+  buscarDocs: function (claves) {
+    var l = Seguimiento.indice(), ex = [], par = [];
+    U.each(l, function (d) {
+      var c = [d.orden, d.numeroDocumento].concat(d.ordenesCourier, U.map(d.ots, function (o) { return U.norm(o.numero); }), U.map(d.cub, function (x) { return U.norm(x.cubicacionId); }));
+      var e = false, p = false;
+      U.each(claves, function (k) { U.each(c, function (v) { v = String(v || ''); if (!v) return; if (v === k) e = true; else if (v.indexOf(k) >= 0) p = true; }); });
+      if (e) ex.push(d); else if (p) par.push(d);
+    });
+    return ex.length ? ex : par;
+  },
+  buscarProd: function (txt, claves) {
+    var r = [];
+    U.each(claves, function (k) { var p = Catalogo.porCodigo(k); if (p && r.indexOf(p) < 0) r.push(p); });
+    if (r.length) return r;
+    var w = Asistente.palabras(txt);
+    if (!w.length) return [];
+    r = Catalogo.buscar(w.join(' '), 40);
+    if (!r.length && w.length > 1) {
+      var mejor = [];
+      U.each(w, function (x) { if (x.length >= 3) { var t = Catalogo.buscar(x, 40); if (!mejor.length || (t.length && t.length < mejor.length)) mejor = t; } });
+      r = mejor;
+    }
+    return r;
+  },
+  msj: function (html, quien) {
+    var d = document.createElement('div'), c = U.$('wspChat');
+    d.className = 'msj ' + (quien || 'bot'); d.innerHTML = html; c.appendChild(d); c.scrollTop = c.scrollHeight;
+    return d;
+  },
+  dice: function (html, ops) {
+    var c = U.$('wspChat'), us = U.qa(c, '.bot-ops');
+    for (var i = 0; i < us.length; i++) us[i].className = 'bot-ops usado';
+    var t = Asistente.msj('<span class="tipeo"><i></i><i></i><i></i></span>', 'bot');
+    setTimeout(function () {
+      t.innerHTML = html;
+      var vs = U.qa(c, '.bot-ops');
+      for (var j = 0; j < vs.length; j++) vs[j].className = 'bot-ops usado';
+      if (ops && ops.length) {
+        var d = document.createElement('div'); d.className = 'bot-ops';
+        d.innerHTML = U.map(ops, function (o) { return '<button type="button" class="bot-op' + (o[2] ? ' ' + o[2] : '') + '" data-bot="' + U.esc(o[1]) + '">' + U.esc(o[0]) + '</button>'; }).join('');
+        c.appendChild(d);
+      }
+      c.scrollTop = c.scrollHeight;
+    }, 450);
+  },
+  OP_MENU: ['↩ Menú inicial', 'menu'],
+  OP_HUMANO: ['Hablar con una persona', 'humano', 'verde'],
+  opsMenu: function () {
+    return [['1. ¿Dónde está ubicado un producto?', 'g:ubicacion'], ['2. Código o ID de un producto', 'g:codigo'], ['3. ¿Cuándo se despachó una orden o factura?', 'g:despacho'],
+      ['4. ¿Cuál es la OT de un ticket u orden?', 'g:ot'], ['5. ¿Cuántos bultos iban en una orden?', 'g:bultos'], ['6. Hablar con una persona', 'humano', 'verde']];
+  },
+  guias: { ubicacion: 'Escribe el nombre, marca o código del producto.', codigo: 'Escribe el nombre o la marca del producto.', despacho: 'Escribe el N° de orden, ticket, factura, boleta, guía u OT courier.', ot: 'Escribe el N° de ticket, orden, factura o boleta.', bultos: 'Escribe el N° de orden, ticket, factura o boleta.' },
+  inicio: function () {
+    U.$('wspChat').innerHTML = ''; Asistente.modo = ''; Asistente.intento = ''; Asistente.ult = null;
+    Asistente.dice('¡Hola! 👋 Soy el asistente del Satélite. Puedo decirte dónde está un producto, su código, cuándo se despachó una orden, su OT o cuántos bultos llevaba. Elige una opción o escribe tu pregunta.', Asistente.opsMenu());
+  },
+  abrir: function () {
+    U.$('wspPanel').style.display = ''; Asistente.ocultarPop();
+    if (!U.$('wspChat').children.length) Asistente.inicio();
+  },
+  cerrar: function () { U.$('wspPanel').style.display = 'none'; Asistente.pararMic(); },
+  ocultarPop: function () { U.$('wspGlobo').style.display = 'none'; try { localStorage.setItem('rdm_pop', '1'); } catch (e) {} },
+  fh: function (iso, f, h) { var ts = Seguimiento._ts(iso, f, h); return ts ? U.fechaCL(ts.substr(0, 10)) + (ts.length > 10 ? ' ' + ts.substr(11, 5) : '') : ''; },
+  prodHtml: function (p, it) {
+    var h = '<b>' + U.esc(p.descripcion || p.codigo) + '</b>' + (p.marca ? '<br>Marca: ' + U.esc(p.marca) : '');
+    var ub = p.ubicacion ? '<b>' + U.esc(p.ubicacion) + '</b>' : '<i>sin ubicación registrada en el catálogo</i>';
+    if (it === 'ubicacion') return '📍 Ubicación: ' + ub + '<br>' + h + '<br>Código: ' + U.esc(p.codigo);
+    if (it === 'precio') return h + '<br>Precio: <b>$' + U.esc(String(p.precio).replace(/\B(?=(\d{3})+(?!\d))/g, '.')) + '</b><br>Código: ' + U.esc(p.codigo);
+    if (it === 'medida') return h + '<br>Código: ' + U.esc(p.codigo) + '<br>El catálogo no registra medidas ni peso del producto. Si buscas las medidas de un envío, consúltame por la orden o la factura.';
+    return h + '<br>Código: <b>' + U.esc(p.codigo) + '</b>' + (p.codigoBarra ? '<br>Cód. barras: ' + U.esc(p.codigoBarra) : '') + '<br>Ubicación: ' + ub + (p.familia ? '<br>Familia: ' + U.esc(p.familia) : '');
+  },
+  docHtml: function (d, it) {
+    var h = '<b>' + U.esc(d.orden || '—') + '</b> · ' + U.esc(d.numeroDocumento ? d.tipoDocumento + ' ' + d.numeroDocumento : 'sin documento') + '<br>Etapa: <b>' + U.esc(d.etapa) + '</b>';
+    var ots = U.map(d.ots, function (o) { return o.numero; }).join(', ');
+    var man = U.filter(d.ots, function (o) { return o.manifiesto && o.manifiesto.generado; }), ver = '';
+    U.each(d.bultos, function (x) { if (x.b.verificadoCourierAt && x.b.verificadoCourierAt > ver) ver = x.b.verificadoCourierAt; });
+    var cou = (d.couriers.join(', ') || 'sin courier asignado') + (d.ordenesCourier.length ? ' · OT courier: <b>' + U.esc(d.ordenesCourier.join(', ')) + '</b>' : '');
+    if (it === 'despacho') {
+      if (d.etapa === 'DESPACHADO' || d.etapa === 'ENTREGADO') h += '<br>🚚 Despachado: <b>' + U.map(man, function (o) { return U.esc(Asistente.fh('', o.manifiesto.fecha, o.manifiesto.hora)) + ' (manifiesto ' + U.esc(o.numero) + ')'; }).join(', ') + '</b>';
+      else if (d.bultos.length) h += '<br>Aún no se despacha.' + (d.verificados ? ' Verificados ' + d.verificados + ' de ' + d.bultos.length + ' bultos' + (ver ? ', último el ' + U.esc(Asistente.fh(ver)) : '') + '.' : ' Ningún bulto verificado todavía.');
+      else h += '<br>Aún no está en packing' + (d.cub.length ? ' (cubicado)' : '') + '.';
+      if (d.couriers.length) h += '<br>Courier: ' + cou;
+      return h;
+    }
+    if (it === 'ot') return h + '<br>OT interna: <b>' + U.esc(ots || 'sin OT asignada') + '</b><br>Courier: ' + cou;
+    if (it === 'bultos' || it === 'medida') {
+      var lb = d.bultos.length ? U.map(d.bultos, function (x) { return x.b; }) : d.cub, tp = 0, tb = '';
+      if (!lb.length) return h + '<br>No tiene bultos registrados todavía.';
+      U.each(lb, function (b) { tp += Number(b.peso) || 0; tb += '<tr><td>' + b.numero + '</td><td>' + U.esc(b.ancho + '×' + b.alto + '×' + b.largo) + ' cm</td><td>' + U.fx(b.peso, 2) + ' kg</td></tr>'; });
+      return h + '<br>📦 <b>' + lb.length + ' bulto(s)</b> · ' + U.fx(tp, 2) + ' kg en total' + (d.bultos.length ? '' : ' (cubicados, aún sin OT)') + '<table class="tb">' + tb + '</table>';
+    }
+    return h + (ots ? '<br>OT interna: <b>' + U.esc(ots) + '</b>' : '') + '<br>Bultos: <b>' + (d.bultos.length || d.cub.length) + '</b>' + (d.bultos.length ? ' · verificados ' + d.verificados + '/' + d.bultos.length : '') + (d.couriers.length ? '<br>Courier: ' + cou : '') +
+      (man.length ? '<br>Manifiesto: ' + U.map(man, function (o) { return U.esc(Asistente.fh('', o.manifiesto.fecha, o.manifiesto.hora)); }).join(', ') : '');
+  },
+  responderDoc: function (d, it) {
+    Asistente.ult = { tipo: 'doc', d: d };
+    Asistente.dice(Asistente.docHtml(d, it), [['Ver en Seguimiento →', 'verseg', 'mor'], ['¿Cuántos bultos?', 'r:bultos'], ['¿Cuándo se despachó?', 'r:despacho'], Asistente.OP_MENU]);
+  },
+  responderProd: function (p, it) {
+    Asistente.ult = { tipo: 'prod', p: p };
+    Asistente.dice(Asistente.prodHtml(p, it), [['¿Dónde está?', 'r:ubicacion'], ['Código y datos', 'r:codigo'], Asistente.OP_MENU]);
+  },
+  elegir: function (lista, tipo, it) {
+    Asistente.cand = lista.slice(0, 6); Asistente.intento = it;
+    var ops = U.map(Asistente.cand, function (x, i) {
+      return [tipo === 'doc' ? (x.orden || '—') + ' · ' + (x.numeroDocumento ? x.tipoDocumento + ' ' + x.numeroDocumento : 'sin doc') : (x.descripcion || x.codigo) + ' · ' + x.codigo, (tipo === 'doc' ? 'd:' : 'p:') + i];
+    });
+    Asistente.dice('Encontré ' + lista.length + ' coincidencias' + (lista.length > 6 ? ' (muestro 6; sé más específico para afinar)' : '') + '. ¿Cuál buscas?', ops.concat([Asistente.OP_MENU]));
+  },
+  texto: function (t) {
+    if (Asistente.modo === 'humano') { Asistente.enviarWsp(t); return; }
+    var it = Asistente.intencion(t);
+    if (it === 'humano') { Asistente.humano(); return; }
+    if (it === 'menu' || it === 'hola') { Asistente.modo = ''; Asistente.dice('¿En qué te ayudo?', Asistente.opsMenu()); return; }
+    if (it === 'gracias') { Asistente.dice('¡De nada! 😊 Si necesitas algo más, aquí estoy.', [Asistente.OP_MENU]); return; }
+    if (!it && Asistente.modo) it = Asistente.modo;
+    Asistente.modo = '';
+    var cl = Asistente.claves(t), prodIt = it === 'ubicacion' || it === 'codigo' || it === 'precio';
+    if (cl.length && !prodIt) {
+      var ds = Asistente.buscarDocs(cl);
+      if (ds.length === 1) { Asistente.responderDoc(ds[0], it); return; }
+      if (ds.length > 1) { Asistente.elegir(ds, 'doc', it); return; }
+    }
+    var ps = Asistente.buscarProd(t, cl);
+    if (ps.length === 1) { Asistente.responderProd(ps[0], it); return; }
+    if (ps.length > 1) { Asistente.elegir(ps, 'prod', it); return; }
+    if (cl.length && prodIt) {
+      var d2 = Asistente.buscarDocs(cl);
+      if (d2.length === 1) { Asistente.responderDoc(d2[0], it); return; }
+      if (d2.length > 1) { Asistente.elegir(d2, 'doc', it); return; }
+    }
+    if (it && Asistente.guias[it] && !cl.length && !Asistente.palabras(t).length) { Asistente.modo = it; Asistente.dice(Asistente.guias[it]); return; }
+    Asistente.dice('No encontré ' + (cl.length ? 'documentos ni productos con <b>' + U.esc(cl.join(', ')) + '</b>' : 'lo que buscas') + '. Revisa el número o el nombre, o prueba otra opción.' + (Sync.modo() !== 'local' ? '' : '<br><small>Este equipo no está sincronizado: solo consulto sus datos locales.</small>'), [Asistente.OP_MENU, Asistente.OP_HUMANO]);
+  },
+  accion: function (a) {
+    var u = Asistente.ult;
+    if (a === 'menu') { Asistente.msj('Menú inicial', 'yo'); Asistente.modo = ''; Asistente.dice('¿En qué más te ayudo?', Asistente.opsMenu()); return; }
+    if (a === 'humano') { Asistente.msj('Hablar con una persona', 'yo'); Asistente.humano(); return; }
+    if (a === 'abrirwsp') { Asistente.msj('Abrir WhatsApp', 'yo'); Asistente.enviarWsp(''); return; }
+    if (a === 'verseg' && u && u.tipo === 'doc') {
+      Seguimiento.filtro = { campo: 'ORDEN', valor: u.d.orden, etapa: 'TODAS', courier: 'TODOS', desde: '', hasta: '' };
+      Asistente.cerrar(); App.ir('seguimiento'); return;
+    }
+    if (a.indexOf('g:') === 0) {
+      var g = a.substr(2), op = U.find(Asistente.opsMenu(), function (o) { return o[1] === a; });
+      Asistente.msj(U.esc(op ? op[0].replace(/^\d+\.\s*/, '') : g), 'yo'); Asistente.modo = g;
+      Asistente.dice(Asistente.guias[g]); setTimeout(function () { U.$('wspIn').focus(); }, 500); return;
+    }
+    if (a.indexOf('r:') === 0 && u) {
+      var it = a.substr(2), b = U.$('wspChat').querySelector('[data-bot="' + a + '"]');
+      Asistente.msj(U.esc(b ? b.textContent : it), 'yo');
+      if (u.tipo === 'doc') Asistente.responderDoc(u.d, it); else Asistente.responderProd(u.p, it);
+      return;
+    }
+    if (a.indexOf('d:') === 0 || a.indexOf('p:') === 0) {
+      var x = Asistente.cand[parseInt(a.substr(2), 10)]; if (!x) return;
+      if (a.charAt(0) === 'd') { Asistente.msj(U.esc(x.orden), 'yo'); Asistente.responderDoc(x, Asistente.intento); }
+      else { Asistente.msj(U.esc(x.descripcion || x.codigo), 'yo'); Asistente.responderProd(x, Asistente.intento); }
+    }
+  },
+  numero: function () { return String(DB.cfg.whatsapp || '').replace(/[^0-9]/g, ''); },
+  humano: function () {
+    if (!Asistente.numero()) { Asistente.dice('Aún no hay un número de WhatsApp configurado. Puede registrarse en <b>DATOS › Configuración</b>.', [Asistente.OP_MENU]); return; }
+    Asistente.modo = 'humano';
+    Asistente.dice('Te comunico por WhatsApp con una persona del equipo. Escribe tu consulta abajo y la incluyo en el mensaje, o abre WhatsApp directamente.', [['Abrir WhatsApp ahora', 'abrirwsp', 'verde'], Asistente.OP_MENU]);
+    setTimeout(function () { U.$('wspIn').focus(); }, 500);
+  },
+  enviarWsp: function (t) {
+    var n = Asistente.numero(); Asistente.modo = '';
+    if (!n) { Asistente.humano(); return; }
+    var u = Asistente.ult, ctx = u ? (u.tipo === 'doc' ? ' (orden ' + u.d.orden + (u.d.numeroDocumento ? ', ' + u.d.tipoDocumento + ' ' + u.d.numeroDocumento : '') + ')' : ' (producto ' + u.p.codigo + ')') : '';
+    var txt = (t ? 'Hola, consulta desde el Satélite' + ctx + ': ' + t : 'Hola, necesito ayuda con el Satélite' + ctx + '.') + (DB.cfg.equipo ? '\nEquipo: ' + DB.cfg.equipo : '');
+    window.location.href = 'https://wa.me/' + n + '?text=' + encodeURIComponent(txt);
+    Asistente.dice('Abriendo WhatsApp…', [Asistente.OP_MENU]);
+  },
+  micDisponible: function () { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); },
+  pararMic: function () { if (Asistente.rec && Asistente.escuchando) { try { Asistente.rec.stop(); } catch (e) {} } },
+  mic: function () {
+    if (Asistente.escuchando) { Asistente.pararMic(); return; }
+    var R = window.SpeechRecognition || window.webkitSpeechRecognition, b = U.$('wspMic'), inp = U.$('wspIn');
+    try {
+      var r = new R(); r.lang = 'es-CL'; r.interimResults = true; r.maxAlternatives = 1; Asistente.rec = r;
+      r.onstart = function () { Asistente.escuchando = true; b.className = 'mic on'; inp.placeholder = 'Escuchando…'; };
+      r.onresult = function (e) { var s = ''; for (var i = 0; i < e.results.length; i++) s += e.results[i][0].transcript; inp.value = s; };
+      r.onerror = function (e) { var n = e && e.error; UI.toast(n === 'not-allowed' ? 'Permiso de micrófono denegado' : (n === 'network' ? 'El dictado necesita internet' : 'No se pudo dictar. Use el micrófono del teclado.'), 'warn', 4000); };
+      r.onend = function () { Asistente.escuchando = false; b.className = 'mic'; inp.placeholder = 'Escribe tu pregunta…'; if (U.trim(inp.value)) Asistente.enviar(); };
+      r.start();
+    } catch (e) { UI.toast('Dictado no disponible. Use el micrófono del teclado.', 'warn', 4000); }
+  },
+  enviar: function () {
+    var inp = U.$('wspIn'), t = U.trim(inp.value);
+    if (!t) return;
+    inp.value = ''; Asistente.msj(U.esc(t), 'yo'); Asistente.texto(t);
+  },
+  init: function () {
+    U.$('wspBtn').onclick = function () { if (U.$('wspPanel').style.display === 'none') Asistente.abrir(); else Asistente.cerrar(); };
+    U.$('wspX').onclick = Asistente.cerrar;
+    U.$('wspReset').onclick = Asistente.inicio;
+    U.$('wspForm').onsubmit = function (e) { if (e && e.preventDefault) e.preventDefault(); Asistente.enviar(); return false; };
+    U.$('wspChat').onclick = function (e) { var el = U.cerca(e.target, 'data-bot', U.$('wspChat')); if (el && el.parentNode.className.indexOf('usado') < 0) Asistente.accion(el.getAttribute('data-bot')); };
+    U.$('wspGlobo').onclick = function (e) { if (e.target.id === 'wspPopX') Asistente.ocultarPop(); else Asistente.abrir(); };
+    if (Asistente.micDisponible()) { U.$('wspMic').style.display = ''; U.$('wspMic').onclick = Asistente.mic; }
+    var visto = false; try { visto = localStorage.getItem('rdm_pop') === '1'; } catch (e) {}
+    if (!visto) setTimeout(function () { if (U.$('wspPanel').style.display === 'none') U.$('wspGlobo').style.display = ''; }, 1500);
+  }
+};
+
 var Manif = { otId: null, vista: 'vigentes' };
 
 Pantallas.manifiesto = function (m) {
@@ -3624,6 +3910,7 @@ Pantallas.datos = function (m) {
     '<label class="lbl">COURIERS (uno por línea)</label><textarea id="cfCou" class="inp" style="min-height:120px;font-family:Arial,sans-serif;font-size:15px">' + U.esc(c.couriers.join('\n')) + '</textarea>' +
     '<label class="lbl">CLAVE ADMINISTRADOR (acciones forzosas)</label><input id="cfAdm" class="inp sm" type="password" value="' + U.esc(c.claveAdmin || '') + '">' +
     '<label class="lbl">NOMBRE DE QUIEN AUTORIZA (por defecto)</label><input id="cfAdmNom" class="inp sm" value="' + U.esc(c.nombreAdmin || '') + '">' +
+    '<label class="lbl">WHATSAPP PARA "HABLAR CON UNA PERSONA"</label><input id="cfWsp" class="inp sm" inputmode="tel" maxlength="20" placeholder="56912345678" value="' + U.esc(c.whatsapp || '') + '">' +
     '<label class="lbl">PREFIJO DE ESTE EQUIPO</label><input id="cfEq" class="inp sm" maxlength="6" autocapitalize="characters" value="' + U.esc(c.equipo) + '">' +
     '<div class="muted">Con varios equipos, un prefijo distinto evita números de OT repetidos.</div>' +
     '<button class="btn btn-ok" data-a="guardarCfg">GUARDAR CONFIGURACIÓN</button></div>';
@@ -3695,6 +3982,7 @@ Pantallas.datos = function (m) {
       c.claveAdmin = String(U.$('cfAdm').value || '');
       c.nombreAdmin = U.trim(U.$('cfAdmNom').value);
       c.equipo = U.norm(U.$('cfEq').value).replace(/[^A-Z0-9]/g, '');
+      if (U.$('cfWsp')) c.whatsapp = String(U.$('cfWsp').value || '').replace(/[^0-9]/g, '');
       DB.guardarCfg();
       if (cambioFv) { var n = OT.recalcularPesoVol(); UI.toast('Guardado. Peso volumétrico recalculado en ' + n + ' bulto(s).', 'ok', 3500); }
       else UI.toast('Configuración guardada', 'ok');
