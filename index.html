@@ -7,11 +7,9 @@
 <title>RDMusico Satélite · Packing</title>
 <meta name="theme-color" content="#6b2a72">
 <script>
-window.SAT_CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbwB8Sd2WsZZYHjtJ3DCnj1gta_kLcQlZUGqpV0PlAW4CMWdI-65SwVZAJ4ZAfGlyhHd/exec',
-  API_TOKEN: ''
-};
+window.SAT_CONFIG = { API_URL: 'https://script.google.com/macros/s/AKfycbwB8Sd2WsZZYHjtJ3DCnj1gta_kLcQlZUGqpV0PlAW4CMWdI-65SwVZAJ4ZAfGlyhHd/exec' };
 </script>
+<script src="config.js"></script>
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: rgba(0,0,0,0); }
 html, body { margin: 0; padding: 0; }
@@ -407,7 +405,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.4.0', build: '2026-10-13', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.6.0', build: '2026-10-13', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1214,7 +1212,7 @@ function entrarDatos(fn) {
             var a=String(U.$('datKey1').value||''), b=String(U.$('datKey2').value||'');
             if (a.length < 4) { UI.toast('La contraseña debe tener al menos 4 caracteres', 'error'); return false; }
             if (a !== b) { UI.toast('Las contraseñas no coinciden', 'error'); return false; }
-            DB.cfg.claveAdmin=a; DB.guardarCfg(); UI.cerrarModal(); fn(); return false;
+            DB.cfg.claveAdmin=a; DB.guardarCfg(); Compartida.subir(); UI.cerrarModal(); fn(); return false;
           }}
         ],
         alAbrir:function(){setTimeout(function(){if(U.$('datKey1'))U.$('datKey1').focus();},50);}
@@ -1237,7 +1235,7 @@ function entrarDatos(fn) {
 
 var Sync = {
   _t: null, _enCurso: false, _cola: [],
-  FUNCIONES: ['satInfo','satSubir','satBajar','satCatalogo','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar'],
+  FUNCIONES: ['satInfo','satSubir','satBajar','satCatalogo','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
   gas: function () { try { return typeof google !== 'undefined' && !!google.script && !!google.script.run; } catch (e) { return false; } },
   urlServidor: function () {
     var u = U.trim((DB.cfg && DB.cfg.sync && DB.cfg.sync.url) || '');
@@ -1245,8 +1243,8 @@ var Sync = {
     u = u.replace(/\s/g, '');
     return /^https:\/\/script\.google(usercontent)?\.com\/.+/.test(u) ? u : '';
   },
-  tokenActual: function () { return DB.cfg.sync.token || (window.SAT_CONFIG && SAT_CONFIG.API_TOKEN) || ''; },
-  modo: function () { return Sync.gas() ? 'gas' : (Sync.urlServidor() ? 'url' : 'local'); },
+  tokenActual: function () { return DB.cfg.sync.token || ''; },
+  modo: function () { if (Sync.gas()) return 'gas'; if (!Sync.urlServidor()) return 'local'; return (DB.cfg && DB.cfg.sync && !DB.cfg.sync.token && DB.cfg.sync.sinConexion) ? 'local' : 'url'; },
   transitorio: function (msg) {
     var m = String(msg || '').toLowerCase();
     if (/inválida|invalida|no permitida|no autorizado|clave|sat_id|no es el servidor/i.test(m)) return false;
@@ -1369,6 +1367,7 @@ var Sync = {
           s.intentosFallidos = 8;
         }
         DB.guardarCfg(); App.estadoSync();
+        if (/clave de acceso inv/i.test(String(msg)) && !Activacion.avisado && !UI.abierto()) { Activacion.avisado = true; Activacion.mostrar('La clave de acceso cambió. Pide al administrador el enlace para colaboradores actualizado y ábrelo en este equipo.'); }
         cb(ok, msg);
         var c2 = Sync._cola; Sync._cola = [];
         U.each(c2, function (f) { f(ok, msg); });
@@ -1902,6 +1901,8 @@ var App = {
     };
     App.ir('inicio');
     Asistente.init();
+    if (Activacion.pendiente()) setTimeout(function () { Activacion.mostrar(); }, 400);
+    else Compartida.bajar();
     setTimeout(function () { if (Sync.modo() !== 'local') Sync.ejecutar(); }, 1200);
     setInterval(function () {
       if (Sync.modo() === 'local') return;
@@ -3002,8 +3003,69 @@ var DespachoGrupo = {
 
 Pantallas.despacho = function (m) { DespachoGrupo.pantalla(m); };
 
-var Alta = {
+var Compartida = {
   CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'couriers', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto'],
+  datos: function () { var o = {}; U.each(Compartida.CAMPOS, function (k) { if (DB.cfg[k] != null) o[k] = DB.cfg[k]; }); return o; },
+  activo: function () { return Sync.modo() !== 'local' && !!DB.cfg.sync.token; },
+  subir: function (cb) {
+    if (!Compartida.activo()) { if (cb) cb(false); return; }
+    var act = new Date().toISOString();
+    DB.cfg.compartidaAct = act; DB.guardarCfg();
+    Sync.llamar('satConfigGuardar', { config: Compartida.datos(), actualizado: act }, function () { if (cb) cb(true); }, function (m) { if (cb) cb(false, m); });
+  },
+  bajar: function (cb) {
+    if (!Compartida.activo()) { if (cb) cb(false); return; }
+    Sync.llamar('satConfigLeer', {}, function (r) {
+      var cambio = false;
+      if (r && r.config && String(r.actualizado || '') > String(DB.cfg.compartidaAct || '')) {
+        U.each(Compartida.CAMPOS, function (k) { if (r.config[k] != null) DB.cfg[k] = U.clone(r.config[k]); });
+        DB.cfg.compartidaAct = r.actualizado; DB.guardarCfg(); cambio = true;
+      } else if (r && !r.config && DB.cfg.claveAdmin) Compartida.subir();
+      if (cb) cb(true, cambio);
+    }, function (m) { if (cb) cb(false, m); });
+  }
+};
+
+var Activacion = {
+  avisado: false,
+  pendiente: function () { return Sync.modo() === 'url' && !DB.cfg.sync.token; },
+  mostrar: function (msg) {
+    UI.modal({ titulo: 'Equipo sin activar',
+      html: '<div class="msg">' + U.esc(msg || 'Para conectar este equipo, abre el enlace para colaboradores que te envió el administrador. Se conecta solo, sin escribir nada.') + '</div>' +
+        '<div class="muted">Abre el enlace en este mismo navegador. Si llega por WhatsApp, usa ⋮ › Abrir en Chrome.</div>' +
+        '<div id="actAdm" style="display:none"><label class="lbl" for="actClave">CLAVE DE ACCESO (ADMINISTRADOR)</label><input id="actClave" class="inp" type="password" autocomplete="off">' +
+        '<button type="button" class="btn btn-ok" id="actBtn">ACTIVAR</button><div id="actMsg"></div></div>',
+      botones: [
+        { txt: 'SOY ADMINISTRADOR', cls: 'btn-sec', fn: function () {
+          U.$('actAdm').style.display = ''; var b = U.qa(U.$('modalHost'), '[data-mb="0"]')[0]; if (b) b.style.display = 'none';
+          setTimeout(function () { U.$('actClave').focus(); }, 60); return false;
+        } },
+        { txt: 'USAR SIN SINCRONIZAR', cls: 'btn-sec', fn: function () { DB.cfg.sync.sinConexion = true; DB.guardarCfg(); App.estadoSync(); UI.toast('Modo solo este equipo. Puede activarlo después con el enlace.', 'warn', 4500); } }
+      ],
+      alAbrir: function () {
+        U.$('actBtn').onclick = Activacion.probar;
+        U.$('actClave').onkeydown = function (e) { if ((e.keyCode || e.which) === 13) { e.preventDefault(); Activacion.probar(); } };
+      } });
+  },
+  probar: function () {
+    var t = U.trim(U.$('actClave').value), box = U.$('actMsg');
+    if (!t) { box.innerHTML = '<div class="aviso amar">Escribe la clave de acceso.</div>'; return; }
+    box.innerHTML = '<div class="muted" style="padding:8px 0">Verificando con el servidor…</div>';
+    Sync._http(Sync.urlServidor(), 'satInfo', { token: t }, function (r) {
+      var s = DB.cfg.sync;
+      s.token = t; s.sinConexion = false; s.ultimoError = ''; s.intentosFallidos = 0; DB.guardarCfg();
+      Activacion.avisado = false;
+      Compartida.bajar(function () {
+        UI.cerrarModal();
+        App.ir(App.pantalla === 'datos' ? 'inicio' : App.pantalla);
+        UI.toast('Equipo activado' + (r && r.nombre ? ' · ' + r.nombre : ''), 'ok', 4000);
+        Sync.ejecutar();
+      });
+    }, function (msg) { box.innerHTML = '<div class="aviso rojo">' + U.esc(msg) + '</div>'; });
+  }
+};
+
+var Alta = {
   cod: function (o) { return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
   dec: function (t) {
     t = String(t || '').replace(/-/g, '+').replace(/_/g, '/');
@@ -3011,8 +3073,8 @@ var Alta = {
     return JSON.parse(decodeURIComponent(escape(atob(t))));
   },
   link: function () {
-    var c = DB.cfg, o = { v: 1, u: Sync.urlServidor(), t: c.sync.token || '', k: {} };
-    U.each(Alta.CAMPOS, function (k) { if (c[k] != null && c[k] !== '') o.k[k] = c[k]; });
+    var o = { v: 1, t: DB.cfg.sync.token || '' }, u = Sync.urlServidor();
+    if (!(window.SAT_CONFIG && SAT_CONFIG.API_URL === u)) o.u = u;
     var base = String(location.href).replace(/#.*$/, '').replace(/\?.*$/, '');
     return base + '#alta=' + Alta.cod(o);
   },
@@ -3022,29 +3084,29 @@ var Alta = {
     var o = null;
     try { o = Alta.dec(m[1]); } catch (e) { o = null; }
     try { history.replaceState(null, '', String(location.href).replace(/#.*$/, '')); } catch (e2) { location.hash = ''; }
-    if (!o || o.v !== 1) { setTimeout(function () { UI.toast('Link de alta inválido o incompleto', 'error', 5000); }, 300); return false; }
+    if (!o || o.v !== 1) { setTimeout(function () { UI.toast('Enlace inválido o incompleto. Pida uno nuevo al administrador.', 'error', 5000); }, 300); return false; }
     var c = DB.cfg, s = c.sync;
     if (o.u && /^https:\/\/script\.google(usercontent)?\.com\//.test(o.u)) s.url = (window.SAT_CONFIG && SAT_CONFIG.API_URL === o.u) ? '' : o.u;
-    if (o.t) s.token = o.t;
-    U.each(Alta.CAMPOS, function (k) { if (o.k && o.k[k] != null) c[k] = U.clone(o.k[k]); });
+    if (o.t) { s.token = o.t; s.sinConexion = false; }
+    if (o.k) U.each(Compartida.CAMPOS, function (k) { if (o.k[k] != null) c[k] = U.clone(o.k[k]); });
     s.ultimoError = ''; s.intentosFallidos = 0;
     DB.guardarCfg();
-    setTimeout(function () { UI.toast('Equipo configurado desde link de alta', 'ok', 4000); }, 300);
+    setTimeout(function () { UI.toast('Equipo conectado con el enlace para colaboradores', 'ok', 4000); }, 300);
     return true;
   },
   compartir: function () {
-    if (!Sync.urlServidor() || !DB.cfg.sync.token) { UI.toast('Primero configure URL y clave en este equipo', 'error', 4000); return; }
+    if (!Sync.urlServidor() || !DB.cfg.sync.token) { UI.toast('Primero conecte este equipo: DATOS › Sincronización › clave de acceso', 'error', 4500); return; }
     var l = Alta.link();
-    UI.modal({ titulo: 'Link de alta para otro equipo',
-      html: '<div class="msg">Abra este link en el equipo nuevo y quedará configurado: conexión, clave de acceso, contraseña de DATOS, couriers, WhatsApp y formato de etiqueta.</div>' +
-        '<div class="aviso amar">El link incluye la clave de acceso. Envíelo solo al personal autorizado.</div>' +
-        '<textarea id="altaLink" class="inp" readonly style="min-height:110px;font-size:12px">' + U.esc(l) + '</textarea>',
+    UI.modal({ titulo: 'Enlace para colaboradores',
+      html: '<div class="msg">Envíelo al colaborador. Al abrirlo en su equipo (en el navegador que usará) queda conectado sin escribir nada; la configuración común se descarga sola.</div>' +
+        '<div class="aviso amar">El enlace contiene la clave de acceso. Envíelo solo al personal autorizado.</div>' +
+        '<textarea id="altaLink" class="inp" readonly style="min-height:90px;font-size:12px">' + U.esc(l) + '</textarea>',
       botones: [
-        { txt: 'ENVIAR POR WHATSAPP', cls: 'btn-ok', fn: function () { window.location.href = 'https://wa.me/?text=' + encodeURIComponent('Link de alta Satélite RD Músico (abrir en el equipo nuevo):\n' + l); return false; } },
+        { txt: 'ENVIAR POR WHATSAPP', cls: 'btn-ok', fn: function () { window.location.href = 'https://wa.me/?text=' + encodeURIComponent('Enlace Satélite RD Músico (ábrelo en tu equipo, en Chrome):\n' + l); return false; } },
         { txt: 'COPIAR', cls: 'btn-sec', fn: function () {
           var ta = U.$('altaLink'), ok = false;
           try { ta.focus(); ta.select(); ta.setSelectionRange(0, 99999); ok = document.execCommand('copy'); } catch (e) {}
-          UI.toast(ok ? 'Link copiado' : 'Mantenga presionado el texto para copiarlo', ok ? 'ok' : 'warn', 3500); return false;
+          UI.toast(ok ? 'Enlace copiado' : 'Mantenga presionado el texto para copiarlo', ok ? 'ok' : 'warn', 3500); return false;
         } },
         { txt: 'CERRAR', cls: 'btn-sec' }
       ] });
@@ -3950,7 +4012,13 @@ CatUI.importar = function (alFin) {
 Pantallas.datos = function (m) {
   var c = DB.cfg, nb = 0;
   U.each(OT.lista, function (o) { nb += o.bultos.length; });
-  var h = '<div class="card"><h2>Configuración</h2>' +
+  var enl = Sync.urlServidor() && c.sync.token ? Alta.link() : '';
+  var h = '<div class="card"><h2>Enlace para colaboradores</h2>' +
+    (enl ? '<div class="muted" style="margin-bottom:6px">Compártalo con quien deba usar el Satélite: al abrirlo, su equipo queda conectado sin escribir clave. Contiene la clave de acceso; envíelo solo a personal autorizado.</div>' +
+      '<input id="cfEnl" class="inp sm" readonly value="' + U.esc(enl) + '" style="font-size:12px">' +
+      '<div class="btns"><button class="btn btn-ok btn-sm" data-a="enlWsp">ENVIAR POR WHATSAPP</button><button class="btn btn-sec btn-sm" data-a="enlCopiar">COPIAR</button></div>'
+      : '<div class="aviso amar">Este equipo aún no está conectado. Ingrese la clave de acceso en <b>Sincronización</b> (más abajo) para generar el enlace.</div>') + '</div>' +
+    '<div class="card"><h2>Configuración</h2>' +
     '<label class="lbl">NOMBRE EMPRESA</label><input id="cfEmp" class="inp sm" value="' + U.esc(c.empresa) + '">' +
     '<label class="lbl">SUBTÍTULO VOUCHER</label><input id="cfSub" class="inp sm" value="' + U.esc(c.subtitulo) + '">' +
     '<label class="lbl">FACTOR VOLUMÉTRICO (cm³/kg)</label><input id="cfFv" class="inp sm" type="number" min="1000" max="10000" step="1" value="' + c.factorVol + '">' +
@@ -3976,7 +4044,6 @@ Pantallas.datos = function (m) {
     '<button class="btn" data-a="syGuardar">GUARDAR CONEXIÓN</button>' +
     '<div class="btns"><button class="btn btn-ok btn-sm" data-a="syAhora">SINCRONIZAR AHORA</button><button class="btn btn-sec btn-sm" data-a="syProbar">PROBAR</button></div>' +
     '<button class="btn btn-sec btn-sm" data-a="syTodo">VOLVER A DESCARGAR TODO</button>' +
-    '<button class="btn btn-sec btn-sm" data-a="syAlta">LINK DE ALTA PARA OTRO EQUIPO</button>' +
     '<div class="muted">Equipo: ' + U.esc(sy.dispositivo) + '</div></div>';
   h += '<div class="card"><h2>Respaldo</h2>' +
     '<div class="tot">OT: <b>' + OT.lista.length + '</b> · Bultos: <b>' + nb + '</b> · Productos: <b>' + Catalogo.lista.length + '</b> · Formatos: <b>' + DB.formatos.length + '</b><br>' +
@@ -4035,6 +4102,7 @@ Pantallas.datos = function (m) {
       c.equipo = U.norm(U.$('cfEq').value).replace(/[^A-Z0-9]/g, '');
       if (U.$('cfWsp')) c.whatsapp = String(U.$('cfWsp').value || '').replace(/[^0-9]/g, '');
       DB.guardarCfg();
+      Compartida.subir(function (ok) { if (ok) UI.toast('Configuración guardada y compartida con todos los equipos', 'ok', 3500); });
       if (cambioFv) { var n = OT.recalcularPesoVol(); UI.toast('Guardado. Peso volumétrico recalculado en ' + n + ' bulto(s).', 'ok', 3500); }
       else UI.toast('Configuración guardada', 'ok');
     },
@@ -4046,8 +4114,11 @@ Pantallas.datos = function (m) {
         c.sync.url = u;
       }
       c.sync.token = U.trim(U.$('syTok').value);
+      c.sync.sinConexion = false;
       c.sync.ultimoError = '';
       c.sync.intentosFallidos = 0;
+      Activacion.avisado = false;
+      if (c.sync.token) Compartida.bajar();
       DB.guardarCfg();
       UI.toast('Conexión guardada', 'ok');
       App.ir('datos');
@@ -4060,6 +4131,12 @@ Pantallas.datos = function (m) {
       Sync.ejecutar(function (ok, msg) { UI.toast(ok ? 'Sincronizado' : 'Error: ' + msg, ok ? 'ok' : 'error', 4000); if (App.pantalla === 'datos' && !UI.abierto()) App.ir('datos'); });
     },
     syAlta: function () { Alta.compartir(); },
+    enlWsp: function () { window.location.href = 'https://wa.me/?text=' + encodeURIComponent('Enlace Satélite RD Músico (ábrelo en tu equipo, en Chrome):\n' + U.$('cfEnl').value); },
+    enlCopiar: function () {
+      var i = U.$('cfEnl'), ok = false;
+      try { i.focus(); i.select(); i.setSelectionRange(0, 99999); ok = document.execCommand('copy'); } catch (e) {}
+      UI.toast(ok ? 'Enlace copiado' : 'Mantenga presionado el enlace para copiarlo', ok ? 'ok' : 'warn', 3500);
+    },
     syProbar: function () {
       if (Sync.modo() === 'local') { UI.toast('Sin conexión configurada', 'error'); return; }
       Sync.llamar('satInfo', {}, function (r) {
