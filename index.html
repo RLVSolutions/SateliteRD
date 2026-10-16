@@ -422,7 +422,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.7.0', build: '2026-10-15', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.7.1', build: '2026-10-16', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -574,7 +574,7 @@ var StorageManager = (function () {
 
 var CONFIG_DEFECTO = {
   empresa: 'RD MUSICO', subtitulo: 'CONTROL BULTOS', factorVol: 5000,
-  facturaNumerica: true, barraBulto: true, autoImprimir: false,
+  facturaNumerica: true, barraBulto: true, autoImprimir: false, metodoImpresion: 'documento',
   otActivaId: null, contadoresOT: {},
   formatoRapida: 'prod-58-std', formatoRotulo: 'prod-58-std', formatoBulto: 'bul-60x29', escaneoImprime: false,
   rotuloLibre: null,
@@ -1824,32 +1824,101 @@ var Code128 = (function () {
 })();
 
 var Impresion = {
+  FONDO: '<svg class="pgf" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 10 10"><rect x="0" y="0" width="10" height="10" fill="#ffffff"/></svg>',
+  CSS: 'html,body{margin:0!important;padding:0!important;background:#fff!important;color:#000!important;color-scheme:light only}' +
+    '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}' +
+    '.pg{position:relative;z-index:0;box-sizing:border-box;overflow:hidden;background:#fff;page-break-after:always;break-after:page}' +
+    '.pg:last-child{page-break-after:auto;break-after:auto}' +
+    '.pg>.pgf{position:absolute;left:0;top:0;width:100%;height:100%;z-index:-1;display:block}' +
+    '.pg .hoja{page-break-after:auto!important;break-after:auto!important;background:transparent!important;margin:0 auto}' +
+    '.pg svg rect{shape-rendering:crispEdges}',
+  metodo: function () { return DB.cfg.metodoImpresion === 'pagina' ? 'pagina' : 'documento'; },
+  estilos: function () {
+    var t = '', st = document.getElementsByTagName('style');
+    for (var i = 0; i < st.length; i++) if (st[i].id !== 'pageRule' && st[i].id !== 'rdmPrintCss') t += st[i].innerHTML + '\n';
+    return t;
+  },
+  paginas: function (html, tipo, ancho, alto, margen) {
+    var tmp = document.createElement('div'), out = '', hojas, i;
+    tmp.innerHTML = html;
+    hojas = U.qa(tmp, '.hoja');
+    if (!hojas.length) { tmp.innerHTML = '<div class="hoja">' + html + '</div>'; hojas = U.qa(tmp, '.hoja'); }
+    for (i = 0; i < hojas.length; i++) {
+      var st = tipo === 'troquel' ? 'width:' + ancho + 'mm;height:' + alto + 'mm' : (tipo === 'a4' ? 'width:100%' : 'width:' + ancho + 'mm;padding:' + margen + 'mm');
+      out += '<div class="pg" style="' + st + '">' + (tipo === 'a4' ? '' : Impresion.FONDO) + hojas[i].outerHTML + '</div>';
+    }
+    return out;
+  },
+  asegurarCss: function () {
+    if (U.$('rdmPrintCss')) return;
+    var st = document.createElement('style');
+    st.id = 'rdmPrintCss';
+    st.innerHTML = Impresion.CSS.replace(/html,body\{[^}]*\}/, '');
+    document.getElementsByTagName('head')[0].appendChild(st);
+  },
+  medirAlto: function (paginas, ancho) {
+    Impresion.asegurarCss();
+    var area = U.$('printArea'), h = 0;
+    area.className = 'midiendo';
+    area.innerHTML = paginas;
+    var pg = U.qa(area, '.pg');
+    for (var i = 0; i < pg.length; i++) if (pg[i].offsetHeight > h) h = pg[i].offsetHeight;
+    area.className = '';
+    return Math.max(20, Math.ceil(h / MM_PX) + 1);
+  },
+  documento: function (paginas, css) {
+    return '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="color-scheme" content="light only"><title>Impresión</title><style>' + Impresion.estilos() + '</style><style>' + Impresion.CSS + '</style><style>' + css + '</style></head><body>' + paginas + '</body></html>';
+  },
   imprimir: function (html, op) {
     op = op || {};
-    var tipo = op.tipo || 'rollo', ancho = op.ancho || 58, margen = op.margen == null ? 2 : op.margen;
-    var area = U.$('printArea'), css;
-    area.className = 'pa-' + tipo;
-    area.innerHTML = html;
-    if (tipo === 'a4') css = '@page { size: A4 portrait; margin: 12mm; }';
-    else if (tipo === 'troquel') css = '@page { size: ' + ancho + 'mm ' + op.alto + 'mm; margin: 0; }';
+    var tipo = op.tipo || 'rollo', ancho = op.ancho || 58, margen = op.margen == null ? 2 : op.margen, css, paginas;
+    if (tipo === 'a4') { paginas = Impresion.paginas(html, 'a4'); css = '@page{size:A4 portrait;margin:12mm}'; }
+    else if (tipo === 'troquel') { paginas = Impresion.paginas(html, 'troquel', ancho, op.alto); css = '@page{size:' + ancho + 'mm ' + op.alto + 'mm;margin:0}'; }
     else {
-      area.className = 'pa-rollo midiendo';
-      var hojas = U.qa(area, '.hoja'), h = 0;
-      for (var i = 0; i < hojas.length; i++) if (hojas[i].offsetHeight > h) h = hojas[i].offsetHeight;
-      area.className = 'pa-rollo';
-      var altoMm = Math.ceil(h / MM_PX) + 2 * margen + 1;
-      if (altoMm < 20) altoMm = 20;
-      css = '@page { size: ' + ancho + 'mm ' + altoMm + 'mm; margin: ' + margen + 'mm; }';
+      paginas = Impresion.paginas(html, 'rollo', ancho, 0, margen);
+      var altoMm = Impresion.medirAlto(paginas, ancho);
+      paginas = paginas.replace(/class="pg" style="/g, 'class="pg" style="height:' + altoMm + 'mm;');
+      css = '@page{size:' + ancho + 'mm ' + altoMm + 'mm;margin:0}';
     }
-    U.$('pageRule').innerHTML = css;
+    var doc = Impresion.documento(paginas, css), area = U.$('printArea');
+    Impresion.ultimoDoc = doc;
+    area.className = 'pa-' + tipo;
+    area.innerHTML = paginas;
+    Impresion.asegurarCss();
+    U.$('pageRule').innerHTML = css + '@media print{html,body{background:#fff!important;color-scheme:light only}}';
+    var fin = function () { if (op.despues) setTimeout(op.despues, 50); };
     if (typeof window.RDM_PRINT_BRIDGE === 'function') {
-      try { window.RDM_PRINT_BRIDGE(area.innerHTML, { tipo: tipo, ancho: ancho, css: css }); if (op.despues) op.despues(); return; }
-      catch (e) {}
+      try { window.RDM_PRINT_BRIDGE(paginas, { tipo: tipo, ancho: ancho, css: css, documento: doc }); fin(); return; } catch (e) {}
     }
-    setTimeout(function () {
-      try { window.print(); } catch (e) { UI.toast('Este navegador no permite imprimir', 'error'); }
-      if (op.despues) setTimeout(op.despues, 50);
-    }, 60);
+    if (Impresion.metodo() === 'pagina') { setTimeout(function () { try { window.print(); } catch (e) { UI.toast('Este navegador no permite imprimir', 'error'); } fin(); }, 60); return; }
+    var vieja = U.$('rdmPrintFrame');
+    if (vieja) vieja.parentNode.removeChild(vieja);
+    var fr = document.createElement('iframe');
+    fr.id = 'rdmPrintFrame';
+    fr.setAttribute('aria-hidden', 'true');
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none';
+    document.body.appendChild(fr);
+    var w = fr.contentWindow, d = w.document, hecho = false;
+    var lanzar = function () {
+      if (hecho) return; hecho = true;
+      setTimeout(function () {
+        try { w.focus(); w.print(); }
+        catch (e) { try { window.print(); } catch (e2) { UI.toast('Este navegador no permite imprimir', 'error'); } }
+        fin();
+      }, 120);
+    };
+    d.open(); d.write(doc); d.close();
+    if (d.readyState === 'complete') lanzar(); else { fr.onload = lanzar; setTimeout(lanzar, 800); }
+  },
+  prueba: function (ancho) {
+    var g = '';
+    for (var i = 0; i <= 4; i++) g += '<svg xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:5mm;margin-top:1mm" viewBox="0 0 10 1" preserveAspectRatio="none"><rect width="10" height="1" fill="rgb(' + (i * 60) + ',' + (i * 60) + ',' + (i * 60) + ')"/></svg>';
+    var h = '<div class="hoja" style="font-family:Arial,sans-serif;text-align:center;width:' + (ancho - 4) + 'mm">' +
+      '<div style="font-size:14pt;font-weight:bold;border-bottom:2px solid #000;padding-bottom:1mm">PRUEBA DE IMPRESIÓN</div>' +
+      '<div style="font-size:10pt;margin-top:1mm">' + U.esc(APP.nombre + ' ' + APP.version) + '<br>' + U.fechaCL(U.fechaISO()) + ' ' + U.hora() + '<br>Método: ' + (Impresion.metodo() === 'pagina' ? 'página completa' : 'documento dedicado') + '</div>' +
+      '<div style="font-size:9pt;margin-top:2mm;text-align:left">El fondo de esta tira debe salir BLANCO, sin marco ni franjas negras. Las barras van de negro a gris claro.</div>' + g +
+      Code128.svg('PRUEBA-123', 11, true) + '</div>';
+    Impresion.imprimir(h, { tipo: 'rollo', ancho: ancho, margen: 2 });
   }
 };
 
@@ -4505,6 +4574,8 @@ Pantallas.datos = function (m) {
     '<label class="lbl" for="cfFb">FORMATO ETIQUETA DE BULTO (por defecto)</label><select id="cfFb" class="inp sm">' + U.map(FORMATOS_BULTO, function (f) { return '<option value="' + f.id + '"' + (f.id === Plantillas.formatoBulto(c.formatoBulto).id ? ' selected' : '') + '>' + U.esc(f.nombre + ' · ' + f.detalle) + '</option>'; }).join('') + '</select>' +
     '<label class="chk"><input type="checkbox" id="cfBb"' + (c.barraBulto ? ' checked' : '') + '> Código de barras (Orden) en etiqueta de bulto (solo formato rollo 58 mm)</label>' +
     '<label class="chk"><input type="checkbox" id="cfAi"' + (c.autoImprimir ? ' checked' : '') + '> Imprimir etiqueta al agregar bulto</label>' +
+    '<label class="lbl">MÉTODO DE IMPRESIÓN</label><select id="cfMi" class="inp sm"><option value="documento"' + (c.metodoImpresion !== 'pagina' ? ' selected' : '') + '>Documento dedicado con fondo blanco (recomendado)</option><option value="pagina"' + (c.metodoImpresion === 'pagina' ? ' selected' : '') + '>Página completa (método anterior)</option></select>' +
+    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="prueba58">PRUEBA 58 mm</button><button class="btn btn-sec btn-sm" data-a="prueba80">PRUEBA 80 mm</button></div>' +
     '<label class="lbl">COURIERS (uno por línea)</label><textarea id="cfCou" class="inp" style="min-height:120px;font-family:Arial,sans-serif;font-size:15px">' + U.esc(c.couriers.join('\n')) + '</textarea>' +
     '<label class="lbl">CLAVE ADMINISTRADOR (acciones forzosas)</label><input id="cfAdm" class="inp sm" type="password" value="' + U.esc(c.claveAdmin || '') + '">' +
     '<label class="lbl">NOMBRE DE QUIEN AUTORIZA (por defecto)</label><input id="cfAdmNom" class="inp sm" value="' + U.esc(c.nombreAdmin || '') + '">' +
@@ -4564,6 +4635,8 @@ Pantallas.datos = function (m) {
       } }] });
   };
   UI.delegar(m, {
+    prueba58: function () { if (U.$('cfMi')) { DB.cfg.metodoImpresion = U.$('cfMi').value; DB.guardarCfg(); } Impresion.prueba(58); },
+    prueba80: function () { if (U.$('cfMi')) { DB.cfg.metodoImpresion = U.$('cfMi').value; DB.guardarCfg(); } Impresion.prueba(80); },
     guardarCfg: function () {
       var fv = parseInt(U.$('cfFv').value, 10);
       if (!(fv >= 1000 && fv <= 10000)) { UI.toast('Factor volumétrico entre 1000 y 10000', 'error'); return; }
@@ -4574,6 +4647,7 @@ Pantallas.datos = function (m) {
       c.barraBulto = U.$('cfBb').checked;
       if (U.$('cfFb')) c.formatoBulto = U.$('cfFb').value;
       c.autoImprimir = U.$('cfAi').checked;
+      if (U.$('cfMi')) c.metodoImpresion = U.$('cfMi').value;
       var cous = [];
       U.each(U.$('cfCou').value.split(/\r?\n/), function (x) { x = U.norm(x); if (x && cous.indexOf(x) < 0) cous.push(x); });
       if (cous.length) c.couriers = cous;
