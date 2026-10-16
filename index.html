@@ -125,6 +125,23 @@ textarea.inp { height: auto; min-height: 90px; font-size: 14px; font-family: "Co
 .subtabs button.on { background: #111; color: #ffd400; }
 .prev { background: #9aa; padding: 10px; border-radius: 6px; overflow: auto; }
 .prev .hoja { background: #fff; margin: 0 auto 8px; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.ubi { display: inline-block; background: #ffd400; color: #000; border: 2px solid #111; border-radius: 5px; padding: 1px 8px; font-size: 16px; font-weight: bold; letter-spacing: .5px; }
+.ubi.nada { background: #fff; color: #888; border-color: #bbb; font-size: 12px; font-weight: normal; }
+.medl { font-size: 13px; color: #111; margin-top: 3px; }
+.medl b { font-size: 15px; }
+.tag { display: inline-block; font-size: 11px; font-weight: bold; padding: 1px 6px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+.tag.est { background: #ffe9c7; color: #7a4200; }
+.tag.bod { background: #d8f2df; color: #0a5c1c; }
+.tag.rev { background: #ffd9d9; color: #8c0000; }
+.prs { border: 2px solid #0b4fb3; border-radius: 6px; margin-top: 4px; background: #fff; max-height: 330px; overflow-y: auto; }
+.prs .pr { padding: 7px 8px; border-bottom: 1px solid #ccc; cursor: pointer; }
+.prs .pr:last-child { border-bottom: 0; }
+.prs .pr:active, .prs .pr.on { background: #fffbe0; }
+.prs .pr .d { font-weight: bold; font-size: 15px; }
+.prs .pr .s { font-size: 12px; color: #333; margin-top: 2px; }
+.prsel { background: #eef4ff; border: 2px solid #0b4fb3; border-radius: 6px; padding: 8px; margin-top: 6px; }
+.prsel .d { font-weight: bold; font-size: 15px; }
+.cmp td.dif { background: #ffe9c7; font-weight: bold; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
 .tbl th, .tbl td { border: 1px solid #999; padding: 3px; text-align: left; }
 .tbl th { background: #222; color: #fff; }
@@ -405,8 +422,8 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.6.0', build: '2026-10-13', formatoRespaldo: 4 };
-var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos' };
+var APP = { nombre: 'RDMusico Packing', version: '2.7.0', build: '2026-10-15', formatoRespaldo: 4 };
+var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
 var MM_PX = 3.7795;
@@ -605,6 +622,7 @@ var DB = {
     Pedidos.cargar();
     CubPool.cargar();
     Catalogo.cargar();
+    Medidas.cargar();
   },
   guardarCfg: function () { return StorageManager.guardar(CLAVES.config, DB.cfg); },
   guardarFormatos: function () { return StorageManager.guardar(CLAVES.formatos, DB.formatos); },
@@ -691,7 +709,6 @@ var Pedidos = {
     }
     if(reconocidas>=3 && mapa.numero!=null){inicio=1;}
     else {
-      // Formato operacional sin cabecera: ORIGEN | ORDEN/TICKET | TIPO DOC | N° DOC | FECHA | MONTO
       mapa={origen:0,numero:1,tipoDocumento:2,numeroDocumento:3,fecha:4,monto:5}; inicio=0;
     }
     var nuevos=0, duplicados=0, invalidos=0, agregados=[];
@@ -1036,11 +1053,13 @@ var Catalogo = {
       p._s = U.sinAcentos((p.codigo + ' ' + p.descripcion + ' ' + p.marca + ' ' + p.familia + ' ' + p.codigoBarra + ' ' + (p.ubicacion || '')).toUpperCase());
       Catalogo.idx['C:' + U.norm(p.codigo)] = i;
       if (p.codigoBarra) Catalogo.idx['B:' + U.norm(p.codigoBarra)] = i;
+      Catalogo.idx['Z:' + Medidas.sinCeros(p.codigo)] = i;
     });
   },
   porCodigo: function (c) {
     var k = U.norm(c), i = Catalogo.idx['C:' + k];
     if (i == null) i = Catalogo.idx['B:' + k];
+    if (i == null) i = Catalogo.idx['Z:' + Medidas.sinCeros(c)];
     return i == null ? null : Catalogo.lista[i];
   },
   buscar: function (q, max) {
@@ -1059,7 +1078,7 @@ var Catalogo = {
     if (!p.codigo) return 'El código es obligatorio.';
     if (!p.descripcion) return 'La descripción es obligatoria.';
     var ex = Catalogo.porCodigo(p.codigo);
-    if (ex && U.norm(ex.codigo) === U.norm(p.codigo) && U.norm(p.codigo) !== U.norm(codigoOriginal || '')) return 'Ya existe un producto con ese código.';
+    if (ex && Medidas.sinCeros(ex.codigo) === Medidas.sinCeros(p.codigo) && U.norm(p.codigo) !== U.norm(codigoOriginal || '')) return 'Ya existe un producto con ese código.';
     if (codigoOriginal) {
       var i = U.findIdx(Catalogo.lista, function (x) { return U.norm(x.codigo) === U.norm(codigoOriginal); });
       if (i >= 0) Catalogo.lista[i] = p; else Catalogo.lista.push(p);
@@ -1095,6 +1114,250 @@ var Catalogo = {
   esBarcodeValido: function (v) {
     var s = U.trim(v), d = s.replace(/\D/g, '');
     return d.length >= 8 && d.length / s.length > 0.6;
+  }
+};
+
+var MED_CAMPOS = ['codigo', 'descripcion', 'bultos', 'ancho', 'alto', 'largo', 'peso', 'pesoExacto', 'origenPeso', 'anchoProd', 'altoProd', 'largoProd', 'pesoProd', 'claseEmbalaje', 'referenciaCaja', 'revisar', 'fuente', 'actualizado', 'usuario', 'dispositivo'];
+var MED_NUM = { bultos: 1, ancho: 1, alto: 1, largo: 1, peso: 1, pesoExacto: 1, anchoProd: 1, altoProd: 1, largoProd: 1, pesoProd: 1 };
+var Medidas = {
+  lista: [], idx: {}, ceros: {}, actualizado: '',
+  cod: function (c) { return U.trim(c).replace(/\s+/g, '').toUpperCase(); },
+  sinCeros: function (c) { var k = Medidas.cod(c); return /^\d+$/.test(k) ? (k.replace(/^0+/, '') || '0') : k; },
+  limpio: function (o) {
+    var r = {};
+    U.each(MED_CAMPOS, function (k) {
+      var v = o[k];
+      if (MED_NUM[k]) { var n = U.num(v); r[k] = isFinite(n) && n >= 0 && v !== '' && v != null ? U.red(n, 3) : ''; }
+      else r[k] = U.trim(v);
+    });
+    return r;
+  },
+  cargar: function () {
+    var raw = StorageManager.leer(CLAVES.medidas, null), l = [];
+    if (raw && U.esArray(raw.filas)) {
+      var c = U.esArray(raw.campos) ? raw.campos : MED_CAMPOS;
+      U.each(raw.filas, function (f) { var o = {}; U.each(c, function (k, i) { o[k] = f[i]; }); l.push(Medidas.limpio(o)); });
+      Medidas.actualizado = raw.actualizado || '';
+    }
+    Medidas.lista = l; Medidas.reindex();
+  },
+  guardar: function () {
+    return StorageManager.guardar(CLAVES.medidas, { v: 1, campos: MED_CAMPOS, actualizado: Medidas.actualizado || '', filas: U.map(Medidas.lista, function (o) { return U.map(MED_CAMPOS, function (k) { return o[k] == null ? '' : o[k]; }); }) });
+  },
+  reindex: function () {
+    Medidas.idx = {}; Medidas.ceros = {};
+    U.each(Medidas.lista, function (m, i) {
+      m._s = U.sinAcentos((m.codigo + ' ' + m.descripcion).toUpperCase());
+      Medidas.idx[Medidas.cod(m.codigo)] = i;
+      Medidas.ceros[Medidas.sinCeros(m.codigo)] = i;
+    });
+  },
+  porCodigo: function (c) {
+    var i = Medidas.idx[Medidas.cod(c)];
+    if (i == null) i = Medidas.ceros[Medidas.sinCeros(c)];
+    return i == null ? null : Medidas.lista[i];
+  },
+  reemplazar: function (campos, filas, act) {
+    var l = [];
+    U.each(filas, function (f) { var o = {}; U.each(campos, function (k, i) { o[k] = f[i]; }); o = Medidas.limpio(o); if (o.codigo) l.push(o); });
+    var previo = Medidas.lista;
+    Medidas.lista = l; Medidas.actualizado = act || new Date().toISOString(); Medidas.reindex();
+    if (!Medidas.guardar()) { Medidas.lista = previo; Medidas.reindex(); return false; }
+    Catalogo.reindex();
+    return true;
+  },
+  fusionarLocal: function (filas, modo) {
+    var r = { nuevos: 0, actualizados: 0, protegidos: 0 }, previo = Medidas.lista;
+    if (modo === 'reemplazar') { Medidas.lista = U.filter(Medidas.lista, function (m) { return m.fuente === 'BODEGA'; }); Medidas.reindex(); }
+    else Medidas.lista = Medidas.lista.slice(0);
+    var ahora = new Date().toISOString();
+    U.each(filas, function (o) {
+      var ex = Medidas.porCodigo(o.codigo);
+      if (ex && ex.fuente === 'BODEGA') { r.protegidos++; return; }
+      var n = Medidas.limpio(U.assign(U.assign({}, ex || {}), o)); n.fuente = 'ARCHIVO'; n.actualizado = ahora;
+      if (ex) { n.codigo = ex.codigo; Medidas.lista[U.findIdx(Medidas.lista, function (x) { return x === ex; })] = n; r.actualizados++; }
+      else { Medidas.lista.push(n); Medidas.idx[Medidas.cod(n.codigo)] = Medidas.lista.length - 1; Medidas.ceros[Medidas.sinCeros(n.codigo)] = Medidas.lista.length - 1; r.nuevos++; }
+    });
+    Medidas.reindex();
+    if (!Medidas.guardar()) { Medidas.lista = previo; Medidas.reindex(); return null; }
+    Catalogo.reindex();
+    return r;
+  },
+  aplicar: function (o) {
+    var n = Medidas.limpio(o), ex = Medidas.porCodigo(n.codigo);
+    if (ex) Medidas.lista[U.findIdx(Medidas.lista, function (x) { return x === ex; })] = n; else Medidas.lista.push(n);
+    Medidas.reindex();
+  },
+  tiene: function (m) { return !!(m && m.ancho && m.alto && m.largo); },
+  estimado: function (m) { return !!(m && m.fuente !== 'BODEGA' && !(m.pesoExacto > 0)); },
+  texto: function (m) {
+    if (!Medidas.tiene(m) && !(m && m.peso)) return '';
+    return (Medidas.tiene(m) ? m.ancho + '×' + m.alto + '×' + m.largo + ' cm' : 'sin medidas') + (m.peso ? ' · ' + String(U.red(m.peso, 2)).replace('.', ',') + ' kg' : '') + (m.bultos > 1 ? ' · ' + m.bultos + ' bultos' : '');
+  },
+  etiqueta: function (m) {
+    if (!m) return '';
+    if (m.fuente === 'BODEGA') return '<span class="tag bod">MEDIDO EN BODEGA</span>';
+    return (Medidas.estimado(m) ? '<span class="tag est">ESTIMADO</span>' : '<span class="tag bod">FABRICANTE</span>') + (U.trim(m.revisar) ? '<span class="tag rev">REVISAR</span>' : '');
+  }
+};
+
+var Productos = {
+  ficha: function (cod) {
+    var c = Catalogo.porCodigo(cod), m = (c && Medidas.porCodigo(c.codigo)) || (c && c.codigoBarra && Medidas.porCodigo(c.codigoBarra)) || Medidas.porCodigo(cod);
+    if (!c && !m) return null;
+    return { codigo: c ? c.codigo : m.codigo, descripcion: (c && c.descripcion) || (m && m.descripcion) || '', marca: c ? c.marca : '', familia: c ? c.familia : '', codigoBarra: c ? c.codigoBarra : '', precio: c ? c.precio : 0, ubicacion: c ? c.ubicacion : '', cat: c, med: m };
+  },
+  buscar: function (q, filtro) {
+    q = U.sinAcentos(U.norm(q));
+    var t = q ? q.split(' ') : [], exactos = [], pri = [], res = [], vistos = {};
+    var pasa = function (s) { for (var i = 0; i < t.length; i++) if (s.indexOf(t[i]) < 0) return false; return true; };
+    var ok = function (f) {
+      if (filtro === 'sinubi') return f.cat && !U.trim(f.ubicacion);
+      if (filtro === 'sinmed') return !Medidas.tiene(f.med);
+      if (filtro === 'estim') return Medidas.tiene(f.med) && Medidas.estimado(f.med);
+      if (filtro === 'bodega') return f.med && f.med.fuente === 'BODEGA';
+      return true;
+    };
+    var poner = function (f, cod, barra) {
+      if (!ok(f)) return;
+      var k = Medidas.sinCeros(f.codigo); if (vistos[k]) return; vistos[k] = 1;
+      if (q && (Medidas.cod(cod) === q.replace(/\s+/g, '') || Medidas.sinCeros(cod) === Medidas.sinCeros(q) || (barra && Medidas.cod(barra) === q.replace(/\s+/g, '')))) exactos.push(f);
+      else if (q && U.norm(cod).indexOf(q) === 0) pri.push(f); else res.push(f);
+    };
+    if (q && q.indexOf(' ') < 0) { var fx = Productos.ficha(q); if (fx) poner(fx, q, ''); }
+    U.each(Catalogo.lista, function (p) {
+      if (t.length && !pasa(p._s)) { var mm = Medidas.porCodigo(p.codigo) || (p.codigoBarra && Medidas.porCodigo(p.codigoBarra)); if (!mm || !pasa(mm._s)) return; }
+      poner(Productos.ficha(p.codigo), p.codigo, p.codigoBarra);
+    });
+    U.each(Medidas.lista, function (m) { if (Catalogo.porCodigo(m.codigo)) return; if (vistos[Medidas.sinCeros(m.codigo)]) return; if (!t.length || pasa(m._s)) poner(Productos.ficha(m.codigo), m.codigo, ''); });
+    return exactos.concat(pri, res);
+  },
+  linea: function (f) {
+    var med = Medidas.texto(f.med);
+    return '<span class="' + (U.trim(f.ubicacion) ? 'ubi' : 'ubi nada') + '">' + (U.trim(f.ubicacion) ? U.esc(f.ubicacion) : 'SIN UBICACIÓN') + '</span> ' +
+      (med ? '<span class="medl"><b>' + U.esc(med) + '</b>' + Medidas.etiqueta(f.med) + '</span>' : '<span class="muted">sin medidas</span>');
+  }
+};
+
+var ProdSync = {
+  _ult: 0, _enCurso: false,
+  activo: function () { return Sync.modo() !== 'local'; },
+  operador: function () { return U.trim(DB.cfg.operador || ''); },
+  actualizar: function (cb, forzar) {
+    if (!ProdSync.activo() || ProdSync._enCurso) { if (cb) cb(false); return; }
+    var ahora = +new Date();
+    if (!forzar && ahora - ProdSync._ult < 60000) { if (cb) cb(false); return; }
+    ProdSync._ult = ahora; ProdSync._enCurso = true;
+    var fin = function (x) { ProdSync._enCurso = false; if (cb) cb(x); };
+    var desde = DB.cfg.prodDesde || '';
+    if (!Medidas.lista.length || !desde) ProdSync.bajarMedidas(function () { ProdSync._cambios(desde, fin); });
+    else ProdSync._cambios(desde, fin);
+  },
+  bajarMedidas: function (cb) {
+    Sync.llamar('satMedidas', {}, function (r) {
+      var ok = !!(r && U.esArray(r.filas) && (r.filas.length || !Medidas.lista.length) && Medidas.reemplazar(r.campos, r.filas, r.actualizado));
+      if (cb) cb(ok);
+    }, function () { if (cb) cb(false); });
+  },
+  _cambios: function (desde, cb) {
+    Sync.llamar('satProductosCambios', { desde: desde }, function (r) {
+      var n = 0;
+      U.each((r && r.cambios) || [], function (c) { if (ProdSync.aplicar(c)) n++; });
+      var fin = function () { if (n) { Catalogo.reindex(); Catalogo.guardar(); Medidas.reindex(); Medidas.guardar(); } if (r && r.servidor) { DB.cfg.prodDesde = r.servidor; DB.guardarCfg(); } cb(n > 0); };
+      if (r && r.recargarMedidas && desde) ProdSync.bajarMedidas(function (ok) { if (ok) n++; U.each(r.cambios || [], function (c) { if (c.hoja === 'MEDIDAS') ProdSync.aplicar(c); }); fin(); });
+      else fin();
+    }, function () { cb(false); });
+  },
+  aplicar: function (c) {
+    if (c.hoja === 'CATALOGO' && c.campo === 'ubicacion') { var p = Catalogo.porCodigo(c.codigo); if (p && p.ubicacion !== c.nuevo) { p.ubicacion = c.nuevo; return true; } return false; }
+    if (c.hoja === 'MEDIDAS' && MED_NUM[c.campo]) {
+      var m = Medidas.porCodigo(c.codigo);
+      if (!m) { m = Medidas.limpio({ codigo: c.codigo }); Medidas.lista.push(m); Medidas.reindex(); }
+      m[c.campo] = c.nuevo === '' ? '' : U.red(Number(c.nuevo), 3);
+      if (c.campo === 'peso') { m.origenPeso = 'Pesado en bodega'; m.pesoExacto = m.peso; }
+      m.fuente = 'BODEGA'; m.actualizado = c.fecha; m.usuario = c.usuario;
+      return true;
+    }
+    return false;
+  },
+  guardar: function (f, cambios, base, alFin, confirmar) {
+    var n = 0, k; for (k in cambios) n++;
+    if (!n) { alFin(true, 'Sin cambios'); return; }
+    if (!ProdSync.activo()) {
+      if (cambios.hasOwnProperty('ubicacion')) { if (f.cat) { f.cat.ubicacion = U.norm(cambios.ubicacion); Catalogo.reindex(); Catalogo.guardar(); } }
+      var med = U.assign(U.assign({}, f.med || { codigo: f.codigo, descripcion: f.descripcion }), {}), hay = false;
+      for (k in cambios) if (MED_NUM[k]) { med[k] = cambios[k]; hay = true; }
+      if (hay) { if (cambios.hasOwnProperty('peso')) { med.origenPeso = 'Pesado en bodega'; med.pesoExacto = cambios.peso; } med.fuente = 'BODEGA'; med.actualizado = new Date().toISOString(); med.usuario = ProdSync.operador(); Medidas.aplicar(med); Medidas.guardar(); }
+      alFin(true, 'Guardado solo en este equipo (sin conexión configurada)');
+      return;
+    }
+    if (!ProdSync.operador()) { alFin(false, 'Indique el responsable del cambio'); return; }
+    UI.toast('Guardando en la hoja…', '', 15000);
+    Sync.llamar('satProductoGuardar', { codigo: f.codigo, codigoMedida: f.med ? f.med.codigo : '', cambios: cambios, base: base, confirmar: !!confirmar, usuario: ProdSync.operador(), dispositivo: DB.cfg.sync.dispositivo,
+      producto: { descripcion: f.descripcion, marca: f.marca, familia: f.familia, precio: f.precio, codigoBarra: f.codigoBarra } }, function (r) {
+      if (r && r.conflictos && r.conflictos.length) {
+        var t = U.map(r.conflictos, function (c) { return c.campo.toUpperCase() + ': usted vio «' + (c.base === '' ? 'vacío' : c.base) + '», en la hoja ahora hay «' + (c.actual === '' ? 'vacío' : c.actual) + '»'; }).join('\n');
+        UI.confirmar('Otra persona modificó este producto mientras usted lo editaba:\n\n' + t + '\n\n¿Guardar su versión de todas formas?', function () { ProdSync.guardar(f, cambios, base, alFin, true); }, { si: 'GUARDAR MI VERSIÓN', titulo: 'Cambio simultáneo' });
+        return;
+      }
+      if (!r || !r.ok) { alFin(false, 'No se pudo guardar'); return; }
+      if (r.catalogo) {
+        var p = Catalogo.porCodigo(r.catalogo[0]);
+        if (p) p.ubicacion = r.catalogo[6] || '';
+        else { var o = {}; U.each(CAT_CAMPOS, function (c, i) { o[c] = r.catalogo[i]; }); Catalogo.lista.push(Catalogo._limpio(o)); }
+        Catalogo.reindex(); Catalogo.guardar();
+      }
+      if (r.medida) { Medidas.aplicar(r.medida); Medidas.guardar(); }
+      alFin(true, r.sinCambios ? 'Sin cambios' : 'Guardado para todos los equipos');
+    }, function (e) { alFin(false, 'No se guardó: ' + e); });
+  }
+};
+
+var MED_ALIAS = {
+  codigo: ['SKU', 'COD_PROD', 'CODIGO', 'COD', 'CODIGO_PRODUCTO', 'ITEM'],
+  descripcion: ['PRODUCTO', 'DESCRIPCION', 'DESCRIP', 'NOMBRE', 'DETALLE'],
+  bultos: ['BULTOS', 'N_BULTOS', 'CANTIDAD_BULTOS'],
+  ancho: ['ANCHO_CM', 'ANCHO', 'ANCHO_EMBALAJE_CM'],
+  alto: ['ALTO_CM', 'ALTO', 'ALTO_EMBALAJE_CM'],
+  largo: ['LARGO_CM', 'LARGO', 'LARGO_EMBALAJE_CM'],
+  peso: ['PESO_SUGERIDO_KG', 'PESO_KG', 'PESO', 'PESO_EMBALADO_KG'],
+  pesoG: ['PESO_PARA_SHOPIFY_G', 'PESO_G', 'PESO_GR'],
+  pesoExacto: ['PESO_EXACTO_FABRICANTE_KG', 'PESO_EXACTO_KG'],
+  origenPeso: ['ORIGEN_DEL_PESO_SUGERIDO', 'ORIGEN_PESO'],
+  anchoProd: ['ANCHO_PRODUCTO_SIN_EMBALAJE_CM'],
+  altoProd: ['ALTO_PRODUCTO_SIN_EMBALAJE_CM'],
+  largoProd: ['LARGO_PRODUCTO_SIN_EMBALAJE_CM'],
+  pesoProd: ['PESO_PRODUCTO_SIN_EMBALAJE_KG'],
+  claseEmbalaje: ['CLASE_DE_EMBALAJE', 'CLASE_EMBALAJE'],
+  referenciaCaja: ['REFERENCIA_DE_CAJA', 'REFERENCIA_CAJA'],
+  revisar: ['REVISAR']
+};
+var MedCSV = {
+  normCab: function (h) { return U.sinAcentos(U.trim(h)).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, ''); },
+  analizar: function (txt) {
+    var p = CSV.parse(txt), r = { filas: [], cab: [], mapa: {}, omitidas: 0, duplicados: 0, error: '', enCatalogo: 0, conMedidas: 0 };
+    if (p.filas.length < 2) { r.error = 'El archivo no tiene filas de datos.'; return r; }
+    var n = U.map(p.filas[0], MedCSV.normCab), k, a;
+    r.cab = p.filas[0];
+    for (k in MED_ALIAS) for (a = 0; a < MED_ALIAS[k].length && r.mapa[k] == null; a++) { var i = n.indexOf(MED_ALIAS[k][a]); if (i >= 0) r.mapa[k] = i; }
+    if (r.mapa.codigo == null) { r.error = 'No se encontró la columna SKU o código.'; return r; }
+    if (r.mapa.ancho == null && r.mapa.peso == null && r.mapa.pesoG == null) { r.error = 'No se encontraron columnas de medidas ni de peso.'; return r; }
+    var vistos = {};
+    U.each(p.filas.slice(1), function (f) {
+      var o = {};
+      for (k in r.mapa) o[k] = f[r.mapa[k]] == null ? '' : f[r.mapa[k]];
+      if (!U.trim(o.codigo)) { r.omitidas++; return; }
+      if ((o.peso === '' || o.peso == null) && o.pesoG !== '' && o.pesoG != null && isFinite(U.num(o.pesoG))) o.peso = U.red(U.num(o.pesoG) / 1000, 3);
+      delete o.pesoG;
+      o = Medidas.limpio(o);
+      var kc = Medidas.sinCeros(o.codigo);
+      if (vistos[kc]) { r.duplicados++; return; }
+      vistos[kc] = 1;
+      if (Catalogo.porCodigo(o.codigo)) r.enCatalogo++;
+      if (Medidas.tiene(o)) r.conMedidas++;
+      r.filas.push(o);
+    });
+    return r;
   }
 };
 
@@ -1135,7 +1398,8 @@ var CSV = {
     marca: ['MARCA', 'FABRICANTE', 'BRAND'],
     precio: ['PVENTA2', 'PVENTA', 'PRECIO', 'PRECIO_VENTA', 'UNITARIO', 'VALOR', 'P_VENTA'],
     familia: ['FAMILIA', 'CATEGORIA', 'RUBRO', 'LINEA'],
-    codigoBarra: ['CODIGO_BARRA', 'CODIGO_BARRAS', 'CODIGOBARRA', 'COD_BARRA', 'EAN', 'EAN13', 'BARRA', 'BARCODE', 'CODIGO_DE_BARRAS']
+    codigoBarra: ['CODIGO_BARRA', 'CODIGO_BARRAS', 'CODIGOBARRA', 'COD_BARRA', 'EAN', 'EAN13', 'BARRA', 'BARCODE', 'CODIGO_DE_BARRAS'],
+    ubicacion: ['UBICACION', 'UBIC', 'UBICACION_BODEGA', 'UBICACION_FISICA', 'LOCALIZACION', 'POSICION', 'UBICACION_PRODUCTO', 'BODEGA_UBICACION', 'PASILLO']
   },
   mapear: function (cab) {
     var n = U.map(cab, function (h) { return U.sinAcentos(U.norm(h)).replace(/[\s\.\-\/]+/g, '_'); }), m = {};
@@ -1191,6 +1455,16 @@ var CSV = {
     fr.readAsText(file, 'utf-8');
   },
   campo: function (v, sep) { v = String(v == null ? '' : v); return (v.indexOf(sep) >= 0 || v.indexOf('"') >= 0 || /[\r\n]/.test(v)) ? '"' + v.replace(/"/g, '""') + '"' : v; },
+  exportarProductos: function () {
+    var sep = ';', cols = ['codigo', 'descripcion', 'marca', 'familia', 'codigoBarra', 'precio', 'ubicacion', 'bultos', 'ancho', 'alto', 'largo', 'peso', 'origenPeso', 'fuente', 'actualizado', 'usuario'];
+    var l = [cols.join(sep)];
+    U.each(Productos.buscar('', ''), function (f) {
+      var m = f.med || {}, o = { codigo: f.codigo, descripcion: f.descripcion, marca: f.marca, familia: f.familia, codigoBarra: f.codigoBarra, precio: f.precio, ubicacion: f.ubicacion };
+      U.each(['bultos', 'ancho', 'alto', 'largo', 'peso', 'origenPeso', 'fuente', 'actualizado', 'usuario'], function (k) { o[k] = m[k] == null ? '' : (MED_NUM[k] && m[k] !== '' ? String(m[k]).replace('.', ',') : m[k]); });
+      l.push(U.map(cols, function (k) { return CSV.campo(o[k], sep); }).join(sep));
+    });
+    return '\ufeff' + l.join('\r\n');
+  },
   exportarCatalogo: function () {
     var sep = ';', l = ['CODIGO;DESCRIPCION;MARCA;PRECIO;FAMILIA;CODIGO_BARRA'];
     U.each(Catalogo.lista, function (p) { l.push(U.map(CAT_CAMPOS, function (k) { return CSV.campo(p[k], sep); }).join(sep)); });
@@ -1235,7 +1509,7 @@ function entrarDatos(fn) {
 
 var Sync = {
   _t: null, _enCurso: false, _cola: [],
-  FUNCIONES: ['satInfo','satSubir','satBajar','satCatalogo','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
+  FUNCIONES: ['satInfo','satSubir','satBajar','satCatalogo','satMedidas','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
   gas: function () { try { return typeof google !== 'undefined' && !!google.script && !!google.script.run; } catch (e) { return false; } },
   urlServidor: function () {
     var u = U.trim((DB.cfg && DB.cfg.sync && DB.cfg.sync.url) || '');
@@ -1487,8 +1761,6 @@ var Sync = {
     if(Sync.modo()==='local'){UI.toast('No hay conexión con la nube configurada','error',3500);return;}
     var b=U.$('hdrSyncNow'); if(b){b.className='syncnow run';b.innerHTML='↻';}
     UI.toast('Sincronizando local ↔ nube…','',2200);
-    // Solo subir cambios marcados; evita sobreescribir modificaciones remotas.
-    // Sube también pedidos y cubicaciones locales; servidor deduplica pedidos.
     Sync.llamar('satPedidosGuardar',{pedidos:Pedidos.lista,dispositivo:DB.cfg.sync.dispositivo},function(){
       Sync.llamar('satGuardarCubicaciones',{bultos:CubPool.lista,dispositivo:DB.cfg.sync.dispositivo},function(){
         Sync.ejecutar(function(ok,msg){
@@ -1960,6 +2232,7 @@ var CubPool = {
     var c = OT.calcular(d.ancho, d.alto, d.largo), a = new Date(), cub = d.cubicacionId || CubPool.siguienteId();
     var mismos = U.filter(CubPool.lista, function (x) { return x.cubicacionId === cub; });
     var b = { id: U.uid('cub-'), pedidoId: d.pedidoId || '', cubicacionId: cub, numero: mismos.length + 1, orden: U.norm(d.orden), tipoDocumento: U.norm(d.tipoDocumento || 'FACTURA'), numeroDocumento: U.norm(d.numeroDocumento), factura: U.norm(d.numeroDocumento), ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso, volumen: c.volumen, pesoVol: c.pesoVol, fecha: U.fechaISO(a), hora: U.hora(a), estado: 'DISPONIBLE', otId: '', otNumero: '', act: a.toISOString() };
+    if (d.producto) { b.producto = d.producto; b.productoDesc = d.productoDesc || ''; }
     CubPool.lista.push(b); CubPool.ultimo = { ancho: b.ancho, alto: b.alto, largo: b.largo, peso: b.peso }; CubPool.guardar(); return b;
   },
   disponibles: function (orden) { return U.filter(CubPool.lista, function (b) { return b.estado === 'DISPONIBLE' && (!orden || U.norm(b.orden) === U.norm(orden)); }); },
@@ -2178,7 +2451,8 @@ Pantallas.cubicacion = function (m) {
   var h = '<div class="otbar"><div class="n">CUBICACIÓN <span class="est ABIERTA">' + U.esc(CubUI.cubId) + '</span></div><div class="muted">Mida y registre. La OT se crea después, en Packing.</div></div>' +
     '<div class="card"><label class="lbl">PEDIDO / O.C. REGISTRADO</label><select id="cuPedido" class="inp sm">'+pedOpts+'</select><div class="muted">'+(pedSel?('Estado: <b>'+U.esc(pedSel.estado)+'</b> · '+U.esc(pedSel.origen)+' · '+U.esc(U.fechaCL(pedSel.fecha))):'Seleccione un registro o use cubicación manual.')+'</div><label class="lbl">ORDEN / TICKET</label><input id="cuOrden" class="inp" autocomplete="off" placeholder="Orden, ticket o referencia" value="'+U.esc(pedSel?pedSel.numero:'')+'" data-next="cuTipo">' +
     '<label class="lbl">TIPO DOCUMENTO</label><select id="cuTipo" class="inp sm" data-next="cuDoc">' + CubUI.tipos(pedSel&&pedSel.tipoDocumento?pedSel.tipoDocumento:CubUI.tipo) + '</select>' +
-    '<label class="lbl">N° DOCUMENTO</label><input id="cuDoc" class="inp" autocomplete="off" placeholder="Puede quedar vacío si aún no existe" value="'+U.esc(pedSel?pedSel.numeroDocumento:'')+'" data-next="cuAncho">' +
+    '<label class="lbl">N° DOCUMENTO</label><input id="cuDoc" class="inp" autocomplete="off" placeholder="Puede quedar vacío si aún no existe" value="'+U.esc(pedSel?pedSel.numeroDocumento:'')+'" data-next="cuProd">' +
+    '<label class="lbl">PRODUCTO <span class="unidad">opcional · trae medidas y ubicación</span></label><input id="cuProd" class="inp sm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre o marca" data-enter="prodEnter"><div id="cuProdRes"></div><div id="cuProdSel"></div>' +
     '<div class="fila num"><div class="c"><label class="lbl">ANCHO cm</label><input id="cuAncho" class="inp" type="number" step="any" data-next="cuAlto"></div><div class="c"><label class="lbl">ALTO cm</label><input id="cuAlto" class="inp" type="number" step="any" data-next="cuLargo"></div><div class="c"><label class="lbl">LARGO cm</label><input id="cuLargo" class="inp" type="number" step="any" data-next="cuPeso"></div></div>' +
     '<label class="lbl">PESO kg</label><input id="cuPeso" class="inp" type="number" step="any" data-enter="agregar"><div id="cuCalc" class="calc"></div>' +
     '<button class="btn btn-ok btn-xl" data-a="agregar">+ AGREGAR BULTO</button>' +
@@ -2198,16 +2472,71 @@ Pantallas.cubicacion = function (m) {
     if (U.$('cuTitulo')) U.$('cuTitulo').innerHTML = CubUI.vista === 'pendientes' ? 'BULTOS PENDIENTES DE PACKING' : 'HISTÓRICO DE BULTOS';
     if (!l.length) hh = '<div class="muted" style="padding:12px">Sin bultos.</div>';
     U.each(l, function (b) {
-      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + b.numero + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
+      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + b.numero + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + (b.productoDesc ? '<br>' + U.esc(b.productoDesc) : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
     });
     U.$('cuLista').innerHTML = hh;
   };
-  m.oninput = function (e) { if (e.target.id === 'cuAncho' || e.target.id === 'cuAlto' || e.target.id === 'cuLargo') calc(); if (e.target.id === 'cuBuscar') pintar(); };
+  var prodRes = [], tp = null;
+  var prodPintarSel = function () {
+    var f = CubUI.prod ? Productos.ficha(CubUI.prod.codigo) : null, el = U.$('cuProdSel');
+    if (!el) return;
+    if (!f) { el.innerHTML = ''; return; }
+    var est = f.med && Medidas.tiene(f.med) && Medidas.estimado(f.med);
+    el.innerHTML = '<div class="prsel"><div class="d">' + U.esc(f.descripcion) + '</div><div class="muted">' + U.esc(f.codigo) + '</div><div style="margin-top:4px">' + Productos.linea(f) + '</div>' +
+      (est ? '<div class="muted" style="margin-top:4px">Medidas estimadas: confírmelas con huincha y báscula.</div>' : '') + (f.med && f.med.bultos > 1 ? '<div class="aviso amar" style="margin:6px 0 0;font-size:13px">Este producto va en ' + f.med.bultos + ' bultos: las medidas son por bulto.</div>' : '') +
+      '<div class="btns"><button class="btn btn-sec btn-sm" data-a="prodFicha">FICHA</button>' + (Medidas.tiene(f.med) ? '<button class="btn btn-sec btn-sm" data-a="prodUsar">USAR MEDIDAS</button>' : '') + '<button class="btn btn-sec btn-sm" data-a="prodQuitar">QUITAR</button></div></div>';
+  };
+  var prodBuscar = function () {
+    var q = U.trim(U.$('cuProd').value), el = U.$('cuProdRes');
+    prodRes = q.length >= 2 ? Productos.buscar(q, '') : [];
+    if (!q || q.length < 2) { el.innerHTML = ''; return; }
+    if (!prodRes.length) { el.innerHTML = '<div class="muted" style="padding:6px 2px">Sin coincidencias' + (!Catalogo.lista.length && !Medidas.lista.length ? ': el catálogo y las medidas están vacíos en este equipo' : '') + '.</div>'; return; }
+    el.innerHTML = '<div class="prs">' + U.map(prodRes.slice(0, 8), function (f, i) {
+      return '<div class="pr" data-a="prodSel" data-x="' + i + '"><div class="d">' + U.esc(f.descripcion) + '</div><div class="s">' + U.esc(f.codigo) + ' · ' + (U.trim(f.ubicacion) ? '<b>' + U.esc(f.ubicacion) + '</b>' : 'sin ubicación') + ' · ' + U.esc(Medidas.texto(f.med) || 'sin medidas') + (f.med && Medidas.tiene(f.med) && Medidas.estimado(f.med) ? ' (estimado)' : '') + '</div></div>';
+    }).join('') + (prodRes.length > 8 ? '<div class="pr muted">… ' + (prodRes.length - 8) + ' más: siga escribiendo para afinar</div>' : '') + '</div>';
+  };
+  var prodUsar = function (silencio) {
+    var f = CubUI.prod ? Productos.ficha(CubUI.prod.codigo) : null;
+    if (!f || !Medidas.tiene(f.med)) { if (!silencio) UI.toast('El producto no tiene medidas en su ficha', 'warn'); return; }
+    U.$('cuAncho').value = f.med.ancho; U.$('cuAlto').value = f.med.alto; U.$('cuLargo').value = f.med.largo; U.$('cuPeso').value = f.med.peso || '';
+    CubUI.prod.med = { ancho: f.med.ancho, alto: f.med.alto, largo: f.med.largo, peso: f.med.peso || '' };
+    calc();
+  };
+  var prodElegir = function (f) {
+    CubUI.prod = { codigo: f.codigo, descripcion: f.descripcion, med: null };
+    U.$('cuProd').value = ''; U.$('cuProdRes').innerHTML = ''; prodRes = [];
+    prodPintarSel(); prodUsar(true);
+    var foco = U.$(Medidas.tiene(f.med) ? 'cuPeso' : 'cuAncho'); foco.focus(); if (foco.select) foco.select();
+  };
+  CubUI.ofrecerFicha = function (d) {
+    var p = CubUI.prod; if (!p) return;
+    var f = Productos.ficha(p.codigo); if (!f) return;
+    var m = f.med || {}, dif = [], campos = [['ancho', 'ANCHO cm', 0.5], ['alto', 'ALTO cm', 0.5], ['largo', 'LARGO cm', 0.5], ['peso', 'PESO kg', 0.05]];
+    var tiene = Medidas.tiene(m);
+    U.each(campos, function (c) { var a = m[c[0]], b = d[c[0]]; if (a === '' || a == null || Math.abs(Number(a) - Number(b)) > c[2]) dif.push(c); });
+    if (!dif.length) return;
+    var t = '<div class="msg">' + (tiene ? 'Lo medido no coincide con la ficha de <b>' : 'La ficha de <b>') + U.esc(f.descripcion) + '</b>' + (tiene ? ':' : ' no tiene medidas.') + '</div>' +
+      '<table class="tbl cmp" style="margin-top:6px;font-size:14px"><thead><tr><th></th><th>Ficha</th><th>Medido</th></tr></thead><tbody>' +
+      U.map(campos, function (c) { var ds = U.find(dif, function (x) { return x[0] === c[0]; }); return '<tr><td>' + c[1] + '</td><td>' + U.esc(m[c[0]] === '' || m[c[0]] == null ? '—' : m[c[0]]) + '</td><td class="' + (ds ? 'dif' : '') + '">' + U.esc(d[c[0]]) + '</td></tr>'; }).join('') + '</tbody></table>' +
+      '<div class="muted" style="margin-top:6px">Actualice la ficha solo si el bulto contiene únicamente este producto, en su embalaje habitual.</div>' +
+      (ProdSync.activo() && !ProdSync.operador() ? '<label class="lbl">RESPONSABLE</label><input id="ofResp" class="inp sm" maxlength="60">' : '');
+    UI.modal({ titulo: tiene ? 'Medida distinta a la ficha' : 'Guardar medidas del producto', html: t, botones: [
+      { txt: 'SOLO ESTE BULTO', cls: 'btn-sec' },
+      { txt: tiene ? 'ACTUALIZAR FICHA' : 'GUARDAR EN FICHA', cls: 'btn-ok', fn: function () {
+        if (U.$('ofResp')) { var r = U.trim(U.$('ofResp').value); if (!r) { UI.toast('Indique el responsable', 'error'); return false; } DB.cfg.operador = r; DB.guardarCfg(); }
+        var cambios = {}, base = {};
+        U.each(dif, function (c) { cambios[c[0]] = d[c[0]]; base[c[0]] = m[c[0]] === '' || m[c[0]] == null ? '' : m[c[0]]; });
+        ProdSync.guardar(f, cambios, base, function (ok, msg) { UI.toast(ok ? 'Ficha actualizada · ' + msg : msg, ok ? 'ok' : 'error', 4000); if (ok) { UI.cerrarModal(); CubUI.prod.med = { ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso }; prodPintarSel(); } });
+        return false;
+      } }
+    ] });
+  };
+  m.oninput = function (e) { if (e.target.id === 'cuAncho' || e.target.id === 'cuAlto' || e.target.id === 'cuLargo') calc(); if (e.target.id === 'cuBuscar') pintar(); if (e.target.id === 'cuProd') { clearTimeout(tp); tp = setTimeout(prodBuscar, 120); } };
   m.onchange = function (e) {
     if (e.target.id === 'cuTipo') CubUI.tipo = e.target.value;
     if (e.target.id === 'cuPedido') { CubUI.pedidoId = e.target.value || null; App.ir('cubicacion'); }
   };
-  var leer = function () { return { pedidoId: CubUI.pedidoId || '', cubicacionId: CubUI.cubId, orden: U.$('cuOrden').value, tipoDocumento: U.$('cuTipo').value, numeroDocumento: U.$('cuDoc').value, ancho: U.num(U.$('cuAncho').value), alto: U.num(U.$('cuAlto').value), largo: U.num(U.$('cuLargo').value), peso: U.num(U.$('cuPeso').value) }; };
+  var leer = function () { return { pedidoId: CubUI.pedidoId || '', cubicacionId: CubUI.cubId, orden: U.$('cuOrden').value, tipoDocumento: U.$('cuTipo').value, numeroDocumento: U.$('cuDoc').value, ancho: U.num(U.$('cuAncho').value), alto: U.num(U.$('cuAlto').value), largo: U.num(U.$('cuLargo').value), peso: U.num(U.$('cuPeso').value), producto: CubUI.prod ? CubUI.prod.codigo : '', productoDesc: CubUI.prod ? CubUI.prod.descripcion : '' }; };
   var acciones = {
     agregar: function () {
       var now = +new Date(); if (now - CubUI.ultimoClick < 600) return; CubUI.ultimoClick = now;
@@ -2216,6 +2545,18 @@ Pantallas.cubicacion = function (m) {
       var b = CubPool.agregar(d); if (d.pedidoId) Pedidos.marcarCubicado(d.pedidoId);
       U.each(['cuAncho', 'cuAlto', 'cuLargo', 'cuPeso'], function (id) { U.$(id).value = ''; });
       calc(); pintar(); U.$('cuAncho').focus(); UI.toast('Bulto ' + b.numero + ' cubicado', 'ok');
+      if (CubUI.prod) CubUI.ofrecerFicha(d);
+    },
+    prodSel: function (i) { var f = prodRes[Number(i)]; if (f) prodElegir(f); },
+    prodFicha: function () { if (CubUI.prod) CatUI.ficha(CubUI.prod.codigo, function () { prodPintarSel(); }); },
+    prodUsar: function () { prodUsar(false); },
+    prodQuitar: function () { CubUI.prod = null; prodPintarSel(); U.$('cuProd').focus(); },
+    prodEnter: function () {
+      var q = U.trim(U.$('cuProd').value);
+      if (!q) { U.$('cuAncho').focus(); return; }
+      prodBuscar();
+      if (prodRes.length === 1 || (prodRes.length && (Medidas.sinCeros(prodRes[0].codigo) === Medidas.sinCeros(q) || Medidas.cod(prodRes[0].codigoBarra) === Medidas.cod(q)))) prodElegir(prodRes[0]);
+      else if (!prodRes.length) UI.toast('Producto no encontrado', 'warn');
     },
     repetir: function () { var x = CubPool.ultimo; if (!x) { UI.toast('No hay medidas anteriores', 'warn'); return; } U.$('cuAncho').value = x.ancho; U.$('cuAlto').value = x.alto; U.$('cuLargo').value = x.largo; U.$('cuPeso').value = x.peso; calc(); U.$('cuAncho').focus(); },
     igual: function () { acciones.repetir(); if (CubPool.ultimo) setTimeout(acciones.agregar, 20); },
@@ -2224,12 +2565,14 @@ Pantallas.cubicacion = function (m) {
       U.$('cuTipo').value = 'FACTURA';
       U.$('cuDoc').value = '';
       CubUI.tipo = 'FACTURA';
+      CubUI.prod = null; prodPintarSel();
       U.each(['cuOrden', 'cuTipo', 'cuDoc'], function (id) { U.$(id).className = id === 'cuTipo' ? 'inp sm' : 'inp'; });
       U.$('cuOrden').focus();
       UI.toast('Documento limpiado', 'ok', 1200);
     },
     nuevo: function () {
       CubUI.cubId = CubPool.siguienteId();
+      CubUI.prod = null;
       U.$('cuOrden').value = ''; U.$('cuTipo').value = 'FACTURA'; U.$('cuDoc').value = '';
       U.each(['cuAncho', 'cuAlto', 'cuLargo', 'cuPeso'], function (id) { U.$(id).value = ''; });
       App.ir('cubicacion');
@@ -2270,9 +2613,11 @@ Pantallas.cubicacion = function (m) {
     pdf58: function () { CubicacionPDF.generar('58'); },
     compartir: function () { CubicacionPDF.compartir(); }
   };
-  UI.enter(m, { agregar: function () { acciones.agregar(); } });
+  UI.enter(m, { agregar: function () { acciones.agregar(); }, prodEnter: function () { acciones.prodEnter(); } });
   UI.delegar(m, acciones);
   pintar();
+  prodPintarSel();
+  ProdSync.actualizar(function (hubo) { if (hubo && App.pantalla === 'cubicacion') prodPintarSel(); });
   CubPool.bajar(function () { if (App.pantalla === 'cubicacion' && U.$('cuLista')) pintar(); });
   U.$('cuOrden').focus();
 };
@@ -2983,7 +3328,6 @@ var DespachoGrupo = {
       U.each(gs, function (g) {
         var n = DespachoGrupo.hechos(g), pend = 0;
         U.each(g.bultos, function (b) { if (!(b.verificadoCourier || b.despachoId || b.despachado)) pend++; });
-        // Mantener visibles documentos completos para control y trazabilidad.
         var ordsTxt = g.ordenes.length ? g.ordenes.join(', ') : 'POR ESCANEAR';
         hh += '<button class="it" data-a="dgAbrir" data-x="' + U.esc(g.key) + '" style="text-align:left;padding:13px 10px;border-left:7px solid ' + (pend===0?'#198754':(n?'#e09a00':'#c00000')) + ';background:' + (pend===0?'#e9f7ec':(n?'#fff7e8':'#fff2f2')) + '"><div class="c1" style="font-size:20px;font-weight:900">' + U.esc(g.orden) + ' <span class="est ABIERTA">' + n + '/' + g.bultos.length + '</span></div><div class="c2" style="font-size:16px"><b>' + U.esc(g.tipoDocumento) + ' ' + U.esc(g.numeroDocumento) + '</b></div><div class="c2">' + U.esc(g.courier || 'SIN COURIER') + ' · OT courier: <b style="word-break:break-all">' + U.esc(ordsTxt) + '</b></div></button>';
       });
@@ -3890,40 +4234,52 @@ Rotulado.editarFormato = function (idx) {
   };
 };
 
-var CatUI = { q: '', max: 50 };
+var CatUI = { q: '', max: 50, filtro: '' };
 
 Pantallas.catalogo = function (m) {
-  m.innerHTML = '<div class="card"><label class="lbl">BUSCAR</label><input id="ctQ" class="inp" type="text" autocomplete="off" autocorrect="off" spellcheck="false" value="' + U.esc(CatUI.q) + '">' +
+  m.innerHTML = '<div class="card"><label class="lbl">BUSCAR PRODUCTO</label><input id="ctQ" class="inp" type="text" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre, marca o ubicación" value="' + U.esc(CatUI.q) + '">' +
+    '<div class="fila" style="margin-top:6px"><div class="c"><select id="ctF" class="inp sm"><option value="">TODOS</option><option value="sinubi">SIN UBICACIÓN</option><option value="sinmed">SIN MEDIDAS</option><option value="estim">MEDIDAS ESTIMADAS</option><option value="bodega">MEDIDO EN BODEGA</option></select></div></div>' +
     '<div class="muted" id="ctCnt" style="margin-top:4px"></div>' +
-    '<div class="btns"><button class="btn btn-ok btn-sm" data-a="nuevo">+ AGREGAR</button><button class="btn btn-sec btn-sm" data-a="imp">IMPORTAR</button><button class="btn btn-sec btn-sm" data-a="exp">EXPORTAR CSV</button></div>' +
-    (Sync.modo() !== 'local' ? '<button class="btn btn-sm" data-a="bajarCat">DESCARGAR CATÁLOGO DE LA HOJA</button>' : '') + '</div>' +
+    '<div class="btns"><button class="btn btn-ok btn-sm" data-a="nuevo">+ AGREGAR</button><button class="btn btn-sec btn-sm" data-a="imp">IMPORTAR</button><button class="btn btn-sec btn-sm" data-a="impMed">MEDIDAS</button><button class="btn btn-sec btn-sm" data-a="exp">EXPORTAR</button></div>' +
+    (Sync.modo() !== 'local' ? '<div class="btns"><button class="btn btn-sm" data-a="bajarCat">DESCARGAR CATÁLOGO</button><button class="btn btn-sm" data-a="bajarMed">ACTUALIZAR MEDIDAS Y UBICACIONES</button></div>' : '') + '</div>' +
     '<div id="ctRes" class="lista"></div>';
+  U.$('ctF').value = CatUI.filtro || '';
   var pintar = function () {
-    var r = Catalogo.buscar(CatUI.q, 0), h = '';
-    U.$('ctCnt').innerHTML = Catalogo.lista.length + ' producto(s) en catálogo' + (U.trim(CatUI.q) ? ' · ' + r.length + ' coinciden' : '');
-    U.each(r.slice(0, CatUI.max), function (p) {
-      h += '<div class="it" data-a="editar" data-x="' + U.esc(p.codigo) + '" style="cursor:pointer"><div class="c1">' + U.esc(p.codigo) + (p.precio ? ' · ' + U.clp(p.precio) : '') + '</div>' +
-        '<div class="c2">' + U.esc(p.descripcion) + '</div>' +
-        '<div class="c2">' + U.esc([p.marca, p.familia, p.codigoBarra, p.ubicacion ? ('UBICACIÓN: ' + p.ubicacion) : ''].join(' · ').replace(/^( · )+|( · )+$/g, '')) + '</div>' +
-        '<div class="btns"><button class="btn btn-sec btn-sm" data-a="gimg" data-x="' + U.esc(p.codigo) + '">IMÁGENES</button><button class="btn btn-sec btn-sm" data-a="editar" data-x="' + U.esc(p.codigo) + '">EDITAR</button></div></div>';
+    var r = Productos.buscar(CatUI.q, CatUI.filtro), h = '', nUbi = 0, nMed = 0;
+    U.each(Catalogo.lista, function (p) { if (U.trim(p.ubicacion)) nUbi++; });
+    U.each(Medidas.lista, function (x) { if (Medidas.tiene(x)) nMed++; });
+    U.$('ctCnt').innerHTML = Catalogo.lista.length + ' en catálogo · ' + nUbi + ' con ubicación · ' + nMed + ' con medidas' + (U.trim(CatUI.q) || CatUI.filtro ? ' · <b>' + r.length + ' coinciden</b>' : '');
+    U.each(r.slice(0, CatUI.max), function (f) {
+      h += '<div class="it" data-a="ficha" data-x="' + U.esc(f.codigo) + '" style="cursor:pointer"><div class="c1">' + U.esc(f.codigo) + (f.precio ? ' · ' + U.clp(f.precio) : '') + (!f.cat ? ' <span class="tag rev">NO ESTÁ EN CATÁLOGO</span>' : '') + '</div>' +
+        '<div class="c2" style="font-size:14px;color:#000">' + U.esc(f.descripcion) + '</div>' +
+        '<div class="c2">' + U.esc([f.marca, f.familia, f.codigoBarra].join(' · ').replace(/^( · )+|( · )+$/g, '').replace(/( · )+/g, ' · ')) + '</div>' +
+        '<div style="margin-top:4px">' + Productos.linea(f) + '</div></div>';
     });
     if (r.length > CatUI.max) h += '<button class="btn btn-sec" data-a="mas">VER MÁS (' + (r.length - CatUI.max) + ' restantes)</button>';
-    if (!Catalogo.lista.length) h = '<div class="card muted">Catálogo vacío. Use IMPORTAR o AGREGAR.</div>';
+    if (!Catalogo.lista.length && !Medidas.lista.length) h = '<div class="card muted">Catálogo vacío. Use IMPORTAR, MEDIDAS o AGREGAR.</div>';
+    else if (!r.length) h = '<div class="card muted">Sin coincidencias.</div>';
     U.$('ctRes').innerHTML = h;
   };
-  m.oninput = function (e) { if (e.target.id === 'ctQ') { CatUI.q = e.target.value; CatUI.max = 50; pintar(); } };
+  var tq = null;
+  m.oninput = function (e) { if (e.target.id === 'ctQ') { CatUI.q = e.target.value; CatUI.max = 50; clearTimeout(tq); tq = setTimeout(pintar, 120); } };
+  m.onchange = function (e) { if (e.target.id === 'ctF') { CatUI.filtro = e.target.value; CatUI.max = 50; pintar(); } };
   UI.delegar(m, {
     nuevo: function () { CatUI.editar(null, pintar); },
-    editar: function (cod, el, e) { if (e && e.stopPropagation) e.stopPropagation(); CatUI.editar(Catalogo.porCodigo(cod), pintar); },
+    ficha: function (cod) { CatUI.ficha(cod, pintar); },
     mas: function () { CatUI.max += 100; pintar(); },
     imp: function () { CatUI.importar(pintar); },
-    exp: function () { if (!Catalogo.lista.length) { UI.toast('Catálogo vacío', 'error'); return; } UI.descargar('rdm_catalogo_' + U.sello() + '.csv', CSV.exportarCatalogo(), 'text/csv'); },
-    gimg: function (cod, el, e) { if (e && e.stopPropagation) e.stopPropagation(); var p = Catalogo.porCodigo(cod); if (!p) return; var q = U.trim([p.marca || '', p.descripcion || '', p.codigo || ''].join(' ')); window.location.href = 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(q); },
+    impMed: function () { CatUI.importarMedidas(pintar); },
+    exp: function () { if (!Catalogo.lista.length && !Medidas.lista.length) { UI.toast('Sin datos', 'error'); return; } UI.descargar('rdm_productos_' + U.sello() + '.csv', CSV.exportarProductos(), 'text/csv'); },
+    bajarMed: function () {
+      UI.toast('Actualizando medidas y ubicaciones…', '', 15000);
+      DB.cfg.prodDesde = ''; DB.guardarCfg();
+      ProdSync.actualizar(function () { UI.toast(Medidas.lista.length + ' fichas de medidas en este equipo', 'ok', 3000); pintar(); }, true);
+    },
     bajarCat: function () {
       UI.toast('Descargando catálogo…', '', 15000);
       Sync.llamar('satCatalogo', {}, function (r) {
         var campos = r && r.campos, filas = (r && r.filas) || [];
-        if (!filas.length) { UI.toast('La fuente configurada no devolvió productos. Se conserva el catálogo local.', 'error', 5000); return; }
+        if (!filas.length) { UI.toast('La hoja no devolvió productos. Se conserva el catálogo local.', 'error', 5000); return; }
         var prods = U.map(filas, function (f) { var p = {}; U.each(campos, function (k, i) { p[k] = f[i]; }); return p; });
         UI.confirmar('La hoja tiene ' + prods.length + ' productos' + (r.actualizado ? ' (actualizado ' + r.actualizado + ')' : '') + '.\nSe REEMPLAZARÁ el catálogo de este equipo (' + Catalogo.lista.length + ').', function () {
           var res = Catalogo.importar(prods, 'reemplazar');
@@ -3934,26 +4290,150 @@ Pantallas.catalogo = function (m) {
     }
   });
   pintar();
+  ProdSync.actualizar(function (hubo) { if (hubo && App.pantalla === 'catalogo' && U.$('ctRes')) pintar(); });
+};
+
+CatUI.ficha = function (cod, alFin) {
+  var f = Productos.ficha(cod);
+  if (!f) { UI.toast('Producto no encontrado', 'error'); return; }
+  var m = f.med || {}, v = function (x) { return x === '' || x == null ? '' : x; };
+  var base = { ubicacion: U.trim(f.ubicacion), bultos: v(m.bultos), ancho: v(m.ancho), alto: v(m.alto), largo: v(m.largo), peso: v(m.peso) };
+  var sin = (m.anchoProd || m.altoProd || m.largoProd || m.pesoProd) ? 'Producto sin embalaje: ' + v(m.anchoProd) + '×' + v(m.altoProd) + '×' + v(m.largoProd) + ' cm' + (m.pesoProd ? ' · ' + m.pesoProd + ' kg' : '') : '';
+  var info = U.filter([m.origenPeso ? 'Origen del peso: ' + m.origenPeso : '', m.pesoExacto && m.fuente !== 'BODEGA' ? 'Peso fabricante: ' + m.pesoExacto + ' kg' : '', sin, m.claseEmbalaje || m.referenciaCaja ? 'Embalaje: ' + U.trim((m.claseEmbalaje || '') + ' ' + (m.referenciaCaja ? '· ' + m.referenciaCaja : '')) : '', U.trim(m.revisar) ? 'Revisar: ' + m.revisar : '', m.actualizado ? 'Última actualización: ' + U.fechaCL(m.actualizado) + (m.usuario ? ' · ' + m.usuario : '') : ''], function (x) { return !!x; });
+  var c = function (id, lbl, val) { return '<div class="c"><label class="lbl">' + lbl + '</label><input id="' + id + '" class="inp" type="number" step="any" inputmode="decimal" value="' + U.esc(val) + '"></div>'; };
+  var h = '<div class="c1" style="font-weight:bold">' + U.esc(f.codigo) + (f.codigoBarra ? ' · ' + U.esc(f.codigoBarra) : '') + '</div><div style="font-size:15px">' + U.esc(f.descripcion) + '</div><div class="muted">' + U.esc([f.marca, f.familia].join(' · ').replace(/^ · | · $/g, '')) + '</div>' +
+    (!f.cat ? '<div class="aviso amar" style="margin-top:6px">Este código está en el archivo de medidas pero no en el catálogo. Al guardar una ubicación se agrega al catálogo de la hoja.</div>' : '') +
+    '<label class="lbl">UBICACIÓN</label><input id="fiUbi" class="inp" autocomplete="off" style="text-transform:uppercase" value="' + U.esc(base.ubicacion) + '" placeholder="Ej: B2-P3-N1">' +
+    '<label class="lbl" style="margin-top:12px">MEDIDAS CON EMBALAJE ' + Medidas.etiqueta(f.med) + '</label>' +
+    '<div class="fila num">' + c('fiAncho', 'ANCHO cm', base.ancho) + c('fiAlto', 'ALTO cm', base.alto) + c('fiLargo', 'LARGO cm', base.largo) + '</div>' +
+    '<div class="fila num">' + c('fiPeso', 'PESO kg', base.peso) + c('fiBul', 'BULTOS', base.bultos) + '</div>' +
+    (info.length ? '<div class="muted" style="margin-top:6px">' + U.map(info, U.esc).join('<br>') + '</div>' : '') +
+    '<label class="lbl" style="margin-top:12px">RESPONSABLE DEL CAMBIO</label><input id="fiResp" class="inp sm" maxlength="60" value="' + U.esc(ProdSync.operador()) + '" placeholder="Nombre">' +
+    '<div class="muted">' + (ProdSync.activo() ? 'Los cambios quedan en la hoja para todos los equipos, con fecha, responsable y valor anterior.' : 'Sin conexión configurada: los cambios quedan solo en este equipo.') + '</div>';
+  var bot = [{ txt: 'CERRAR', cls: 'btn-sec' }];
+  if (ProdSync.activo()) bot.push({ txt: 'HISTORIAL', cls: 'btn-sec', fn: function () { CatUI.historial(f); return false; } });
+  if (f.cat) bot.push({ txt: 'DATOS', cls: 'btn-sec', fn: function () { CatUI.editar(f.cat, alFin); return false; } });
+  bot.push({ txt: 'GUARDAR', cls: 'btn-ok', fn: function () {
+    var lee = function (id) { var t = U.trim(U.$(id).value); return t === '' ? '' : U.num(t); };
+    var nv = { ubicacion: U.norm(U.$('fiUbi').value), ancho: lee('fiAncho'), alto: lee('fiAlto'), largo: lee('fiLargo'), peso: lee('fiPeso'), bultos: lee('fiBul') }, cambios = {}, k;
+    for (k in nv) {
+      if (k !== 'ubicacion' && nv[k] !== '' && (!isFinite(nv[k]) || nv[k] < 0)) { UI.toast('Valor no válido en ' + k.toUpperCase(), 'error'); return false; }
+      if (k !== 'ubicacion' && k !== 'bultos' && nv[k] === 0) { UI.toast(k.toUpperCase() + ' debe ser mayor que cero', 'error'); return false; }
+      if (String(nv[k]) !== String(k === 'ubicacion' ? U.norm(base[k]) : base[k])) cambios[k] = nv[k];
+    }
+    if ((nv.ancho > 300 || nv.alto > 300 || nv.largo > 300) && !CatUI._okGrande) { UI.toast('Más de 300 cm: revise si está en milímetros. Pulse GUARDAR otra vez para confirmar.', 'warn', 5000); CatUI._okGrande = true; return false; }
+    CatUI._okGrande = false;
+    var resp = U.trim(U.$('fiResp').value);
+    if (ProdSync.activo() && !resp) { UI.toast('Indique el responsable del cambio', 'error'); U.$('fiResp').focus(); return false; }
+    if (resp !== ProdSync.operador()) { DB.cfg.operador = resp; DB.guardarCfg(); }
+    ProdSync.guardar(f, cambios, base, function (ok, msg) {
+      UI.toast(msg, ok ? 'ok' : 'error', ok ? 2500 : 5000);
+      if (ok) { UI.cerrarModal(); if (alFin) alFin(); }
+    });
+    return false;
+  } });
+  UI.modal({ titulo: 'Ficha del producto', html: h, botones: bot });
+};
+
+CatUI.historial = function (f) {
+  UI.toast('Consultando historial…', '', 10000);
+  Sync.llamar('satProductoHistorial', { codigo: f.codigo }, function (r) {
+    var l = (r && r.historial) || [], h = '<div class="muted">' + U.esc(f.codigo + ' · ' + f.descripcion) + '</div>';
+    if (!l.length) h += '<div class="card muted" style="margin-top:8px">Sin cambios registrados.</div>';
+    else h += '<table class="tbl" style="margin-top:8px"><thead><tr><th>Fecha</th><th>Campo</th><th>Antes</th><th>Ahora</th><th>Quién</th></tr></thead><tbody>' + U.map(l, function (x) { return '<tr><td>' + U.esc(U.fechaCL(x.fecha) + ' ' + String(x.fecha).substr(11, 5)) + '</td><td>' + U.esc(x.campo) + '</td><td>' + U.esc(x.anterior) + '</td><td><b>' + U.esc(x.nuevo) + '</b></td><td>' + U.esc(x.usuario) + '</td></tr>'; }).join('') + '</tbody></table>';
+    UI.toast('', '', 1);
+    UI.modal({ titulo: 'Historial de cambios', html: h, botones: [{ txt: 'VOLVER', cls: 'btn-sec', fn: function () { CatUI.ficha(f.codigo); return false; } }, { txt: 'CERRAR', cls: 'btn-ok' }] });
+  }, function (e) { UI.toast('Error: ' + e, 'error', 4000); });
 };
 
 CatUI.editar = function (p, alFin) {
   var nuevo = !p; p = p || { codigo: '', descripcion: '', marca: '', precio: 0, familia: '', codigoBarra: '', ubicacion: '' };
   var c = function (id, lbl, v, t) { return '<label class="lbl">' + lbl + '</label><input id="' + id + '" class="inp sm" type="' + (t || 'text') + '" value="' + U.esc(v) + '">'; };
   var h = c('peCod', 'CÓDIGO / SKU *', p.codigo) + c('peDesc', 'DESCRIPCIÓN *', p.descripcion) + c('peMarca', 'MARCA', p.marca) +
-    c('pePrecio', 'PRECIO ($)', p.precio || '', 'number') + c('peFam', 'FAMILIA', p.familia) + c('peBar', 'CÓDIGO DE BARRAS', p.codigoBarra) + c('peUbi', 'UBICACIÓN', p.ubicacion || '');
+    c('pePrecio', 'PRECIO ($)', p.precio || '', 'number') + c('peFam', 'FAMILIA', p.familia) + c('peBar', 'CÓDIGO DE BARRAS', p.codigoBarra) +
+    (nuevo ? c('peUbi', 'UBICACIÓN', '') : '<div class="muted" style="margin-top:8px">La ubicación y las medidas se editan en la ficha del producto.</div>');
   var bot = [{ txt: 'CANCELAR', cls: 'btn-sec' }];
   if (!nuevo) {
-    bot.push({ txt: 'ELIMINAR', cls: 'btn-dan', fn: function () { UI.confirmar('¿Eliminar el producto ' + p.codigo + '?\n' + p.descripcion, function () { Catalogo.eliminar(p.codigo); UI.toast('Producto eliminado', 'warn'); alFin(); }, { peligro: true, si: 'ELIMINAR' }); return false; } });
+    bot.push({ txt: 'ELIMINAR', cls: 'btn-dan', fn: function () { UI.confirmar('¿Eliminar el producto ' + p.codigo + ' de este equipo?\n' + p.descripcion, function () { Catalogo.eliminar(p.codigo); UI.toast('Producto eliminado', 'warn'); if (alFin) alFin(); }, { peligro: true, si: 'ELIMINAR' }); return false; } });
     bot.push({ txt: 'IMAGEN', cls: 'btn-sec', fn: function () { var q = U.trim((p.marca || '') + ' ' + (p.descripcion || '') + ' ' + (p.codigo || '')); window.open('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(q), '_blank'); return false; } });
   }
   bot.push({ txt: 'GUARDAR', cls: 'btn-ok', fn: function () {
     var np = { codigo: U.$('peCod').value, descripcion: U.$('peDesc').value, marca: U.$('peMarca').value, precio: CSV.precio(U.$('pePrecio').value),
-      familia: U.$('peFam').value, codigoBarra: U.$('peBar').value, ubicacion: U.$('peUbi').value };
+      familia: U.$('peFam').value, codigoBarra: U.$('peBar').value, ubicacion: nuevo ? '' : p.ubicacion };
+    var ubi = nuevo ? U.norm(U.$('peUbi').value) : '';
     var err = Catalogo.guardarProducto(np, nuevo ? '' : p.codigo);
     if (err) { UI.toast(err, 'error'); return false; }
-    UI.toast('Producto guardado', 'ok'); alFin();
+    UI.cerrarModal();
+    if (ubi) {
+      var f = Productos.ficha(np.codigo);
+      if (!ProdSync.operador() && ProdSync.activo()) { UI.toast('Producto guardado. Indique responsable en la ficha para registrar la ubicación.', 'warn', 5000); CatUI.ficha(np.codigo, alFin); U.$('fiUbi').value = ubi; return false; }
+      ProdSync.guardar(f, { ubicacion: ubi }, { ubicacion: '' }, function (ok, msg) { UI.toast(ok ? 'Producto guardado · ' + msg : msg, ok ? 'ok' : 'error', 4000); if (alFin) alFin(); });
+      return false;
+    }
+    UI.toast('Producto guardado', 'ok'); if (alFin) alFin();
+    return false;
   } });
-  UI.modal({ titulo: nuevo ? 'Nuevo producto' : 'Editar producto', html: h, botones: bot });
+  UI.modal({ titulo: nuevo ? 'Nuevo producto' : 'Datos del producto', html: h, botones: bot });
+};
+
+CatUI.importarMedidas = function (alFin) {
+  var h = '<div class="muted">Archivo de medidas por SKU (por ejemplo, el export de productos con embalaje). Formatos: <b>.csv</b> o <b>.tsv</b>; desde Excel use <b>Guardar como → CSV UTF-8</b> o copie y pegue el rango.</div>' +
+    '<div class="aviso amar" style="margin-top:6px;font-size:13px">Las fichas medidas o pesadas en bodega nunca se reemplazan con un archivo.</div>' +
+    '<label class="lbl">ARCHIVO</label><input id="miFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" class="inp sm" style="padding:8px">' +
+    '<label class="lbl">…o pegar desde Excel</label><textarea id="miTxt" class="inp" placeholder="SKU&#9;Ancho (cm)&#9;Alto (cm)&#9;Largo (cm)&#9;Peso sugerido (kg)"></textarea><div id="miPrev"></div>';
+  var datos = null, nombre = '';
+  var analizar = function (txt) {
+    var r = MedCSV.analizar(txt), pv = U.$('miPrev');
+    datos = null;
+    if (r.error) { pv.innerHTML = '<div class="aviso rojo">' + U.esc(r.error) + '</div>'; return; }
+    datos = r;
+    var cab = function (k) { return r.mapa[k] != null ? U.esc(r.cab[r.mapa[k]]) : '<i>—</i>'; };
+    var t = '<div class="card" style="margin-top:8px"><b>Previsualización</b><br>Fichas válidas: <b>' + r.filas.length + '</b> · con medidas completas: <b>' + r.conMedidas + '</b> · coinciden con el catálogo: <b>' + r.enCatalogo + '</b> de ' + Catalogo.lista.length +
+      (r.omitidas ? ' · sin código: ' + r.omitidas : '') + (r.duplicados ? ' · duplicados: ' + r.duplicados : '') + '<br>' +
+      '<span class="muted">SKU ← ' + cab('codigo') + ' · Ancho ← ' + cab('ancho') + ' · Alto ← ' + cab('alto') + ' · Largo ← ' + cab('largo') + ' · Peso ← ' + (r.mapa.peso != null ? cab('peso') : cab('pesoG') + ' (g)') + ' · Origen ← ' + cab('origenPeso') + '</span>' +
+      '<table class="tbl" style="margin-top:6px"><thead><tr><th>SKU</th><th>Producto</th><th>A×A×L cm</th><th>kg</th></tr></thead><tbody>';
+    U.each(r.filas.slice(0, 6), function (o) { t += '<tr><td>' + U.esc(o.codigo) + '</td><td>' + U.esc(o.descripcion) + '</td><td>' + U.esc(Medidas.tiene(o) ? o.ancho + '×' + o.alto + '×' + o.largo : '—') + '</td><td>' + U.esc(o.peso) + '</td></tr>'; });
+    t += '</tbody></table>' + (Catalogo.lista.length && r.enCatalogo < r.filas.length / 2 ? '<div class="aviso amar" style="margin-top:6px;font-size:13px">Menos de la mitad de los SKU coincide con el catálogo. Revise que el código del archivo sea el mismo del ERP.</div>' : '') +
+      '<label class="chk"><input type="radio" name="miModo" value="fusionar" checked> FUSIONAR: actualiza y agrega</label>' +
+      '<label class="chk"><input type="radio" name="miModo" value="reemplazar"> REEMPLAZAR las fichas de archivo (' + Medidas.lista.length + ' actuales; las de bodega se conservan)</label></div>';
+    pv.innerHTML = t;
+  };
+  UI.modal({ titulo: 'Importar medidas de productos', html: h, botones: [
+    { txt: 'CANCELAR', cls: 'btn-sec' },
+    { txt: 'ANALIZAR TEXTO', cls: 'btn-sec', fn: function () { nombre = 'pegado'; analizar(U.$('miTxt').value); return false; } },
+    { txt: 'IMPORTAR', cls: 'btn-ok', fn: function () {
+      if (!datos) { UI.toast('Primero seleccione o analice un archivo', 'error'); return false; }
+      var modo = 'fusionar', rs = document.getElementsByName('miModo'), d = datos;
+      for (var i = 0; i < rs.length; i++) if (rs[i].checked) modo = rs[i].value;
+      UI.confirmar((modo === 'reemplazar' ? 'Se reemplazarán las fichas de archivo por ' : 'Se fusionarán ') + d.filas.length + ' fichas' + (ProdSync.activo() ? ' en la hoja, para todos los equipos' : ' en este equipo') + '.\n¿Continuar?', function () {
+        if (!ProdSync.activo()) {
+          var r = Medidas.fusionarLocal(d.filas, modo);
+          UI.toast(r ? 'Medidas: ' + r.nuevos + ' nuevas, ' + r.actualizados + ' actualizadas' + (r.protegidos ? ', ' + r.protegidos + ' de bodega conservadas' : '') : 'Sin espacio de almacenamiento', r ? 'ok' : 'error', 4500);
+          if (alFin) alFin();
+          return;
+        }
+        UI.toast('Subiendo ' + d.filas.length + ' fichas…', '', 60000);
+        Sync.llamar('satMedidasImportar', { campos: MED_CAMPOS, filas: U.map(d.filas, function (o) { return U.map(MED_CAMPOS, function (k) { return o[k] == null ? '' : o[k]; }); }), modo: modo, archivo: nombre, usuario: ProdSync.operador(), dispositivo: DB.cfg.sync.dispositivo }, function (r) {
+          ProdSync.bajarMedidas(function () {
+            DB.cfg.prodDesde = r.fecha || ''; DB.guardarCfg();
+            UI.toast('Medidas en la hoja: ' + r.nuevos + ' nuevas, ' + r.actualizados + ' actualizadas' + (r.protegidos ? ', ' + r.protegidos + ' de bodega conservadas' : '') + '. Total ' + r.total + '.', 'ok', 6000);
+            if (alFin) alFin();
+          });
+        }, function (e) { UI.toast('No se importó: ' + e, 'error', 6000); });
+      }, { si: 'IMPORTAR', peligro: modo === 'reemplazar' });
+      return false;
+    } }
+  ], alAbrir: function () {
+    U.$('miFile').onchange = function () {
+      var f = this.files && this.files[0]; if (!f) return;
+      nombre = f.name || '';
+      U.$('miPrev').innerHTML = '<div class="muted">Leyendo…</div>';
+      CSV.leerArchivo(f, analizar, function (tipo) {
+        if (tipo === 'xlsx') U.$('miPrev').innerHTML = '<div class="aviso rojo">El archivo es .xlsx. En Excel: <b>Archivo → Guardar como → CSV UTF-8</b>, o copie el rango y péguelo arriba.</div>';
+        else UI.toast('No se pudo leer el archivo', 'error');
+      });
+    };
+  } });
 };
 
 CatUI.importar = function (alFin) {
@@ -3971,7 +4451,7 @@ CatUI.importar = function (alFin) {
     var cab = function (k) { return r.mapa[k] != null ? U.esc(r.cab[r.mapa[k]]) : '<i>—</i>'; }, t = '';
     t += '<div class="card" style="margin-top:8px"><b>Previsualización</b><br>Separador: <b>' + (r.sep === '\t' ? 'TAB' : r.sep) + '</b> · Productos válidos: <b>' + r.productos.length + '</b>' +
       (r.omitidas ? ' · sin código (omitidas): ' + r.omitidas : '') + (r.duplicados ? ' · duplicados en archivo: ' + r.duplicados : '') + '<br>' +
-      '<span class="muted">Código ← ' + cab('codigo') + ' · Desc ← ' + cab('descripcion') + ' · Marca ← ' + cab('marca') + ' · Precio ← ' + cab('precio') + ' · Familia ← ' + cab('familia') + ' · Barras ← ' + cab('codigoBarra') + '</span>' +
+      '<span class="muted">Código ← ' + cab('codigo') + ' · Desc ← ' + cab('descripcion') + ' · Marca ← ' + cab('marca') + ' · Precio ← ' + cab('precio') + ' · Familia ← ' + cab('familia') + ' · Barras ← ' + cab('codigoBarra') + ' · Ubicación ← ' + cab('ubicacion') + '</span>' +
       '<table class="tbl" style="margin-top:6px"><thead><tr><th>Código</th><th>Descripción</th><th>Precio</th></tr></thead><tbody>';
     U.each(r.productos.slice(0, 8), function (p) { t += '<tr><td>' + U.esc(p.codigo) + '</td><td>' + U.esc(p.descripcion) + '</td><td>' + (p.precio ? U.clp(p.precio) : '') + '</td></tr>'; });
     t += '</tbody></table>' + (r.productos.length > 8 ? '<div class="muted">… y ' + (r.productos.length - 8) + ' más</div>' : '') +
