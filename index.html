@@ -423,7 +423,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.9.0', build: '2026-10-17', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.10.0', build: '2026-10-17', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -598,10 +598,16 @@ var FORMATOS_DEFECTO = [
   { id: 'prod-50x30', nombre: 'Troquelada 50×30', tipo: 'troquel', ancho: 50, alto: 30, barra: true, campoBarra: 'auto', altoBarra: 8, textoBarra: false,
     campos: [{ k: 'descripcion', pt: 9, b: false }, { k: 'precio', pt: 12, b: true }] }
 ];
-var FORMATOS_BULTO = [
-  { id: 'bul-60x29', nombre: 'Troquelada 60×29', detalle: 'Bulto · Orden/Ticket · Documento', tipo: 'troquel', ancho: 60, alto: 29 },
-  { id: 'bul-60x40', nombre: 'Troquelada 60×40', detalle: 'Bulto · Orden/Ticket · Documento · Courier · OT', tipo: 'troquel', ancho: 60, alto: 40 },
-  { id: 'bul-58-rollo', nombre: 'Rollo 58 mm completo', detalle: 'Incluye medidas, peso, courier, fecha y código de barras opcional', tipo: 'rollo', ancho: 58 }
+var CAMPOS_BULTO = { bulto: 'Bulto N/T', orden: 'Orden / Ticket', documento: 'Documento', seguimiento: 'Correos (seguimiento o ID)', courier: 'Courier y OT courier', ot: 'OT interna',
+  medidas: 'Medidas', peso: 'Peso', producto: 'Producto', fecha: 'Fecha', empresa: 'Empresa', textoFijo: 'Texto fijo' };
+var CODIGOS_BULTO = { orden: 'Orden / Ticket', seguimiento: 'Seguimiento Correos (si no, orden)', bulto: 'Código único del bulto' };
+var FORMATOS_BULTO_DEFECTO = [
+  { id: 'bul-60x29', uso: 'bulto', nombre: 'Bulto troquelada 60×29', tipo: 'troquel', ancho: 60, alto: 29, barra: false, campoBarra: 'orden', altoBarra: 8, textoBarra: false,
+    campos: [{ k: 'bulto', pt: 26, b: true }, { k: 'orden', pt: 18, b: true }, { k: 'documento', pt: 10, b: false }, { k: 'seguimiento', pt: 8, b: true }] },
+  { id: 'bul-60x40', uso: 'bulto', nombre: 'Bulto troquelada 60×40', tipo: 'troquel', ancho: 60, alto: 40, barra: false, campoBarra: 'orden', altoBarra: 8, textoBarra: false,
+    campos: [{ k: 'bulto', pt: 28, b: true }, { k: 'orden', pt: 18, b: true }, { k: 'documento', pt: 10, b: false }, { k: 'seguimiento', pt: 10, b: true }, { k: 'courier', pt: 9, b: true }, { k: 'ot', pt: 8, b: false }] },
+  { id: 'bul-58-rollo', uso: 'bulto', nombre: 'Bulto rollo 58 mm completo', tipo: 'rollo', ancho: 58, alto: 0, barra: true, campoBarra: 'orden', altoBarra: 11, textoBarra: false,
+    campos: [{ k: 'empresa', pt: 12, b: true }, { k: 'bulto', pt: 28, b: true }, { k: 'ot', pt: 9, b: false }, { k: 'orden', pt: 16, b: true }, { k: 'documento', pt: 14, b: true }, { k: 'seguimiento', pt: 12, b: true }, { k: 'courier', pt: 11, b: true }, { k: 'medidas', pt: 12, b: true }, { k: 'peso', pt: 12, b: true }, { k: 'producto', pt: 9, b: false }, { k: 'fecha', pt: 9, b: false }] }
 ];
 var ROTULO_LIBRE_DEFECTO = { cantidad: 1, prefijo: '', orden: '', cliente: '',
   lineas: [{ t: '{bulto}', pt: 26, b: true }, { t: '{orden}', pt: 16, b: true }, { t: '{cliente}', pt: 12, b: false }, { t: '{fecha}', pt: 10, b: false }] };
@@ -617,6 +623,7 @@ var DB = {
     if (!DB.cfg.sync.dispositivo) DB.cfg.sync.dispositivo = U.uid('eq-');
     var f = StorageManager.leer(CLAVES.formatos, null);
     DB.formatos = (U.esArray(f) && f.length) ? f : U.clone(FORMATOS_DEFECTO);
+    if (!U.find(DB.formatos, function (x) { return x.uso === 'bulto'; })) { DB.formatos = DB.formatos.concat(U.clone(FORMATOS_BULTO_DEFECTO)); DB.guardarFormatos(); }
     if (!U.esArray(f) || !f.length) DB.guardarFormatos();
     if (StorageManager.leer(CLAVES.config, null) == null) DB.guardarCfg();
     OT.cargar();
@@ -628,7 +635,8 @@ var DB = {
   },
   guardarCfg: function () { return StorageManager.guardar(CLAVES.config, DB.cfg); },
   guardarFormatos: function () { return StorageManager.guardar(CLAVES.formatos, DB.formatos); },
-  formato: function (id) { return U.find(DB.formatos, function (f) { return f.id === id; }) || DB.formatos[0] || FORMATOS_DEFECTO[0]; }
+  formato: function (id) { return U.find(DB.formatos, function (f) { return f.id === id && f.uso !== 'bulto'; }) || U.find(DB.formatos, function (f) { return f.uso !== 'bulto'; }) || FORMATOS_DEFECTO[0]; },
+  formatosDe: function (uso) { return U.filter(DB.formatos, function (f) { return uso === 'bulto' ? f.uso === 'bulto' : f.uso !== 'bulto'; }); }
 };
 
 
@@ -1973,39 +1981,61 @@ var Plantillas = {
     return Math.max(7, Math.min(base, Math.floor(max * 2) / 2));
   },
   _posBulto: function (ot, b) {
-    var docBultos = OT.bultosDoc(ot, b.docKey), tot = docBultos.length, pos = U.findIdx(docBultos, function (x) { return x.id === b.id; }) + 1;
-    return { pos: pos || b.numero, tot: tot };
-  },
-  formatoBulto: function (id) { return U.find(FORMATOS_BULTO, function (f) { return f.id === id; }) || FORMATOS_BULTO[0]; },
-  etiquetaBulto: function (ot, b, fmtId) {
-    var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto);
-    if (f.id === 'bul-58-rollo') return Plantillas._bultoRollo(ot, b);
-    var pb = Plantillas._posBulto(ot, b), util = f.ancho - 4, grande = f.id === 'bul-60x40';
-    var num = pb.pos + '/' + pb.tot, orden = String(b.orden || '-'), doc = OT.etiquetaDoc(b);
-    var h = '<div class="hoja ebt ' + (grande ? 'e40' : 'e29') + '">' +
-      '<div class="ln r1"><span class="k">BULTO</span><span class="n" style="font-size:' + Plantillas._ptAjustado(num, grande ? 34 : 30, util - 12, 0.6) + 'pt">' + U.esc(num) + '</span></div>' +
-      '<div class="ln r2" style="font-size:' + Plantillas._ptAjustado(orden, 20, util) + 'pt">' + U.esc(orden) + '</div>' +
-      '<div class="ln r3" style="font-size:' + Plantillas._ptAjustado(doc, grande ? 11 : 10, util, 0.58) + 'pt">' + U.esc(doc) + '</div>';
-    if (grande) {
-      var cou = ((b.courier || '') + (b.ordenCourier ? ' ' + b.ordenCourier : '')).replace(/^\s+|\s+$/g, '') || 'SIN COURIER';
-      h += '<div class="ln r4" style="font-size:' + Plantillas._ptAjustado(cou, 9, util) + 'pt">' + U.esc(cou) + '</div>' +
-        '<div class="ln r5" style="font-size:' + Plantillas._ptAjustado('OT ' + ot.numero, 8, util, 0.55) + 'pt">OT ' + U.esc(ot.numero) + '</div>';
+    var docBultos;
+    if (ot) docBultos = OT.bultosDoc(ot, b.docKey);
+    else {
+      var k = OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento || b.factura);
+      docBultos = U.filter(CubPool.lista, function (x) { return x.estado !== 'ELIMINADO' && OT.docKey(x.orden, x.tipoDocumento, x.numeroDocumento || x.factura) === k; });
+      docBultos.sort(function (x, y) { return (x.numero || 0) - (y.numero || 0); });
     }
-    return h + '</div>';
+    var tot = docBultos.length, pos = U.findIdx(docBultos, function (x) { return x.id === b.id; }) + 1;
+    return { pos: pos || b.numero, tot: tot || 1 };
   },
-  _bultoRollo: function (ot, b) {
-    var pb = Plantillas._posBulto(ot, b), cfg = DB.cfg;
-    return '<div class="hoja eb">' +
-      '<div class="emp">' + U.esc(cfg.empresa) + '</div>' +
-      '<div class="bt">BULTO</div><div class="num">' + pb.pos + ' DE ' + pb.tot + '</div>' +
-      '<div class="otl">OT: ' + U.esc(ot.numero) + '</div>' +
-      '<div class="kv"><div class="k">OC / TICKET:</div><div class="v">' + U.esc(b.orden) + '</div></div>' +
-      '<div class="kv"><div class="k">DOCUMENTO:</div><div class="v">' + U.esc(OT.etiquetaDoc(b)) + '</div></div>' +
-      (b.courier || b.ordenCourier ? '<div class="kv"><div class="k">COURIER: ' + U.esc(b.courier || '-') + '</div><div class="v" style="font-size:13pt">' + U.esc(b.ordenCourier || '') + '</div></div>' : '') +
-      '<div class="med">' + U.esc(b.ancho + ' x ' + b.alto + ' x ' + b.largo + ' CM') + '<br>PESO: ' + U.fx(b.peso, 2) + ' KG</div>' +
-      (cfg.barraBulto ? Code128.svg(b.orden, 11, false) : '') +
-      '<div class="fec">' + U.fechaCL(b.fecha) + ' ' + U.esc(b.hora) + '</div>' +
-      '</div>';
+  formatoBulto: function (id) { var l = DB.formatosDe('bulto'); return U.find(l, function (f) { return f.id === id; }) || l[0] || FORMATOS_BULTO_DEFECTO[0]; },
+  correosDe: function (b) {
+    var e = typeof CorreosSat !== 'undefined' ? CorreosSat.deBulto(b) : null;
+    if (!e) return '';
+    return e.seguimiento ? 'CORREOS ' + e.seguimiento : 'ID CORREOS ' + (e.idTemprano || e.numeroEnvio);
+  },
+  valorBulto: function (ot, b, k, c, pb) {
+    if (k === 'bulto') return 'BULTO ' + pb.pos + '/' + pb.tot;
+    if (k === 'orden') return String(b.orden || '-');
+    if (k === 'documento') return OT.etiquetaDoc(b);
+    if (k === 'seguimiento') return Plantillas.correosDe(b);
+    if (k === 'courier') return U.trim((b.courier || '') + (b.ordenCourier ? ' ' + b.ordenCourier : ''));
+    if (k === 'ot') return ot ? 'OT ' + ot.numero : (b.cubicacionId ? 'CUB ' + b.cubicacionId : '');
+    if (k === 'medidas') return b.ancho + ' x ' + b.alto + ' x ' + b.largo + ' CM';
+    if (k === 'peso') return 'PESO ' + U.fx(b.peso, 2) + ' KG';
+    if (k === 'producto') return b.productoDesc || '';
+    if (k === 'fecha') return U.trim(U.fechaCL(b.fecha) + ' ' + (b.hora || ''));
+    if (k === 'empresa') return DB.cfg.empresa || '';
+    if (k === 'textoFijo') return c && c.valor ? c.valor : '';
+    return '';
+  },
+  codigoBulto: function (f, b) {
+    if (f.campoBarra === 'seguimiento') { var e = typeof CorreosSat !== 'undefined' ? CorreosSat.deBulto(b) : null; if (e && (e.seguimiento || e.numeroEnvio)) return e.seguimiento || e.numeroEnvio; }
+    if (f.campoBarra === 'bulto') return String(b.origenCubicacionId || b.id || '').replace(/^cub-/, '').toUpperCase();
+    return String(b.orden || '');
+  },
+  etiquetaBulto: function (ot, b, fmtId) {
+    var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto), pb = Plantillas._posBulto(ot, b), util = f.ancho - 4, ls = [], i, total = 0;
+    for (i = 0; i < f.campos.length; i++) {
+      var c = f.campos[i], v = Plantillas.valorBulto(ot, b, c.k, c, pb);
+      if (!U.trim(v)) continue;
+      var pt = Plantillas._ptAjustado(v, c.pt || 10, util, c.b ? 0.62 : 0.56);
+      ls.push({ v: v, pt: pt, b: c.b, k: c.k });
+      total += pt * 0.3528 * 1.16;
+    }
+    var bar = f.barra ? Plantillas.codigoBulto(f, b) : '', altoBar = bar ? (f.altoBarra || 8) + (f.textoBarra ? 4 : 0) + 1 : 0;
+    if (f.tipo === 'troquel') {
+      var disp = f.alto - 2.6 - altoBar - (ls.length ? 0.4 * (ls.length - 1) : 0);
+      if (total > disp && total > 0) { var k2 = disp / total; U.each(ls, function (x) { x.pt = Math.max(6, Math.floor(x.pt * k2 * 2) / 2); }); }
+    }
+    var h = '';
+    U.each(ls, function (x, j) { h += '<div class="ln" style="font-size:' + x.pt + 'pt;line-height:1.12;font-weight:' + (x.b ? 'bold' : 'normal') + ';white-space:nowrap;overflow:hidden' + (j && (x.k === 'orden' || x.k === 'seguimiento' || x.k === 'medidas') ? ';border-top:0.3mm solid #000' : '') + '">' + U.esc(x.v) + '</div>'; });
+    if (bar) h += Code128.svg(bar, f.altoBarra || 8, !!f.textoBarra);
+    var st = f.tipo === 'troquel' ? 'width:' + f.ancho + 'mm;height:' + f.alto + 'mm;padding:1.2mm 2mm;box-sizing:border-box;overflow:hidden;' : 'width:' + util + 'mm;max-width:' + util + 'mm;padding:1mm 0 3mm;';
+    return '<div class="hoja ep" style="' + st + 'text-align:center;font-family:Arial,Helvetica,sans-serif">' + (h || '&nbsp;') + '</div>';
   },
   etiquetasDe: function (ot, bultos, fmtId) { return U.map(bultos, function (b) { return Plantillas.etiquetaBulto(ot, b, fmtId); }).join(''); },
   imprimirBultos: function (ot, bultos, fmtId) {
@@ -2574,7 +2604,7 @@ Pantallas.cubicacion = function (m) {
     '<button class="btn btn-ok btn-xl" data-a="agregar">+ AGREGAR BULTO</button>' +
     '<div class="btns"><button class="btn btn-sec" data-a="repetir">REPETIR MEDIDAS</button><button class="btn btn-sec" data-a="igual">OTRO IGUAL</button></div>' +
     '<div class="btns"><button class="btn btn-warn" data-a="limpiarDoc">LIMPIAR DOCUMENTO</button><button class="btn btn-sec" data-a="nuevo">NUEVO ID CUBICACIÓN</button></div></div>' +
-    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuLista"></div><div class="btns"><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button><button class="btn" data-a="packing">PACKING →</button></div></div>';
+    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuLista"></div><div class="btns"><button class="btn btn-ok" data-a="etiqCub">ETIQUETAS</button><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button><button class="btn" data-a="packing">PACKING →</button></div></div>';
   m.innerHTML = h;
   var calc = function () { var a = U.num(U.$('cuAncho').value), al = U.num(U.$('cuAlto').value), l = U.num(U.$('cuLargo').value); if (a && al && l) { var c = OT.calcular(a, al, l); U.$('cuCalc').innerHTML = 'Volumen <b>' + U.fx(c.volumen, 3) + ' m³</b> · Peso vol. <b>' + U.fx(c.pesoVol, 2) + ' kg</b>'; } else U.$('cuCalc').innerHTML = ''; };
   var pintar = function () {
@@ -2585,6 +2615,7 @@ Pantallas.cubicacion = function (m) {
       return b.estado !== 'ELIMINADO' && (!q || U.norm(b.orden).indexOf(q) >= 0 || U.norm(b.numeroDocumento).indexOf(q) >= 0 || U.norm(b.tipoDocumento).indexOf(q) >= 0 || U.norm(b.cubicacionId).indexOf(q) >= 0);
     }), hh = '';
     l.sort(function (a, b) { var ad=(a.fecha===U.fechaISO()?1:0),bd=(b.fecha===U.fechaISO()?1:0); if(ad!==bd)return bd-ad;return (a.act||'')<(b.act||'')?1:-1; });
+    CubUI.visibles = l;
     if (U.$('cuTitulo')) U.$('cuTitulo').innerHTML = CubUI.vista === 'pendientes' ? 'BULTOS PENDIENTES DE PACKING' : 'HISTÓRICO DE BULTOS';
     if (!l.length) hh = '<div class="muted" style="padding:12px">Sin bultos.</div>';
     U.each(l, function (b) {
@@ -2724,6 +2755,12 @@ Pantallas.cubicacion = function (m) {
       }, { si: 'ELIMINAR', peligro: true });
     },
     packing: function () { App.ir('packing'); },
+    etiqCub: function () {
+      var l = (CubUI.visibles || []).slice(0);
+      if (!l.length) { UI.toast('No hay bultos en la lista. Use el buscador para elegir la orden.', 'warn'); return; }
+      l.sort(function (a, b) { var ka = OT.docKey(a.orden, a.tipoDocumento, a.numeroDocumento), kb = OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento); return ka === kb ? (a.numero || 0) - (b.numero || 0) : (ka < kb ? -1 : 1); });
+      PackingUI.elegirFormatoBulto(null, l);
+    },
     pdfA4: function () { CubicacionPDF.generar('A4'); },
     pdf80: function () { CubicacionPDF.generar('80'); },
     pdf58: function () { CubicacionPDF.generar('58'); },
@@ -2856,12 +2893,14 @@ var PackingUI = {
   elegirFormatoBulto: function (ot, bultos) {
     if (!bultos || !bultos.length) { UI.toast('No hay bultos', 'error'); return; }
     var sel = Plantillas.formatoBulto(DB.cfg.formatoBulto).id, ops = '';
-    U.each(FORMATOS_BULTO, function (f) {
-      ops += '<label class="fmt-op' + (f.id === sel ? ' on' : '') + '"><input type="radio" name="fmtBul" value="' + f.id + '"' + (f.id === sel ? ' checked' : '') + '><b>' + U.esc(f.nombre) + '</b><small>' + U.esc(f.detalle) + '</small></label>';
+    U.each(DB.formatosDe('bulto'), function (f) {
+      var det = (f.tipo === 'troquel' ? f.ancho + '×' + f.alto + ' mm · ' : 'Rollo ' + f.ancho + ' mm · ') + U.map(f.campos, function (x) { return CAMPOS_BULTO[x.k] || x.k; }).join(', ') + (f.barra ? ' · código ' + (CODIGOS_BULTO[f.campoBarra] || 'orden').toLowerCase() : '');
+      ops += '<label class="fmt-op' + (f.id === sel ? ' on' : '') + '"><input type="radio" name="fmtBul" value="' + f.id + '"' + (f.id === sel ? ' checked' : '') + '><b>' + U.esc(f.nombre) + '</b><small>' + U.esc(det) + '</small></label>';
     });
+    ops += '<div class="muted" style="margin:4px 0 8px">Los formatos se crean y modifican en ROTULADO › FORMATOS.</div>';
     var prev = function (id) { var p = U.$('fmtPrev'); if (p) p.innerHTML = Plantillas.etiquetaBulto(ot, bultos[0], id); };
     UI.modal({
-      titulo: 'Formato de etiqueta · ' + bultos.length + ' bulto(s)',
+      titulo: 'Etiqueta de bulto · ' + bultos.length + ' bulto(s)',
       html: ops + '<label class="lbl">VISTA PREVIA</label><div class="fmt-prev" id="fmtPrev"></div>',
       botones: [
         { txt: 'IMPRIMIR ' + bultos.length, cls: 'btn-ok', fn: function () {
@@ -4217,7 +4256,7 @@ Rapida.imprimir = function () {
 var Rotulado = { sub: 'etiqueta' };
 
 Rotulado.opcionesFormato = function (sel) {
-  return U.map(DB.formatos, function (f) {
+  return U.map(DB.formatosDe('producto'), function (f) {
     return '<option value="' + U.esc(f.id) + '"' + (f.id === sel ? ' selected' : '') + '>' + U.esc(f.nombre) + (f.tipo === 'troquel' ? ' (' + f.ancho + '×' + f.alto + ')' : '') + '</option>';
   }).join('');
 };
@@ -4349,27 +4388,35 @@ Rotulado.pareo = function (c, acc, m) {
 };
 
 Rotulado.formatos = function (c, acc) {
-  var h = '<div class="card"><h2>Formatos de etiqueta de producto</h2><div class="lista">';
-  U.each(DB.formatos, function (f, i) {
-    h += '<button class="it" data-a="editF" data-x="' + i + '"><div class="c1">' + U.esc(f.nombre) + '</div><div class="c2">' +
-      (f.tipo === 'troquel' ? 'Troquelada ' + f.ancho + '×' + f.alto + ' mm' : 'Rollo continuo ' + f.ancho + ' mm') + ' · ' +
-      U.map(f.campos, function (x) { return CAMPOS_PRODUCTO[x.k] || x.k; }).join(', ') + (f.barra ? ' · barras' : '') + '</div></button>';
-  });
-  h += '</div><button class="btn btn-ok" data-a="nuevoF">+ NUEVO FORMATO</button><button class="btn btn-sec btn-sm" data-a="resetF">RESTAURAR PREDETERMINADOS</button></div>';
-  c.innerHTML = h;
+  var lista = function (uso) {
+    var h = '';
+    U.each(DB.formatos, function (f, i) {
+      if ((uso === 'bulto') !== (f.uso === 'bulto')) return;
+      var cat = uso === 'bulto' ? CAMPOS_BULTO : CAMPOS_PRODUCTO;
+      h += '<button class="it" data-a="editF" data-x="' + i + '"><div class="c1">' + U.esc(f.nombre) + (uso === 'bulto' && f.id === DB.cfg.formatoBulto ? ' <span class="est COMPLETO">POR DEFECTO</span>' : '') + '</div><div class="c2">' +
+        (f.tipo === 'troquel' ? 'Troquelada ' + f.ancho + '×' + f.alto + ' mm' : 'Rollo continuo ' + f.ancho + ' mm') + ' · ' +
+        U.map(f.campos, function (x) { return cat[x.k] || x.k; }).join(', ') + (f.barra ? ' · barras' : '') + '</div></button>';
+    });
+    return h;
+  };
+  c.innerHTML = '<div class="card"><h2>Etiquetas de bulto (Cubicación y Packing)</h2><div class="lista">' + lista('bulto') + '</div><button class="btn btn-ok" data-a="nuevoFB">+ NUEVO FORMATO DE BULTO</button></div>' +
+    '<div class="card"><h2>Etiquetas de producto</h2><div class="lista">' + lista('producto') + '</div><button class="btn btn-ok" data-a="nuevoF">+ NUEVO FORMATO DE PRODUCTO</button></div>' +
+    '<div class="card"><button class="btn btn-sec btn-sm" data-a="resetF">RESTAURAR PREDETERMINADOS</button></div>';
   acc.editF = function (i) { Rotulado.editarFormato(+i); };
-  acc.nuevoF = function () { Rotulado.editarFormato(-1); };
+  acc.nuevoF = function () { Rotulado.editarFormato(-1, 'producto'); };
+  acc.nuevoFB = function () { Rotulado.editarFormato(-1, 'bulto'); };
   acc.resetF = function () {
-    UI.confirmar('¿Restaurar los formatos predeterminados? Se perderán los formatos creados o modificados.', function () {
-      DB.formatos = U.clone(FORMATOS_DEFECTO); DB.guardarFormatos(); App.ir('rotulado'); UI.toast('Formatos restaurados', 'ok');
+    UI.confirmar('¿Restaurar los formatos predeterminados de producto y de bulto? Se perderán los formatos creados o modificados.', function () {
+      DB.formatos = U.clone(FORMATOS_DEFECTO).concat(U.clone(FORMATOS_BULTO_DEFECTO)); DB.guardarFormatos(); App.ir('rotulado'); UI.toast('Formatos restaurados', 'ok');
     }, { peligro: true, si: 'RESTAURAR' });
   };
 };
 
-Rotulado.editarFormato = function (idx) {
-  var f = idx >= 0 ? U.clone(DB.formatos[idx]) : { id: '', nombre: 'Nuevo formato', tipo: 'rollo', ancho: 58, alto: 0, barra: true, campoBarra: 'auto', altoBarra: 12, textoBarra: true, campos: [{ k: 'descripcion', pt: 11, b: true }, { k: 'codigo', pt: 12, b: true }] };
+Rotulado.editarFormato = function (idx, usoNuevo) {
+  var f = idx >= 0 ? U.clone(DB.formatos[idx]) : (usoNuevo === 'bulto' ? U.assign(U.clone(FORMATOS_BULTO_DEFECTO[0]), { id: '', nombre: 'Nuevo formato de bulto' }) : { id: '', nombre: 'Nuevo formato', tipo: 'rollo', ancho: 58, alto: 0, barra: true, campoBarra: 'auto', altoBarra: 12, textoBarra: true, campos: [{ k: 'descripcion', pt: 11, b: true }, { k: 'codigo', pt: 12, b: true }] });
+  var esBulto = f.uso === 'bulto', CAT = esBulto ? CAMPOS_BULTO : CAMPOS_PRODUCTO;
   var orden = U.map(f.campos, function (x) { return x.k; });
-  for (var k in CAMPOS_PRODUCTO) if (orden.indexOf(k) < 0) orden.push(k);
+  for (var k in CAT) if (orden.indexOf(k) < 0) orden.push(k);
   var h = '<label class="lbl">NOMBRE</label><input id="efNom" class="inp sm" value="' + U.esc(f.nombre) + '">' +
     '<div class="fila"><div class="c2"><label class="lbl">TIPO</label><select id="efTipo" class="inp sm"><option value="rollo"' + (f.tipo === 'rollo' ? ' selected' : '') + '>Rollo continuo</option><option value="troquel"' + (f.tipo === 'troquel' ? ' selected' : '') + '>Troquelada (fija)</option></select></div>' +
     '<div class="c"><label class="lbl">ANCHO mm</label><input id="efAn" class="inp sm" type="number" min="20" max="120" value="' + f.ancho + '"></div>' +
@@ -4379,20 +4426,22 @@ Rotulado.editarFormato = function (idx) {
   U.each(orden, function (k, i) {
     var cf = U.find(f.campos, function (x) { return x.k === k; }) || { k: k, pt: 10, b: false };
     var on = !!U.find(f.campos, function (x) { return x.k === k; });
-    h += '<div class="bl efRow" data-k="' + k + '"><div class="i"><label class="chk" style="padding:4px 0"><input type="checkbox" class="efOn"' + (on ? ' checked' : '') + '>' + U.esc(CAMPOS_PRODUCTO[k]) + '</label>' +
+    h += '<div class="bl efRow" data-k="' + k + '"><div class="i"><label class="chk" style="padding:4px 0"><input type="checkbox" class="efOn"' + (on ? ' checked' : '') + '>' + U.esc(CAT[k] || k) + '</label>' +
       (k === 'textoFijo' ? '<input class="inp sm efVal" style="width:150px" placeholder="texto" value="' + U.esc(cf.valor || '') + '">' : '') + '</div>' +
       '<div class="a"><input class="inp sm efPt" type="number" min="9" max="40" value="' + cf.pt + '" style="width:62px;display:inline-block;text-align:center">' +
       '<label style="font-size:13px"><input type="checkbox" class="efB"' + (cf.b ? ' checked' : '') + '>N</label>' +
       '<button class="mini" data-ef="up">↑</button></div></div>';
   });
   h += '<label class="chk"><input type="checkbox" id="efBar"' + (f.barra ? ' checked' : '') + '> Código de barras (Code 128)</label>' +
-    '<div class="fila"><div class="c2"><label class="lbl">VALOR DEL CÓDIGO</label><select id="efCB" class="inp sm"><option value="auto"' + (f.campoBarra === 'auto' ? ' selected' : '') + '>Barras si es válido, si no SKU</option>' +
-    '<option value="codigo"' + (f.campoBarra === 'codigo' ? ' selected' : '') + '>Código/SKU</option><option value="codigoBarra"' + (f.campoBarra === 'codigoBarra' ? ' selected' : '') + '>Cód. barras</option></select></div>' +
+    '<div class="fila"><div class="c2"><label class="lbl">VALOR DEL CÓDIGO</label><select id="efCB" class="inp sm">' +
+    (esBulto ? U.map(['orden', 'seguimiento', 'bulto'], function (v) { return '<option value="' + v + '"' + (f.campoBarra === v ? ' selected' : '') + '>' + CODIGOS_BULTO[v] + '</option>'; }).join('') :
+    '<option value="auto"' + (f.campoBarra === 'auto' ? ' selected' : '') + '>Barras si es válido, si no SKU</option><option value="codigo"' + (f.campoBarra === 'codigo' ? ' selected' : '') + '>Código/SKU</option><option value="codigoBarra"' + (f.campoBarra === 'codigoBarra' ? ' selected' : '') + '>Cód. barras</option>') + '</select></div>' +
     '<div class="c"><label class="lbl">ALTO mm</label><input id="efBA" class="inp sm" type="number" min="5" max="30" value="' + (f.altoBarra || 10) + '"></div></div>' +
-    '<label class="chk"><input type="checkbox" id="efBT"' + (f.textoBarra ? ' checked' : '') + '> Texto bajo el código</label>';
+    '<label class="chk"><input type="checkbox" id="efBT"' + (f.textoBarra ? ' checked' : '') + '> Texto bajo el código</label>' +
+    (esBulto ? '<label class="chk"><input type="checkbox" id="efDef"' + (f.id && f.id === DB.cfg.formatoBulto ? ' checked' : '') + '> Usar por defecto para etiquetas de bulto</label><div class="muted">«Correos» muestra el N° de seguimiento cuando el bulto ya está pagado y registrado con la extensión; antes, el ID temprano; si no hay vínculo, la línea no se imprime.</div>' : '');
   var botones = [{ txt: 'CANCELAR', cls: 'btn-sec' }];
   if (idx >= 0) botones.push({ txt: 'ELIMINAR', cls: 'btn-dan', fn: function () {
-    if (DB.formatos.length <= 1) { UI.toast('Debe existir al menos un formato', 'error'); return false; }
+    if (DB.formatosDe(esBulto ? 'bulto' : 'producto').length <= 1) { UI.toast('Debe existir al menos un formato de este tipo', 'error'); return false; }
     UI.confirmar('¿Eliminar el formato "' + f.nombre + '"?', function () { DB.formatos.splice(idx, 1); DB.guardarFormatos(); App.ir('rotulado'); }, { peligro: true, si: 'ELIMINAR' });
     return false;
   } });
@@ -4405,12 +4454,13 @@ Rotulado.editarFormato = function (idx) {
       if (cf.k === 'textoFijo') cf.valor = r.querySelector('.efVal').value;
       campos.push(cf);
     }
-    var nf = { id: f.id || U.uid('fmt-'), nombre: U.trim(U.$('efNom').value) || 'Formato', tipo: U.$('efTipo').value,
+    var nf = { id: f.id || U.uid(esBulto ? 'bul-' : 'fmt-'), uso: esBulto ? 'bulto' : 'producto', nombre: U.trim(U.$('efNom').value) || 'Formato', tipo: U.$('efTipo').value,
       ancho: Math.max(20, Math.min(120, parseInt(U.$('efAn').value, 10) || 58)), alto: Math.max(0, parseInt(U.$('efAl').value, 10) || 0),
       barra: U.$('efBar').checked, campoBarra: U.$('efCB').value, altoBarra: Math.max(5, Math.min(30, parseInt(U.$('efBA').value, 10) || 10)), textoBarra: U.$('efBT').checked, campos: campos };
     if (nf.tipo === 'troquel' && nf.alto < 10) { UI.toast('Una troquelada necesita ALTO (mm)', 'error'); return false; }
     if (!campos.length && !nf.barra) { UI.toast('Marque al menos un campo o el código de barras', 'error'); return false; }
     if (idx >= 0) DB.formatos[idx] = nf; else DB.formatos.push(nf);
+    if (esBulto && U.$('efDef') && U.$('efDef').checked) { DB.cfg.formatoBulto = nf.id; DB.guardarCfg(); }
     DB.guardarFormatos(); UI.toast('Formato guardado', 'ok'); App.ir('rotulado');
   } });
   var host = UI.modal({ titulo: idx >= 0 ? 'Editar formato' : 'Nuevo formato', html: h, botones: botones });
@@ -4690,7 +4740,7 @@ Pantallas.datos = function (m) {
     '<label class="lbl">NOMBRE EMPRESA</label><input id="cfEmp" class="inp sm" value="' + U.esc(c.empresa) + '">' +
     '<label class="lbl">SUBTÍTULO VOUCHER</label><input id="cfSub" class="inp sm" value="' + U.esc(c.subtitulo) + '">' +
     '<label class="lbl">FACTOR VOLUMÉTRICO (cm³/kg)</label><input id="cfFv" class="inp sm" type="number" min="1000" max="10000" step="1" value="' + c.factorVol + '">' +
-    '<label class="lbl" for="cfFb">FORMATO ETIQUETA DE BULTO (por defecto)</label><select id="cfFb" class="inp sm">' + U.map(FORMATOS_BULTO, function (f) { return '<option value="' + f.id + '"' + (f.id === Plantillas.formatoBulto(c.formatoBulto).id ? ' selected' : '') + '>' + U.esc(f.nombre + ' · ' + f.detalle) + '</option>'; }).join('') + '</select>' +
+    '<label class="lbl" for="cfFb">FORMATO ETIQUETA DE BULTO (por defecto)</label><select id="cfFb" class="inp sm">' + U.map(DB.formatosDe('bulto'), function (f) { return '<option value="' + f.id + '"' + (f.id === Plantillas.formatoBulto(c.formatoBulto).id ? ' selected' : '') + '>' + U.esc(f.nombre) + '</option>'; }).join('') + '</select>' +
     '<label class="chk"><input type="checkbox" id="cfBb"' + (c.barraBulto ? ' checked' : '') + '> Código de barras (Orden) en etiqueta de bulto (solo formato rollo 58 mm)</label>' +
     '<label class="chk"><input type="checkbox" id="cfAi"' + (c.autoImprimir ? ' checked' : '') + '> Imprimir etiqueta al agregar bulto</label>' +
     '<label class="lbl">MÉTODO DE IMPRESIÓN</label><select id="cfMi" class="inp sm"><option value="documento"' + (c.metodoImpresion !== 'pagina' ? ' selected' : '') + '>Documento dedicado con fondo blanco (recomendado)</option><option value="pagina"' + (c.metodoImpresion === 'pagina' ? ' selected' : '') + '>Página completa (método anterior)</option></select>' +
