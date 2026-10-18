@@ -430,7 +430,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.14.0', build: '2026-10-17', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.15.0', build: '2026-10-17', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -783,7 +783,7 @@ var Pedidos = {
   estadoOperativo: function(p) {
     if(!p)return 'RECIBIDO';
     if(p.estado==='ENTREGADO'||p.estado==='CANCELADO')return p.estado;
-    var key=OT.docKey(p.numero,p.tipoDocumento,p.numeroDocumento), tieneCub=false, tieneOT=false, total=0, desp=0;
+    var key=OT.docKey(p.numero,p.tipoDocumento,p.numeroDocumento), tieneCub=false, tieneOT=false, total=0, desp=0, ret=0;
     U.each(CubPool.lista,function(b){
       if(b.estado==='ELIMINADO')return;
       if(b.pedidoId===p.id || OT.docKey(b.orden,b.tipoDocumento,b.numeroDocumento)===key)tieneCub=true;
@@ -791,9 +791,9 @@ var Pedidos = {
     U.each(OT.lista,function(ot){
       var bs=OT.bultosDoc(ot,key);
       if(bs.length)tieneOT=true;
-      U.each(bs,function(b){total++;if(b.verificadoCourier||b.despachoId||b.etapa==='DESPACHADO')desp++;});
+      U.each(bs,function(b){total++;if(b.verificadoCourier||b.despachoId||b.despachado||b.etapa==='DESPACHADO')desp++;if(b.retiro)ret++;});
     });
-    if(total>0 && desp===total)return 'ENVIADO';
+    if(total>0 && desp===total)return ret===total?'ENTREGADO':'ENVIADO';
     if(tieneOT)return 'EN PREPARACIÓN';
     if(tieneCub)return 'CUBICADO';
     return p.estado;
@@ -2164,6 +2164,10 @@ var Sync = {
     } else if (loc.estado === 'CERRADA' && (!srv.manifiesto || !srv.manifiesto.generado)) {
       srv.estado = 'CERRADA';
     }
+    var bit = U.esArray(srv.bitacora) ? srv.bitacora.slice(0) : [];
+    U.each(loc.bitacora || [], function (x) { if (!U.find(bit, function (y) { return y.id === x.id; })) bit.push(x); });
+    bit.sort(function (a, b) { return a.fecha < b.fecha ? -1 : (a.fecha > b.fecha ? 1 : 0); });
+    srv.bitacora = bit;
     var todosCambios = (loc.despacho && loc.despacho.cambiosForzados) || [];
     U.each((srv.despacho && srv.despacho.cambiosForzados) || [], function (c) {
       if (!U.find(todosCambios, function (x) { return x.fecha === c.fecha && x.usuario === c.usuario && x.accion === c.accion; })) todosCambios.push(c);
@@ -2425,7 +2429,7 @@ var Plantillas = {
     var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto);
     Impresion.imprimir(Plantillas.etiquetasDe(ot, bultos, f.id), f.tipo === 'troquel' ? { tipo: 'troquel', ancho: f.ancho, alto: f.alto } : { tipo: 'rollo', ancho: f.ancho, margen: 2 });
   },
-  voucher: function (ot, key) {
+  voucher: function (ot, key, extra) {
     var doc = OT.documento(ot, key), bs = OT.bultosDoc(ot, key), t = OT.totalesDoc(ot, key), d = new Date(), h = '';
     h += '<div class="hoja vo">';
     h += '<div class="sep"></div><div class="c h1">' + U.esc(DB.cfg.empresa) + '</div><div class="c">' + U.esc(DB.cfg.subtitulo) + '</div><div class="sep"></div>';
@@ -2443,6 +2447,7 @@ var Plantillas = {
     h += '<div class="r"><span class="l">PESO TOTAL:</span><span class="rr">' + U.fx(t.peso, 2) + ' kg</span></div>';
     h += '<div class="r"><span class="l">VOLUMEN:</span><span class="rr">' + U.fx(t.volumen, 3) + ' m3</span></div>';
     h += '<div class="r"><span class="l">PESO VOL.:</span><span class="rr">' + U.fx(t.pesoVol, 2) + ' kg</span></div>';
+    if (extra) h += '<div class="sep"></div>' + extra;
     h += '<div class="sep"></div><div class="c">' + U.fechaCL(U.fechaISO(d)) + '  ' + U.hora(d) + '</div><div class="sep"></div>';
     h += '</div>';
     return h;
@@ -3772,20 +3777,23 @@ var DespachoGrupo = {
   abrir: function (ot, key) {
     var g = U.find(DespachoGrupo.grupos(ot), function (x) { return x.key === key; }); if (!g) return;
     DespachoGrupo.otId = ot.id;
-    var total = g.bultos.length, excluidos={};
+    var total = g.bultos.length, excluidos={}, esCorreos = /CORREOS/.test(U.norm(g.courier || ''));
+    if (esCorreos) CorreosSat.actualizar(function () {}, true);
     var ultimoCodigoUsado = '';
     var h = '<div class="msg"><b style="font-size:20px">' + U.esc(g.orden) + '</b><br>' + U.esc(g.tipoDocumento) + ' <b>' + U.esc(g.numeroDocumento) + '</b><br>OT interna: <b>' + U.esc(ot.numero) + '</b>' +
-      '<br>Courier: <b>' + U.esc(g.courier || 'SIN ASIGNAR') + '</b><br>N° courier registradas: <b id="dgEsp">' + U.esc(g.ordenes.length ? g.ordenes.join(', ') : 'SE DEFINEN CON LA PRIMERA LECTURA') + '</b></div>' +
+      '<br>Courier: <b>' + U.esc(g.courier || 'SIN ASIGNAR') + '</b>' + (esCorreos ? ' <span class="est COMPLETO">VALIDA ETIQUETA CORREOS</span>' : '') + '<br>N° courier registradas: <b id="dgEsp">' + U.esc(g.ordenes.length ? g.ordenes.join(', ') : 'SE DEFINEN CON LA PRIMERA LECTURA') + '</b></div>' +
       '<label class="lbl">ESCANEE ETIQUETA / OT DEL COURIER</label><input id="dgScan" class="inp" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="font-size:25px;font-weight:900" data-enter="dgRegistrar">' +
       '<button class="btn btn-ok btn-xl" id="dgReg">REGISTRAR LECTURA</button><button class="btn btn-sec" id="dgCam">📷 CÁMARA / CÓDIGO</button><div id="dgMsg"></div><div id="dgCnt"></div><div id="dgLista"></div>';
     UI.modal({ titulo: 'Control de despacho', html: h, botones: [
+      { txt: 'RETIRO EN BODEGA', cls: 'btn-ok', fn: function () { DespachoGrupo.retiro(ot, key); return false; } },
       { txt: 'REINICIAR CONTEO', cls: 'btn-warn', fn: function () { UI.confirmar('¿Borrar las lecturas de este grupo?', function () { DespachoGrupo.limpiarGrupo(g); UI.cerrarModal(); DespachoGrupo.abrir(ot, key); }, { si: 'REINICIAR', peligro: true }); return false; } },
       { txt: 'CERRAR', cls: 'btn-sec', fn:function(){setTimeout(function(){App.ir('despacho');},0);} }
     ] });
     function pintar() {
       var hechos = DespachoGrupo.hechos(g), pct = total ? Math.round(hechos * 100 / total) : 0, ls = '';
       U.each(g.bultos, function (b) {
-        ls += '<div class="grp' + (b.verificadoCourier ? ' comp' : '') + '"><div class="n">' + (b.verificadoCourier ? '✓' : '—') + '</div><div class="o">Bulto ' + b.numero + '</div><div class="d">' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.ordenCourierEscaneada ? ' · ' + U.esc(b.ordenCourierEscaneada) : (b.ordenCourier ? ' · ' + U.esc(b.ordenCourier) : ' · SIN N° COURIER')) + '</div></div>';
+        var hecho = b.verificadoCourier || b.despachado;
+        ls += '<div class="grp' + (hecho ? ' comp' : '') + '"><div class="n">' + (hecho ? '✓' : '—') + '</div><div class="o">Bulto ' + b.numero + '</div><div class="d">' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.retiro ? ' · RETIRADO POR ' + U.esc(b.retiro.nombre) + ' ' + U.esc(U.fechaCL(U.fechaISO(new Date(b.retiro.fecha))) + ' ' + U.hora(new Date(b.retiro.fecha))) : (b.ordenCourierEscaneada ? ' · ' + U.esc(b.ordenCourierEscaneada) : (b.ordenCourier ? ' · ' + U.esc(b.ordenCourier) : ' · SIN N° COURIER'))) + '</div></div>';
       });
       U.$('dgCnt').innerHTML = '<div class="card tot"><b style="font-size:28px">' + hechos + ' / ' + total + '</b> bultos verificados<div class="prog"><div style="width:' + pct + '%"></div></div>' + (hechos === total ? '<div class="aviso verde"><b>COMPLETO:</b> el total escaneado coincide con los bultos asignados.</div>' : '<div class="muted">Faltan ' + (total - hechos) + ' bulto(s).</div>') + '</div>';
       var ords = {};
@@ -3794,10 +3802,42 @@ var DespachoGrupo = {
       for (var k in ords) lista.push(k + ' (' + ords[k] + ')');
       U.$('dgLista').innerHTML = ls + (lista.length > 1 ? '<div class="muted" style="padding:6px">N° courier usadas: ' + U.esc(lista.join(' · ')) + '</div>' : '');
     }
+    function msgScan(cls, t, sub) { U.$('dgMsg').innerHTML = '<div class="scan ' + cls + '"><div class="t">' + t + '</div><div class="s">' + sub + '</div></div>'; }
+    function validarCorreos(code, bLibre, refrescado) {
+      var e = CorreosSat.porCodigo(code);
+      if (!e && !refrescado && Sync.modo() !== 'local' && new Date().getTime() - (CorreosSat._ult || 0) > 15000) {
+        msgScan('warn', 'VALIDANDO ETIQUETA…', U.esc(code));
+        var listo = false, seguir = function () { if (listo) return; listo = true; if (U.$('dgScan')) validarCorreos(code, bLibre, true); };
+        CorreosSat.actualizar(seguir, true);
+        setTimeout(seguir, 8000);
+        return;
+      }
+      if (e && e.docKey === g.docKey) {
+        var objetivo = U.find(g.bultos, function (x) { return (e.bultoIds || []).indexOf(x.origenCubicacionId || x.id) >= 0 || (e.bultoIds || []).indexOf(x.id) >= 0; });
+        if (objetivo && (objetivo.verificadoCourier || objetivo.despachado)) { Beep.err(); msgScan('err', 'ETIQUETA YA REGISTRADA', 'Seguimiento ' + U.esc(e.seguimiento || e.numeroEnvio) + ' ya está en el bulto ' + objetivo.numero + '.'); U.$('dgScan').focus(); return; }
+        asignar(objetivo || bLibre, e.seguimiento || code, false, 'Etiqueta Correos asociada al pedido ✓');
+        return;
+      }
+      Beep.err();
+      if (e) { msgScan('err', 'ETIQUETA DE OTRO PEDIDO', 'El seguimiento <b>' + U.esc(e.seguimiento || e.numeroEnvio) + '</b> pertenece a <b>' + U.esc(e.orden + ' · ' + e.tipoDocumento + ' ' + e.numeroDocumento) + '</b>. No se registró: revise el bulto.'); U.$('dgScan').focus(); return; }
+      U.$('dgMsg').innerHTML = '<div class="scan err"><div class="t">ETIQUETA NO ASOCIADA AL PEDIDO</div><div class="t">' + U.esc(code) + '</div><div class="s">Satélite no tiene esta etiqueta de Correos registrada para <b>' + U.esc(g.orden) + '</b>. Regístrela con la extensión (Mi historial de envíos → Registrar) y vuelva a escanear.</div><button class="btn btn-warn btn-sm" id="dgForzar" style="margin-top:8px">REGISTRAR CON AUTORIZACIÓN</button></div>';
+      U.$('dgForzar').onclick = function () {
+        Seguridad.admin('Registrar etiqueta de Correos no asociada (' + code + ') en ' + g.orden, function (aut) {
+          if (!ot.despacho) ot.despacho = { estado: 'PENDIENTE', cerrado: '', cambiosForzados: [] };
+          if (!ot.despacho.cambiosForzados) ot.despacho.cambiosForzados = [];
+          ot.despacho.cambiosForzados.push({ accion: 'etiquetaCorreosNoAsociada', codigo: code, orden: g.orden, bultoId: bLibre.id, fecha: aut.fecha, usuario: aut.usuario, motivo: aut.motivo });
+          var bb = U.find(ot.bultos, function (x) { return x.id === bLibre.id; });
+          if (!bb) { DespachoGrupo.abrir(ot, key); return; }
+          if (bb) { bb.verificadoCourier = true; bb.ordenCourierEscaneada = code; if (!bb.ordenCourier) bb.ordenCourier = code; bb.verificadoCourierAt = new Date().toISOString(); bb.etapa = 'VERIFICADO DESPACHO'; bb.act = bb.verificadoCourierAt; OT.recalcularDespacho(ot); OT.guardar(ot); DespachoGrupo.abrir(ot, key); UI.toast('Registrado con autorización de ' + aut.usuario, 'warn', 4000); }
+        });
+      };
+      U.$('dgScan').focus();
+    }
     function registrar() {
       var inp = U.$('dgScan'), code = U.norm(inp.value); inp.value = '';
       if (!code) { inp.focus(); return; }
       var bLibre = U.find(g.bultos, function (x) { return !x.verificadoCourier && !x.despachoId && !x.despachado && !excluidos[x.id]; });
+      if (bLibre && esCorreos) { validarCorreos(code, bLibre, false); return; }
       if (!bLibre) { Beep.err(); U.$('dgMsg').innerHTML = '<div class="scan err"><div class="t">EXCEDE CANTIDAD</div><div class="s">Ya se registraron los ' + total + ' bultos asignados.</div></div>'; inp.focus(); return; }
       var yaUsada = U.find(g.bultos, function (x) { return x.verificadoCourier && (x.ordenCourierEscaneada === code); });
       if (yaUsada) {
@@ -3813,7 +3853,7 @@ var DespachoGrupo = {
       }
       asignar(bLibre, code, false);
     }
-    function asignar(b, code, reutilizado) {
+    function asignar(b, code, reutilizado, nota) {
       b.verificadoCourier = true;
       b.ordenCourierEscaneada = code;
       if (!b.ordenCourier) b.ordenCourier = code;
@@ -3826,7 +3866,7 @@ var DespachoGrupo = {
       OT.guardar(ot);
       Beep.ok();
       U.$('dgEsp').innerHTML = U.esc(g.ordenes.join(', '));
-      U.$('dgMsg').innerHTML = '<div class="scan ok"><div class="t">BULTO REGISTRADO' + (reutilizado ? ' (CÓDIGO REUTILIZADO)' : '') + '</div><div class="big">' + DespachoGrupo.hechos(g) + ' / ' + total + '</div><div class="s">' + U.esc(code) + ' · Bulto ' + b.numero + '</div></div>';
+      U.$('dgMsg').innerHTML = '<div class="scan ok"><div class="t">BULTO REGISTRADO' + (reutilizado ? ' (CÓDIGO REUTILIZADO)' : '') + '</div><div class="big">' + DespachoGrupo.hechos(g) + ' / ' + total + '</div><div class="s">' + U.esc(code) + ' · Bulto ' + b.numero + (nota ? '<br>' + nota : '') + '</div></div>';
       pintar(); U.$('dgScan').focus();
     }
     U.$('dgLista').onchange=function(e){var id=e.target.getAttribute('data-dg-bid');if(id)excluidos[id]=!e.target.checked;};
@@ -3869,6 +3909,85 @@ var DespachoGrupo = {
     U.$('dgScan').onkeydown = function (e) { if ((e.keyCode || e.which) === 13) { e.preventDefault(); registrar(); } };
     pintar();
     setTimeout(function () { if (U.$('dgScan')) U.$('dgScan').focus(); }, 80);
+  },
+  rutValido: function (r) {
+    var s = String(r || '').replace(/[^0-9kK]/g, '').toUpperCase();
+    if (s.length < 2) return false;
+    var cuerpo = s.slice(0, -1), dv = s.slice(-1), suma = 0, mul = 2;
+    for (var i = cuerpo.length - 1; i >= 0; i--) { suma += parseInt(cuerpo.charAt(i), 10) * mul; mul = mul === 7 ? 2 : mul + 1; }
+    var res = 11 - (suma % 11), esp = res === 11 ? '0' : (res === 10 ? 'K' : String(res));
+    return esp === dv;
+  },
+  rutFormato: function (r) { var s = String(r || '').replace(/[^0-9kK]/g, '').toUpperCase(); if (s.length < 2) return s; var c = s.slice(0, -1).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); return c + '-' + s.slice(-1); },
+  entregas: function (ot, docKey) { return U.filter(ot.bitacora || [], function (x) { return x.tipo === 'ENTREGA_BODEGA' && x.docKey === docKey; }); },
+  fh: function (iso) { var d = new Date(iso); return isNaN(d.getTime()) ? '' : U.fechaCL(U.fechaISO(d)) + ' ' + U.hora(d); },
+  bloqueRetiro: function (ot, en) {
+    return '<div class="c h1">ENTREGA EN BODEGA</div><div>RETIRA:</div><div class="dest">' + U.esc(en.nombre) + '</div>' + (en.rut ? '<div>RUT: <b>' + U.esc(en.rut) + '</b></div>' : '') + (en.telefono ? '<div>TEL: ' + U.esc(en.telefono) + '</div>' : '') +
+      '<div>FECHA ENTREGA: <b>' + U.esc(DespachoGrupo.fh(en.fecha)) + '</b></div><div>BULTOS ENTREGADOS: <b>' + U.esc(en.bultos.join(', ')) + '</b> (' + en.bultos.length + ')</div>' + (en.obs ? '<div>OBS: ' + U.esc(en.obs) + '</div>' : '') +
+      (en.usuario ? '<div>ENTREGA: ' + U.esc(en.usuario) + '</div>' : '') + '<div style="margin-top:10px">FIRMA RETIRA: ________________</div>';
+  },
+  textoRetiro: function (ot, key, en) {
+    var d = OT.documento(ot, key), bs = OT.bultosDoc(ot, key);
+    var t = 'VOUCHER DE ENTREGA EN BODEGA\n' + DB.cfg.empresa + '\nOT: ' + ot.numero + '\nORDEN: ' + d.orden + '\nDOCUMENTO: ' + OT.etiquetaDoc(d) + '\nBULTOS: ' + bs.length;
+    U.each(bs, function (b) { t += '\nBulto ' + b.numero + '/' + bs.length + ': ' + Plantillas.med(b) + ' · ' + U.fx(b.peso, 2) + ' kg'; });
+    t += '\n\nRETIRA: ' + en.nombre + (en.rut ? ' · RUT ' + en.rut : '') + '\nFECHA: ' + DespachoGrupo.fh(en.fecha) + '\nBULTOS ENTREGADOS: ' + en.bultos.join(', ') + (en.obs ? '\nOBS: ' + en.obs : '');
+    return t;
+  },
+  voucherRetiro: function (ot, key, en) {
+    var dk = en.docKey, html = Plantillas.voucher(ot, dk, DespachoGrupo.bloqueRetiro(ot, en)), doc = OT.documento(ot, dk);
+    var wa = function (num) { var url = 'https://wa.me/' + (num || '') + '?text=' + encodeURIComponent(DespachoGrupo.textoRetiro(ot, dk, en)); try { window.open(url, '_blank'); } catch (e) { window.location.href = url; } };
+    var tel = String(en.telefono || '').replace(/\D/g, ''); if (tel.length === 9) tel = '56' + tel;
+    var bot = [];
+    bot.push({ txt: 'IMPRIMIR 58', cls: 'btn-sec', fn: function () { Impresion.imprimir(html, { tipo: 'rollo', ancho: 58, margen: 2 }); return false; } });
+    bot.push({ txt: 'IMPRIMIR 80', cls: 'btn-sec', fn: function () { Impresion.imprimir(html, { tipo: 'rollo', ancho: 80, margen: 3 }); return false; } });
+    bot.push({ txt: 'VOLVER', cls: 'btn-sec', fn: function () { DespachoGrupo.abrir(ot, key); return false; } });
+    var wsp = '<div class="btns" style="margin:0"><button type="button" class="btn btn-ok" id="rvWa">WHATSAPP</button>' + (tel.length >= 11 ? '<button type="button" class="btn btn-ok" id="rvWaC">WHATSAPP CLIENTE</button>' : '') + '</div>';
+    UI.modal({ titulo: 'Voucher de entrega · ' + doc.orden, html: wsp + '<div style="background:#f1f3f5;padding:10px;border-radius:8px;margin-top:8px"><div style="background:white;max-width:80mm;margin:auto;padding:8px;border:1px solid #bbb">' + html + '</div></div>', botones: bot, alAbrir: function () {
+      U.$('rvWa').onclick = function () { wa(''); };
+      if (U.$('rvWaC')) U.$('rvWaC').onclick = function () { wa(tel); };
+    } });
+  },
+  retiro: function (ot, key) {
+    var g = U.find(DespachoGrupo.grupos(ot), function (x) { return x.key === key; }); if (!g) return;
+    var pend = U.filter(g.bultos, function (b) { return !(b.verificadoCourier || b.despachoId || b.despachado); }), previas = DespachoGrupo.entregas(ot, g.docKey);
+    var h = '<div class="msg"><b style="font-size:19px">' + U.esc(g.orden) + '</b> · ' + U.esc(g.tipoDocumento + ' ' + g.numeroDocumento) + '<br>OT interna: <b>' + U.esc(ot.numero) + '</b> · ' + g.bultos.length + ' bulto(s)</div>';
+    if (previas.length) h += '<label class="lbl">BITÁCORA DE ENTREGAS</label><div class="lista">' + U.map(previas, function (en, i) { return '<button type="button" class="it" data-rv="' + i + '" style="text-align:left"><b>' + U.esc(DespachoGrupo.fh(en.fecha)) + '</b> · ' + U.esc(en.nombre) + (en.rut ? ' · ' + U.esc(en.rut) : '') + '<div class="c2">Bultos ' + U.esc(en.bultos.join(', ')) + (en.usuario ? ' · entregó ' + U.esc(en.usuario) : '') + ' · ver voucher</div></button>'; }).join('') + '</div>';
+    if (!pend.length) h += '<div class="aviso verde" style="margin-top:8px">Todos los bultos de este documento ya fueron despachados o entregados.</div>';
+    else {
+      h += '<label class="lbl">NOMBRE DE QUIEN RETIRA *</label><input id="rtNom" class="inp" maxlength="80" autocomplete="off">' +
+        '<div class="fila"><div class="c"><label class="lbl">RUT</label><input id="rtRut" class="inp sm" maxlength="12" autocomplete="off" placeholder="12.345.678-9"></div><div class="c"><label class="lbl">TELÉFONO</label><input id="rtTel" class="inp sm" type="tel" inputmode="tel" maxlength="15" placeholder="912345678"></div></div>' +
+        '<label class="lbl">OBSERVACIÓN</label><input id="rtObs" class="inp sm" maxlength="120">' +
+        '<label class="lbl">BULTOS QUE SE ENTREGAN</label>' + U.map(g.bultos, function (b) { var listo = b.verificadoCourier || b.despachoId || b.despachado; return '<label class="chk" style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" data-rt-b="' + U.esc(b.id) + '"' + (listo ? ' disabled' : ' checked') + '> Bulto ' + b.numero + ' · ' + U.esc(Plantillas.med(b)) + ' · ' + U.fx(b.peso, 2) + ' kg' + (listo ? ' <b>(' + (b.retiro ? 'ya entregado' : 'ya despachado') + ')</b>' : '') + '</label>'; }).join('') +
+        '<div class="muted" style="margin-top:6px">Queda registrado en la bitácora con fecha, hora y equipo. Los bultos entregados ya no se escanean para el courier.</div>';
+    }
+    var bot = [{ txt: 'VOLVER', cls: 'btn-sec', fn: function () { DespachoGrupo.abrir(ot, key); return false; } }];
+    if (pend.length) bot.push({ txt: 'REGISTRAR ENTREGA', cls: 'btn-ok', fn: function () {
+      var nom = U.trim(U.$('rtNom').value).replace(/\s+/g, ' '), rut = U.trim(U.$('rtRut').value), tel = String(U.$('rtTel').value || '').replace(/[^0-9+]/g, ''), obs = U.trim(U.$('rtObs').value);
+      if (nom.length < 3) { UI.toast('Indique el nombre de quien retira', 'error'); U.$('rtNom').focus(); return false; }
+      if (rut && !DespachoGrupo.rutValido(rut)) { UI.toast('RUT inválido', 'error'); U.$('rtRut').focus(); return false; }
+      if (tel && tel.replace(/\D/g, '').length < 8) { UI.toast('Teléfono inválido', 'error'); return false; }
+      var ids = []; U.each(U.qa(document, '[data-rt-b]'), function (c) { if (c.checked && !c.disabled) ids.push(c.getAttribute('data-rt-b')); });
+      if (!ids.length) { UI.toast('Marque al menos un bulto', 'error'); return false; }
+      var ahora = new Date().toISOString(), en = { id: U.uid('ret-'), tipo: 'ENTREGA_BODEGA', fecha: ahora, docKey: g.docKey, orden: g.orden, documento: g.tipoDocumento + ' ' + g.numeroDocumento, nombre: U.norm(nom), rut: rut ? DespachoGrupo.rutFormato(rut) : '', telefono: tel, obs: obs, bultos: [], bultoIds: ids, usuario: DB.cfg.operador || DB.cfg.nombreAdmin || '', dispositivo: DB.cfg.sync.dispositivo, equipo: DB.cfg.equipo || '' };
+      var curRet = U.find(DB.cfg.couriers || [], function (c) { return /RETIRO/.test(c); }) || 'RETIRO EN BODEGA';
+      U.each(g.bultos, function (b) {
+        if (ids.indexOf(b.id) < 0) return;
+        b.despachado = ahora; b.etapa = 'ENTREGADO EN BODEGA'; b.act = ahora;
+        b.retiro = { id: en.id, nombre: en.nombre, rut: en.rut, telefono: en.telefono, fecha: ahora };
+        if (!b.courier) b.courier = curRet;
+        en.bultos.push(b.numero);
+      });
+      en.bultos.sort(function (a, b) { return a - b; });
+      if (!U.esArray(ot.bitacora)) ot.bitacora = [];
+      ot.bitacora.push(en);
+      OT.recalcularDespacho(ot); OT.guardar(ot);
+      Pedidos.reconciliarEstados();
+      UI.toast('Entrega registrada: ' + en.bultos.length + ' bulto(s) a ' + en.nombre, 'ok', 3500);
+      DespachoGrupo.voucherRetiro(ot, key, en);
+      return false;
+    } });
+    var host = UI.modal({ titulo: 'Retiro en bodega', html: h, botones: bot, alAbrir: function () { setTimeout(function () { if (U.$('rtNom')) U.$('rtNom').focus(); }, 60); } });
+    host.onclick = function (e) { var b = U.cerca(e.target, 'data-rv', host); if (b) DespachoGrupo.voucherRetiro(ot, key, previas[+b.getAttribute('data-rv')]); };
   },
   pantalla: function (m) {
     var ots = U.filter(OT.ordenadas(),function(o){return o.estado==='ABIERTA'&&(o.bultos||[]).length>0;}), act = OT.activa();
@@ -4450,7 +4569,9 @@ var Asistente = {
     { id: 'packing', t: 'Packing y OT', k: ['packing', 'crear ot', 'nueva ot', 'tomar ot', 'incorporar', 'asignar courier', 'orden de trabajo'],
       r: 'En <b>Packing</b> se crea o toma una <b>OT</b> y se incorporan los documentos ya cubicados (uno a uno o en forma masiva). A cada documento se le asigna el courier. Los bultos conservan su número n DE N de la cubicación.', ir: ['Ir a Packing', 'ir:packing'] },
     { id: 'despacho', t: 'Despacho y verificación', k: ['verificar', 'verificacion', 'escanear', 'escaneo', 'despachar', 'retiro', 'transportista'],
-      r: 'En <b>Despacho</b> se elige la OT y el courier, y se escanea la etiqueta u orden del courier de cada bulto. Satélite marca cada bulto verificado y avisa si la etiqueta no pertenece a esa OT o documento. Cuando todo está verificado se cierra el despacho y se genera el <b>Manifiesto</b>.', ir: ['Ir a Despacho', 'ir:despacho'] },
+      r: 'En <b>Despacho</b> se elige la OT y el courier, y se escanea la etiqueta u orden del courier de cada bulto. Satélite marca cada bulto verificado y avisa si la etiqueta no pertenece a esa OT o documento. Si el courier es <b>Correos de Chile</b>, solo acepta etiquetas registradas para ese pedido (extensión → Registrar); otra etiqueta se rechaza o requiere autorización. Cuando todo está verificado se cierra el despacho y se genera el <b>Manifiesto</b>.', ir: ['Ir a Despacho', 'ir:despacho'] },
+    { id: 'retiro', t: 'Retiro en bodega (cliente retira)', k: ['retir', 'retira', 'retiro en bodega', 'entrega en bodega', 'cliente retira', 'quien retira', 'voucher de entrega'],
+      r: 'En <b>Despacho</b>, abra el documento y pulse <b>RETIRO EN BODEGA</b> al pie del control. Ingrese el nombre de quien retira (RUT y teléfono opcionales), marque los bultos que se entregan y pulse <b>REGISTRAR ENTREGA</b>. Queda en la bitácora con fecha y hora, el pedido pasa a ENTREGADO y se genera el voucher de entrega, que puede imprimir o enviar por WhatsApp (también directo al teléfono de quien retira).', ir: ['Ir a Despacho', 'ir:despacho'] },
     { id: 'manifiesto', t: 'Manifiesto', k: ['manifiesto', 'cerrar ot', 'cierre'],
       r: 'El <b>Manifiesto</b> resume la OT despachada: courier, documentos y bultos. Se genera al cerrar el despacho; si después cambia algo en la OT, queda marcado como desactualizado y se puede regenerar.', ir: ['Ir a Manifiesto', 'ir:manifiesto'] },
     { id: 'correos', t: 'Extensión de Correos de Chile', k: ['extension', 'portal de correos', 'transferir', 'vincular', 'registrar', 'historial de envios', 'correlativo', 'filtro por dia', 'pagar'],
