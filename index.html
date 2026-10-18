@@ -430,8 +430,8 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.12.2', build: '2026-10-17', formatoRespaldo: 4 };
-var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones' };
+var APP = { nombre: 'RDMusico Packing', version: '2.14.0', build: '2026-10-17', formatoRespaldo: 4 };
+var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
 var MM_PX = 3.7795;
@@ -648,6 +648,37 @@ var DB = {
 };
 
 
+var SyncReg = {
+  VENTANA: 72 * 3600 * 1000,
+  estable: function (v) {
+    if (v === null || v === undefined) return 'null';
+    if (U.esArray(v)) return '[' + U.map(v, SyncReg.estable).join(',') + ']';
+    if (typeof v === 'object') { var ks = [], k; for (k in v) if (Object.prototype.hasOwnProperty.call(v, k) && k.charAt(0) !== '_' && v[k] !== undefined) ks.push(k); ks.sort(); return '{' + U.map(ks, function (x) { return JSON.stringify(x) + ':' + SyncReg.estable(v[x]); }).join(',') + '}'; }
+    return JSON.stringify(v);
+  },
+  hash: function (o) { var t = SyncReg.estable(o), h = 5381, h2 = 52711; for (var i = 0; i < t.length; i++) { var c = t.charCodeAt(i); h = ((h << 5) + h + c) | 0; h2 = ((h2 << 5) + h2 ^ c) | 0; } return (h >>> 0).toString(36) + (h2 >>> 0).toString(36); },
+  marcar: function (o) { if (o) o._e = new Date().toISOString(); return o; },
+  sincronizado: function (o, v) { if (v) o._v = v; o._h = SyncReg.hash(o); delete o._e; return o; },
+  detectar: function (o) { if (o && !o._e && o._h && SyncReg.hash(o) !== o._h) o._e = new Date().toISOString(); },
+  pendiente: function (o) {
+    if (!o) return false;
+    SyncReg.detectar(o);
+    var marca = o._e || (!o._h && !o._v ? (o.actualizado || o.act || o.creado || '') : '');
+    if (!marca) return false;
+    var t = new Date(marca).getTime();
+    return !isNaN(t) && new Date().getTime() - t <= SyncReg.VENTANA;
+  },
+  archivar: function (tipo, lista) {
+    if (!lista.length) return;
+    var a = StorageManager.leer(CLAVES.archivados, []); if (!U.esArray(a)) a = [];
+    var f = new Date().toISOString();
+    U.each(lista, function (o) { a.push({ tipo: tipo, fecha: f, dato: o }); });
+    if (a.length > 1500) a = a.slice(a.length - 1500);
+    StorageManager.guardar(CLAVES.archivados, a);
+  },
+  contar: function (lista) { var n = 0; U.each(lista, function (o) { if (SyncReg.pendiente(o)) n++; }); return n; }
+};
+
 var Pedidos = {
   lista: [],
   estados: ['RECIBIDO','EN RECOLECCIÓN','PARA REVISIÓN','REVISADO','EN PREPARACIÓN','CUBICADO','ENVIADO','ENTREGADO','CANCELADO'],
@@ -680,6 +711,7 @@ var Pedidos = {
     x.estado = U.norm(p.estado || x.estado || 'RECIBIDO');
     x.observacion = U.trim(p.observacion != null ? p.observacion : (x.observacion || ''));
     x.actualizado = ahora;
+    SyncReg.marcar(x);
     Pedidos.guardar();
     return { ok:true, pedido:x, nuevo:nuevo };
   },
@@ -746,7 +778,7 @@ var Pedidos = {
   },
   marcarCubicado: function (id) {
     var p=Pedidos.porId(id); if(!p)return;
-    p.estado='CUBICADO'; p.actualizado=new Date().toISOString(); Pedidos.guardar();
+    p.estado='CUBICADO'; p.actualizado=new Date().toISOString(); SyncReg.marcar(p); Pedidos.guardar();
   },
   estadoOperativo: function(p) {
     if(!p)return 'RECIBIDO';
@@ -770,9 +802,9 @@ var Pedidos = {
     var cambio=false;
     U.each(Pedidos.lista,function(p){
       var e=Pedidos.estadoOperativo(p);
-      if(e!==p.estado && p.estado!=='ENTREGADO' && p.estado!=='CANCELADO'){p.estado=e;p.actualizado=new Date().toISOString();cambio=true;}
+      if(e!==p.estado && p.estado!=='ENTREGADO' && p.estado!=='CANCELADO' && Pedidos.estados.indexOf(p.estado)>=0){p.estado=e;p.actualizado=new Date().toISOString();SyncReg.marcar(p);cambio=true;}
     });
-    if(cambio)Pedidos.guardar();
+    if(cambio){Pedidos.guardar();if(typeof Sync!=='undefined')Sync.programar(2000);}
   }
 };
 
@@ -892,11 +924,16 @@ var EnvioDatos = {
     if (envio) { envio.act = new Date().toISOString(); envio.usuario = DB.cfg.operador || ''; }
     p.envio = envio || null;
     p.actualizado = new Date().toISOString();
+    SyncReg.marcar(p);
     Pedidos.guardar();
     UI.cerrarModal();
-    if (Sync.modo() !== 'local') Sync.llamar('satPedidoGuardar', { pedido: p, dispositivo: DB.cfg.sync.dispositivo }, function () { UI.toast(envio ? 'Datos de envío guardados en la nube' : 'Datos de envío borrados', 'ok', 3000); }, function (m) { UI.toast('Guardado en este equipo; no se pudo subir: ' + m, 'warn', 5000); });
-    else UI.toast(envio ? 'Datos de envío guardados (solo este equipo)' : 'Datos de envío borrados', 'ok');
-    if (cb) cb(p);
+    if (Sync.modo() !== 'local') Sync.subirPedidos(function (ok, r) {
+      if (!ok) UI.toast('Guardado en este equipo; se subirá al volver la conexión (' + r + ')', 'warn', 5000);
+      else if (r.conflictos) UI.toast('Este pedido fue modificado en la nube: se conservó la versión de la nube. Revise y vuelva a ingresar sus cambios.', 'warn', 7000);
+      else UI.toast(envio ? 'Datos de envío guardados en la nube' : 'Datos de envío borrados', 'ok', 3000);
+      if (cb) cb(p);
+    });
+    else { UI.toast(envio ? 'Datos de envío guardados (solo este equipo)' : 'Datos de envío borrados', 'ok'); if (cb) cb(p); }
   }
 };
 
@@ -1895,7 +1932,7 @@ var Sync = {
     if (!url) { mal('Sin conexión configurada'); return; }
     Sync._http(url, fn, arg, bien, function (msg) { mal(msg); });
   },
-  nPend: function () { var s = DB.cfg.sync, n = 0, k; for (k in s.pendOT) n++; for (k in s.elimOT) n++; return n; },
+  nPend: function () { var s = DB.cfg.sync, n = 0, k; for (k in s.pendOT) n++; for (k in s.elimOT) n++; return n + SyncReg.contar(Pedidos.lista) + SyncReg.contar(CubPool.lista); },
   marcarOT: function (id) { DB.cfg.sync.pendOT[id] = 1; DB.guardarCfg(); Sync.programar(); },
   eliminarOT: function (id) { delete DB.cfg.sync.pendOT[id]; DB.cfg.sync.elimOT[id] = 1; DB.guardarCfg(); Sync.programar(); },
   programar: function (ms) {
@@ -1907,48 +1944,108 @@ var Sync = {
     s.proximoIntento = new Date().getTime() + delay;
     Sync._t = setTimeout(function () { Sync.ejecutar(); }, delay);
   },
+  _conf: 0,
+  subirPedidos: function (cb) {
+    var env = U.filter(Pedidos.lista, SyncReg.pendiente);
+    if (!env.length) { cb(true, { enviados: 0, conflictos: 0 }); return; }
+    var copia = U.map(env, function (p) { return U.clone(p); });
+    Sync.llamar('satPedidosGuardar', { pedidos: copia, dispositivo: DB.cfg.sync.dispositivo }, function (r) {
+      r = r || {};
+      var ver = r.versiones || {}, nc = 0;
+      U.each(env, function (p, i) {
+        var v = ver[p.id]; if (!v) return;
+        if (SyncReg.hash(p) !== SyncReg.hash(copia[i])) { p._v = v.v; return; }
+        if (v.id && v.id !== p.id) p.id = v.id;
+        SyncReg.sincronizado(p, v.v);
+      });
+      U.each(r.conflictos || [], function (n) {
+        var idx = U.findIdx(Pedidos.lista, function (x) { return x.id === n.id || (n._idLocal && x.id === n._idLocal); });
+        var nube = SyncReg.sincronizado(n, n._v); delete nube._idLocal;
+        if (idx >= 0) Pedidos.lista[idx] = nube; else Pedidos.lista.push(nube);
+        nc++;
+      });
+      Pedidos.guardar();
+      Sync._conf += nc;
+      cb(true, { enviados: env.length, conflictos: nc });
+    }, function (m) { cb(false, m); });
+  },
   bajarPedidos: function(cb) {
     Sync.llamar('satPedidosListar', {}, function(r) {
-      var srv=(r&&r.pedidos)||[], mapa={}, cambio=false;
-      U.each(Pedidos.lista,function(p){mapa[Pedidos.identidadDoc(p)]=p;});
-      U.each(srv,function(p){
-        var k=Pedidos.identidadDoc(p), loc=mapa[k];
-        if(!loc){Pedidos.lista.push(p);mapa[k]=p;cambio=true;}
-        else if((p.actualizado||'')>(loc.actualizado||'')){
-          var idx=U.findIdx(Pedidos.lista,function(x){return x.id===loc.id;});
-          if(idx>=0){p.id=loc.id;Pedidos.lista[idx]=p;mapa[k]=p;cambio=true;}
-        }
+      var srv=(r&&r.pedidos)||[], porId={}, porIdent={}, vistos={}, nuevaLista=[], archivar=[], cambio=false;
+      U.each(Pedidos.lista,function(p){porId[p.id]=p; if(!p._v) porIdent[Pedidos.identidadDoc(p)]=p;});
+      U.each(srv,function(sp){
+        var loc=porId[sp.id]||porIdent[Pedidos.identidadDoc(sp)];
+        if(loc) vistos[loc.id]=1;
+        if(loc && SyncReg.pendiente(loc) && loc._v){ nuevaLista.push(loc); return; }
+        var n=SyncReg.sincronizado(sp, sp._v);
+        if(!loc || SyncReg.estable(loc)!==SyncReg.estable(n) || loc._v!==n._v) cambio=true;
+        nuevaLista.push(n);
       });
-      if(cambio)Pedidos.guardar();
+      U.each(Pedidos.lista,function(p){
+        if(vistos[p.id]) return;
+        if(SyncReg.pendiente(p) && !p._v){ nuevaLista.push(p); return; }
+        archivar.push(p); cambio=true;
+      });
+      if(archivar.length){ SyncReg.archivar('pedido', archivar); UI.toast(archivar.length+' pedido(s) antiguos de este equipo no están en la nube: se archivaron (Datos → Respaldo)','warn',6000); }
+      if(cambio){ Pedidos.lista=nuevaLista; Pedidos.guardar(); }
       cb(true,cambio?1:0);
     },function(msg){cb(false,msg);});
   },
+  subirCubicaciones: function (cb) {
+    U.each(CubPool.lista, SyncReg.detectar);
+    var env = U.filter(CubPool.lista, SyncReg.pendiente);
+    if (!env.length) { cb(true, { enviados: 0, conflictos: 0 }); return; }
+    var copia = U.map(env, function (b) { return U.clone(b); });
+    Sync.llamar('satGuardarCubicaciones', { bultos: copia, dispositivo: DB.cfg.sync.dispositivo }, function (r) {
+      r = r || {};
+      var ver = r.versiones || {}, nc = 0;
+      U.each(env, function (b, i) { var v = ver[b.id]; if (!v) return; if (SyncReg.hash(b) !== SyncReg.hash(copia[i])) { b._v = v; return; } SyncReg.sincronizado(b, v); });
+      U.each(r.conflictos || [], function (n) {
+        var idx = U.findIdx(CubPool.lista, function (x) { return x.id === n.id; });
+        var nube = SyncReg.sincronizado(n, n._v);
+        if (idx >= 0) CubPool.lista[idx] = nube; else CubPool.lista.push(nube);
+        nc++;
+      });
+      StorageManager.guardar(CLAVES.cubicacion, CubPool.lista);
+      Sync._conf += nc;
+      cb(true, { enviados: env.length, conflictos: nc });
+    }, function (m) { cb(false, m); });
+  },
   bajarCubicaciones: function(cb) {
     Sync.llamar('satCubicaciones', {}, function(r) {
-      if(r&&U.esArray(r.bultos)){
-        var loc={}, cambio=false;
-        U.each(CubPool.lista,function(b){loc[b.id]=b;});
-        U.each(r.bultos,function(b){
-          var x=loc[b.id];
-          if(!x){CubPool.lista.push(b);loc[b.id]=b;cambio=true;}
-          else if((b.act||'')>(x.act||'')){var i=U.findIdx(CubPool.lista,function(z){return z.id===b.id;});if(i>=0){CubPool.lista[i]=b;cambio=true;}}
-        });
-        if(cambio)StorageManager.guardar(CLAVES.cubicacion,CubPool.lista);
-        cb(true,cambio?1:0);
-      } else cb(true,0);
+      if(!r||!U.esArray(r.bultos)){cb(true,0);return;}
+      var porId={}, vistos={}, nueva=[], archivar=[], cambio=false;
+      U.each(CubPool.lista,function(b){porId[b.id]=b;});
+      U.each(r.bultos,function(sb){
+        var loc=porId[sb.id]; vistos[sb.id]=1;
+        if(loc && SyncReg.pendiente(loc) && loc._v){ nueva.push(loc); return; }
+        var n=SyncReg.sincronizado(sb, sb._v);
+        if(!loc || SyncReg.estable(loc)!==SyncReg.estable(n) || loc._v!==n._v) cambio=true;
+        nueva.push(n);
+      });
+      U.each(CubPool.lista,function(b){
+        if(vistos[b.id]) return;
+        if(SyncReg.pendiente(b) && !b._v){ nueva.push(b); return; }
+        archivar.push(b); cambio=true;
+      });
+      if(archivar.length) SyncReg.archivar('cubicacion', archivar);
+      if(cambio){ CubPool.lista=nueva; StorageManager.guardar(CLAVES.cubicacion,CubPool.lista); }
+      cb(true,cambio?1:0);
     },function(msg){cb(false,msg);});
   },
   bajarTodo: function(cb) {
-    Sync.bajar(function(ok,msg){
-      if(!ok){cb(false,msg);return;}
-      Sync.bajarPedidos(function(ok2,msg2){
-        if(!ok2){cb(false,msg2);return;}
-        Sync.bajarCubicaciones(function(ok3,msg3){
-          if(ok3){Pedidos.reconciliarEstados();App.refrescarDatos();}
-          cb(ok3,msg3);
-        });
-      });
-    });
+    Sync._conf = 0;
+    var pasos=[Sync.bajar, Sync.subirPedidos, Sync.bajarPedidos, Sync.subirCubicaciones, Sync.bajarCubicaciones], i=0;
+    var sig=function(ok,msg){
+      if(ok===false){cb(false,msg);return;}
+      if(i>=pasos.length){
+        Pedidos.reconciliarEstados(); App.refrescarDatos();
+        if(Sync._conf) UI.toast(Sync._conf+' registro(s) habían cambiado en la nube: se conservó la versión de la nube','warn',6000);
+        cb(true,0); return;
+      }
+      var f=pasos[i++]; f(sig);
+    };
+    sig(true);
   },
   ejecutar: function (cb) {
     cb = cb || function () {};
@@ -2096,17 +2193,13 @@ var Sync = {
   sincronizarAhora: function() {
     if(Sync.modo()==='local'){UI.toast('No hay conexión con la nube configurada','error',3500);return;}
     var b=U.$('hdrSyncNow'); if(b){b.className='syncnow run';b.innerHTML='↻';}
-    UI.toast('Sincronizando local ↔ nube…','',2200);
-    Sync.llamar('satPedidosGuardar',{pedidos:Pedidos.lista,dispositivo:DB.cfg.sync.dispositivo},function(){
-      Sync.llamar('satGuardarCubicaciones',{bultos:CubPool.lista,dispositivo:DB.cfg.sync.dispositivo},function(){
-        Sync.ejecutar(function(ok,msg){
-          if(b){b.className='syncnow '+(ok?'ok':'err');}
-          if(ok)UI.toast('Sincronización completa','ok',3000);
-          else UI.toast('Error al sincronizar: '+msg,'error',5000);
-          setTimeout(function(){if(b)b.className='syncnow';},1800);
-        });
-      },function(msg){if(b)b.className='syncnow err';UI.toast('Error al subir cubicaciones: '+msg,'error',5000);});
-    },function(msg){if(b)b.className='syncnow err';UI.toast('Error al subir pedidos: '+msg,'error',5000);});
+    UI.toast('Sincronizando con la nube…','',2200);
+    Sync.ejecutar(function(ok,msg){
+      if(b){b.className='syncnow '+(ok?'ok':'err');}
+      if(ok)UI.toast('Sincronización completa','ok',3000);
+      else UI.toast('Error al sincronizar: '+msg,'error',5000);
+      setTimeout(function(){if(b)b.className='syncnow';},1800);
+    });
   },
   marcarTodo: function () {
     U.each(OT.lista, function (o) { DB.cfg.sync.pendOT[o.id] = 1; });
@@ -2647,17 +2740,14 @@ var CubPool = {
       if (!b.estado) b.estado = b.otId ? 'ASIGNADO' : 'DISPONIBLE';
     });
   },
-  guardar: function () { StorageManager.guardar(CLAVES.cubicacion, CubPool.lista); CubPool.subir(); },
+  guardar: function () { U.each(CubPool.lista, SyncReg.detectar); StorageManager.guardar(CLAVES.cubicacion, CubPool.lista); CubPool.subir(); },
   subir: function () {
     if (typeof Sync === 'undefined' || Sync.modo() === 'local') return;
-    Sync.llamar('satGuardarCubicaciones', { bultos: CubPool.lista, dispositivo: DB.cfg.sync.dispositivo }, function () {}, function () {});
+    Sync.programar(1500);
   },
   bajar: function (cb) {
     if (typeof Sync === 'undefined' || Sync.modo() === 'local') { if (cb) cb(); return; }
-    Sync.llamar('satCubicaciones', {}, function (r) {
-      if (r && U.esArray(r.bultos)) { CubPool.lista = r.bultos; StorageManager.guardar(CLAVES.cubicacion, CubPool.lista); }
-      if (cb) cb();
-    }, function () { if (cb) cb(); });
+    Sync.subirCubicaciones(function () { Sync.bajarCubicaciones(function () { if (cb) cb(); }); });
   },
   siguienteId: function () {
     var ymd = U.fechaISO().replace(/-/g, ''), pref = 'CUB-' + ymd + '-', max = 0;
@@ -2669,6 +2759,7 @@ var CubPool = {
     var mismos = U.filter(CubPool.lista, function (x) { return x.cubicacionId === cub; });
     var b = { id: U.uid('cub-'), pedidoId: d.pedidoId || '', cubicacionId: cub, numero: mismos.length + 1, orden: U.norm(d.orden), tipoDocumento: U.norm(d.tipoDocumento || 'FACTURA'), numeroDocumento: U.norm(d.numeroDocumento), factura: U.norm(d.numeroDocumento), ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso, volumen: c.volumen, pesoVol: c.pesoVol, fecha: U.fechaISO(a), hora: U.hora(a), estado: 'DISPONIBLE', otId: '', otNumero: '', act: a.toISOString() };
     if (d.producto) { b.producto = d.producto; b.productoDesc = d.productoDesc || ''; }
+    SyncReg.marcar(b);
     CubPool.lista.push(b); CubPool.ultimo = { ancho: b.ancho, alto: b.alto, largo: b.largo, peso: b.peso }; CubPool.guardar(); return b;
   },
   disponibles: function (orden) { return U.filter(CubPool.lista, function (b) { return b.estado === 'DISPONIBLE' && (!orden || U.norm(b.orden) === U.norm(orden)); }); },
@@ -2678,7 +2769,7 @@ var CubPool = {
     U.each(ids, function (id) {
       var b = U.find(CubPool.lista, function (x) { return x.id === id; }); if (!b || b.estado !== 'DISPONIBLE') return;
       var d = { orden: b.orden, tipoDocumento: b.tipoDocumento, numeroDocumento: b.numeroDocumento, factura: b.numeroDocumento, ancho: b.ancho, alto: b.alto, largo: b.largo, peso: b.peso, courier: '', ordenCourier: '' };
-      var nb = OT.agregarBulto(ot, d, 0); if (nb) { nb.origenCubicacionId = b.id; b.estado = 'ASIGNADO'; b.otId = ot.id; b.otNumero = ot.numero; b.act = new Date().toISOString(); n++; }
+      var nb = OT.agregarBulto(ot, d, 0); if (nb) { nb.origenCubicacionId = b.id; b.estado = 'ASIGNADO'; b.otId = ot.id; b.otNumero = ot.numero; b.act = new Date().toISOString(); SyncReg.marcar(b); n++; }
     });
     OT._limpiarDocsVacios(ot); OT.recalcular(ot); OT.recalcularDespacho(ot);
     StorageManager.guardar(CLAVES.cubicacion, CubPool.lista); StorageManager.guardar(CLAVES.ordenes, OT.lista);
@@ -2688,14 +2779,14 @@ var CubPool = {
     var b = U.find(CubPool.lista, function (x) { return x.id === id; });
     if (!b) return { ok: false, msg: 'Bulto no encontrado' };
     if (b.estado !== 'DISPONIBLE') return { ok: false, msg: 'Bulto asociado a OT ' + b.otNumero + '. Libérelo primero.', dependiente: 'OT ' + b.otNumero };
-    CubPool.lista = U.filter(CubPool.lista, function (x) { return x.id !== id; });
+    b.estado = 'ELIMINADO'; b.act = new Date().toISOString(); SyncReg.marcar(b);
     CubPool.guardar();
     return { ok: true };
   },
   liberar: function (id) {
     var b = U.find(CubPool.lista, function (x) { return x.id === id; });
     if (!b || b.estado !== 'ASIGNADO') return false;
-    b.estado = 'DISPONIBLE'; b.otId = ''; b.otNumero = ''; b.act = new Date().toISOString();
+    b.estado = 'DISPONIBLE'; b.otId = ''; b.otNumero = ''; b.act = new Date().toISOString(); SyncReg.marcar(b);
     CubPool.guardar(); return true;
   }
 };
@@ -2749,7 +2840,7 @@ CubUI.editarBulto = function (id) {
     var c = OT.calcular(d.ancho, d.alto, d.largo);
     b.orden = d.orden; b.tipoDocumento = d.tipoDocumento; b.numeroDocumento = d.numeroDocumento; b.factura = d.numeroDocumento;
     b.ancho = d.ancho; b.alto = d.alto; b.largo = d.largo; b.peso = d.peso; b.volumen = c.volumen; b.pesoVol = c.pesoVol;
-    b.act = new Date().toISOString(); CubPool.guardar();
+    b.act = new Date().toISOString(); SyncReg.marcar(b); CubPool.guardar();
     if (b.otId) { var ot = OT.porId(b.otId); if (ot) { var ob = U.find(ot.bultos, function (x) { return x.origenCubicacionId === b.id; }); if (ob) { ob.orden = d.orden; ob.tipoDocumento = d.tipoDocumento; ob.numeroDocumento = d.numeroDocumento; ob.factura = d.numeroDocumento; ob.ancho = d.ancho; ob.alto = d.alto; ob.largo = d.largo; ob.peso = d.peso; ob.volumen = c.volumen; ob.pesoVol = c.pesoVol; OT.guardar(ot); } } }
     UI.toast('Bulto actualizado', 'ok'); App.ir('cubicacion');
   } });
@@ -2863,7 +2954,7 @@ Pantallas.pedidos = function (m) {
         var r=Pedidos.upsert({id:p.id,origen:U.$('pnOrigen').value,tipo:U.$('pnTipo').value,numero:U.$('pnNumero').value,fecha:U.$('pnFecha').value,
           tipoDocumento:U.$('pnTD').value,numeroDocumento:U.$('pnND').value,estado:U.$('pnEstado').value,observacion:U.$('pnObs').value});
         if(!r.ok){UI.toast(r.error,'error');return false;}
-        if(Sync.modo()!=='local') Sync.llamar('satPedidoGuardar',{pedido:r.pedido,dispositivo:DB.cfg.sync.dispositivo},function(){},function(){});
+        if(Sync.modo()!=='local') Sync.programar(300);
         UI.cerrarModal();render();UI.toast('Pedido guardado','ok');return false;
       }}]});
   };
@@ -2880,7 +2971,7 @@ Pantallas.pedidos = function (m) {
         botones:[{txt:'CANCELAR',cls:'btn-sec'},{txt:'IMPORTAR SOLO NUEVOS',cls:'btn-ok',fn:function(){
           var r=Pedidos.importarPegado(U.$('ppTxt').value);
           if(!r.ok){UI.toast(r.error,'error');return false;}
-          if(r.agregados.length && Sync.modo()!=='local')Sync.llamar('satPedidosGuardar',{pedidos:r.agregados,dispositivo:DB.cfg.sync.dispositivo},function(){},function(){});
+          if(r.agregados.length && Sync.modo()!=='local')Sync.programar(300);
           UI.cerrarModal();render();
           UI.toast('Nuevos: '+r.nuevos+' · Repetidos omitidos: '+r.duplicados+' · Inválidos: '+r.invalidos,'ok',5000);
           return false;
@@ -3055,7 +3146,8 @@ Pantallas.cubicacion = function (m) {
               var ob = U.find(ot.bultos, function (x) { return x.origenCubicacionId === b.id; });
               if (ob) OT.eliminarBulto(ot, ob.id, aut);
             }
-            CubPool.lista = U.filter(CubPool.lista, function (x) { return x.id !== id; });
+            var bx = U.find(CubPool.lista, function (x) { return x.id === id; });
+            if (bx) { bx.estado = 'ELIMINADO'; bx.act = new Date().toISOString(); SyncReg.marcar(bx); }
             CubPool.guardar();
             UI.toast('Bulto eliminado con autorización', 'warn');
             pintar();
@@ -4207,28 +4299,33 @@ Pantallas.seguimiento = function (m) {
 
 var Asistente = {
   modo: '', intento: '', ult: null, cand: [], rec: null, escuchando: false,
-  STOP: ['el','la','los','las','un','una','unos','unas','de','del','al','a','en','y','o','que','cual','cuales','cuantos','cuantas','cuanto','cuando','donde','como','es','son','esta','estan','fue','iba','iban','va','van','se','me','mi','por','para','con','sin','su','sus','lo','le','hay','tiene','tienen','tenia','x','numero','nro','n','favor','porfa','hola','dime','saber','quiero','necesito','busco','producto','articulo','item','orden','ticket','factura','boleta','guia','despacho','documento','doc','oc','compra','pedido','web','ot','courier','bulto','bultos','codigo','id','sku','ubicado','ubicada','ubicacion','medida','medidas','precio','valor','despacho','despacharon','despacho','envio','enviado','envie','envio','salio','cuantos','iban','llevaba','lleva','tracking','seguimiento','estado','etapa','dimension','dimensiones','peso','pesa','mide','tamano','barra','barras','cuesta','vale','queda','encuentra','esta'],
+  STOP: ['el','la','los','las','un','una','unos','unas','de','del','al','a','en','y','o','que','cual','cuales','cuantos','cuantas','cuanto','cuando','donde','como','es','son','esta','estan','fue','iba','iban','va','van','se','me','mi','por','para','con','sin','su','sus','lo','le','hay','tiene','tienen','tenia','x','numero','nro','n','favor','porfa','hola','dime','saber','quiero','necesito','busco','producto','articulo','item','orden','ordenes','ticket','factura','boleta','guia','despacho','documento','doc','oc','compra','pedido','web','ot','courier','currier','bulto','bultos','codigo','id','sku','ubicado','ubicada','ubicacion','ubicaciones','medida','medidas','precio','valor','despacharon','envio','enviado','envie','salio','llevaba','lleva','tracking','seguimiento','estado','etapa','dimension','dimensiones','peso','pesa','mide','tamano','barra','barras','cuesta','vale','queda','encuentra','etiqueta','etiquetas','rotulo','rotulos','pegar','pega','pego','correos','chile','starken','chilexpress','informacion','info','datos','tiene','asociada','asociadas','asociado','mandante','mandantes','embalaje','caja','cajas','y','e','ingreso','ingresos'],
   norm: function (s) { return U.sinAcentos(String(s || '')).toLowerCase().replace(/[^a-z0-9ñ\-\/ ]/g, ' ').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, ''); },
   hay: function (t, l) { t = ' ' + t + ' '; for (var i = 0; i < l.length; i++) if (t.indexOf(' ' + l[i]) >= 0) return true; return false; },
+  pregunta: function (txt) { var t = Asistente.norm(txt); return /\?/.test(txt) || /^(como|que|para que|por que|porque|cual|cuando debo|puedo|se puede|explica|explicame|ayuda|ayudame|diferencia|necesito saber|en que consiste|de que sirve|donde se)\b/.test(t); },
   intencion: function (txt) {
     var t = Asistente.norm(txt), h = Asistente.hay;
-    if (h(t, ['persona', 'humano', 'alguien', 'ejecutivo', 'whatsapp', 'wsp', 'contacto', 'contactar', 'hablar con'])) return 'humano';
-    if (/^(menu|inicio|opciones|ayuda)$/.test(t)) return 'menu';
+    if (h(t, ['persona', 'humano', 'alguien', 'ejecutivo', 'whatsapp', 'wsp', 'contactar', 'hablar con'])) return 'humano';
+    if (/^(menu|inicio|opciones)$/.test(t)) return 'menu';
+    if (/^(preguntas|preguntas frecuentes|faq|ayuda|temas)$/.test(t)) return 'faq';
     if (/^(gracias|grax|genial|perfecto|listo|excelente|ok|vale)( .*)?$/.test(t) && t.split(' ').length <= 3) return 'gracias';
     if (/^(hola|buenas|buenos dias|buenas tardes|buenas noches|alo)$/.test(t)) return 'hola';
+    if (h(t, ['etiqueta', 'rotul', 'pare', 'pegar', 'pego', 'pega ', 'pegada', 'va pegad'])) return 'etiqueta';
+    if (h(t, ['resumen', 'pendientes', 'como vamos', 'como estamos', 'cuantos pedidos', 'cuantas ot', 'que falta'])) return 'resumen';
+    if (h(t, ['medida', 'dimension', 'tamano', 'mide', 'peso', 'pesa', 'cubica', 'kilos'])) return 'medida';
     if (h(t, ['donde', 'ubica', 'pasillo', 'estante', 'rack', 'gondola'])) return 'ubicacion';
-    if (h(t, ['medida', 'dimension', 'tamano', 'mide', 'peso', 'pesa', 'cubica'])) return 'medida';
     if (h(t, ['precio', 'cuesta', 'vale ', 'valor'])) return 'precio';
+    if (h(t, ['courier', 'currier', 'correos', 'starken', 'chilexpress', 'blue express', 'tracking', 'seguimiento', 'orden de transporte', 'ordenes de transporte'])) return 'courier';
     if (h(t, ['bulto', 'caja', 'paquete', 'cuantos iban', 'cuantas iban'])) return 'bultos';
     if (h(t, ['cuando', 'despach', 'envi', 'salio', 'manifiesto', 'fecha'])) return 'despacho';
-    if (h(t, ['ot ', 'ot de', 'orden de trabajo', 'courier', 'tracking', 'seguimiento'])) return 'ot';
+    if (h(t, ['ot ', 'ot de', 'orden de trabajo', 'ot interna'])) return 'ot';
     if (h(t, ['codigo', 'sku', 'id ', 'barra'])) return 'codigo';
     if (h(t, ['estado', 'etapa', 'como va', 'en que va'])) return 'estado';
     return '';
   },
   claves: function (txt) {
     var r = [];
-    U.each(Asistente.norm(txt).split(' '), function (w) { if (w.length >= 3 && /[0-9]/.test(w) && r.indexOf(w) < 0) r.push(w.toUpperCase()); });
+    U.each(Asistente.norm(txt).split(' '), function (w) { if (w.length >= 3 && /[0-9]/.test(w) && r.indexOf(w.toUpperCase()) < 0) r.push(w.toUpperCase()); });
     return r;
   },
   palabras: function (txt) {
@@ -4240,25 +4337,74 @@ var Asistente = {
     var l = Seguimiento.indice(), ex = [], par = [];
     U.each(l, function (d) {
       var c = [d.orden, d.numeroDocumento].concat(d.ordenesCourier, U.map(d.ots, function (o) { return U.norm(o.numero); }), U.map(d.cub, function (x) { return U.norm(x.cubicacionId); }));
+      U.each(d.correos || [], function (e) { c.push(String(e.seguimiento || '')); c.push(String(e.numeroEnvio || '')); c.push(String(e.idTemprano || '')); });
       var e = false, p = false;
-      U.each(claves, function (k) { U.each(c, function (v) { v = String(v || ''); if (!v) return; if (v === k) e = true; else if (v.indexOf(k) >= 0) p = true; }); });
+      U.each(claves, function (k) { U.each(c, function (v) { v = String(v || ''); if (!v) return; if (v === k) e = true; else if (k.length >= 3 && v.indexOf(k) >= 0) p = true; }); });
       if (e) ex.push(d); else if (p) par.push(d);
     });
     return ex.length ? ex : par;
   },
   buscarProd: function (txt, claves) {
     var r = [];
-    U.each(claves, function (k) { var p = Catalogo.porCodigo(k); if (p && r.indexOf(p) < 0) r.push(p); });
+    U.each(claves, function (k) { var p = Productos.ficha(k); if (p && !U.find(r, function (x) { return x.codigo === p.codigo; })) r.push(p); });
     if (r.length) return r;
     var w = Asistente.palabras(txt);
     if (!w.length) return [];
-    r = Catalogo.buscar(w.join(' '), 40);
+    r = Productos.buscar(w.join(' '), '');
     if (!r.length && w.length > 1) {
       var mejor = [];
-      U.each(w, function (x) { if (x.length >= 3) { var t = Catalogo.buscar(x, 40); if (!mejor.length || (t.length && t.length < mejor.length)) mejor = t; } });
+      U.each(w, function (x) { if (x.length >= 3) { var t = Productos.buscar(x, ''); if (!mejor.length || (t.length && t.length < mejor.length)) mejor = t; } });
       r = mejor;
     }
-    return r;
+    return r.slice(0, 40);
+  },
+  bultosDoc: function (d) {
+    var l = [], vis = {};
+    U.each(d.bultos, function (x) { vis[x.b.origenCubicacionId || x.b.id] = 1; l.push({ b: x.b, ot: x.ot, enOT: true }); });
+    U.each(d.cub, function (c) { if (vis[c.id]) return; l.push({ b: c, ot: null, enOT: false }); });
+    U.each(l, function (x) {
+      var pb = Plantillas._posBulto(x.ot, x.b);
+      x.pos = pb.pos; x.tot = pb.tot;
+      x.courier = U.norm(x.b.courier || ''); x.ordenCourier = U.norm(x.b.ordenCourierEscaneada || x.b.ordenCourier || '');
+      x.verif = !!(x.b.verificadoCourier || x.b.despachoId || x.b.despachado);
+      x.cor = CorreosSat.deBulto(x.b);
+    });
+    l.sort(function (a, b) { return a.pos - b.pos; });
+    return l;
+  },
+  etqCourier: function (x) {
+    if (x.cor) return x.cor.seguimiento ? 'Correos · seguimiento <b>' + U.esc(x.cor.seguimiento) + '</b> (pagado)' : 'Correos · ID <b>' + U.esc(x.cor.numeroEnvio) + '</b> (preparado, sin pagar: la etiqueta sale al pagar)';
+    if (x.ordenCourier) return U.esc(x.courier || 'Courier') + ' · orden <b>' + U.esc(x.ordenCourier) + '</b>' + (x.verif ? ' ✓ verificada' : ' (sin verificar)');
+    if (x.courier) return U.esc(x.courier) + ' · <i>sin orden del courier</i>';
+    return '<i>sin courier asignado</i>';
+  },
+  tieneEtq: function (x) { return !!(x.cor || x.ordenCourier); },
+  porEtiqueta: function (claves) {
+    var idx = null, ind = function () { return idx || (idx = Seguimiento.indice()); };
+    for (var i = 0; i < claves.length; i++) {
+      var k = claves[i];
+      if (k.length < 6) continue;
+      var e = CorreosSat.porCodigo(k);
+      if (e) {
+        var d = U.find(ind(), function (z) { return z.key === e.docKey; });
+        if (d) { var xs = U.filter(Asistente.bultosDoc(d), function (x) { return x.cor === e; }); return { d: d, xs: xs, txt: 'Correos ' + (e.seguimiento || e.numeroEnvio), pagado: !!e.seguimiento }; }
+      }
+      var r = null;
+      U.each(ind(), function (d2) {
+        if (r || d2.ordenesCourier.indexOf(k) < 0) return;
+        var xs2 = U.filter(Asistente.bultosDoc(d2), function (x) { return x.ordenCourier === k; });
+        if (xs2.length) r = { d: d2, xs: xs2, txt: (xs2[0].courier || 'courier') + ' ' + k };
+      });
+      if (r) return r;
+    }
+    return null;
+  },
+  etiquetaHtml: function (r) {
+    var d = r.d, h = '🏷️ La etiqueta <b>' + U.esc(r.txt) + '</b> va pegada en' + (r.xs.length > 1 ? ' estos ' + r.xs.length + ' bultos' : '') + ':';
+    h += '<table class="tb">' + U.map(r.xs, function (x) { return '<tr><td><b>BULTO ' + x.pos + ' DE ' + x.tot + '</b></td><td>' + U.esc(x.b.ancho + '×' + x.b.alto + '×' + x.b.largo) + ' cm · ' + U.fx(x.b.peso, 2) + ' kg</td></tr>'; }).join('') + '</table>';
+    h += 'Rótulo interno: <b>' + U.esc(d.orden || '—') + '</b> · ' + U.esc(d.numeroDocumento ? d.tipoDocumento + ' ' + d.numeroDocumento : 'sin documento');
+    if (r.xs.length === 1 && r.xs[0].tot > 1) h += '<br><small>Compruebe que el rótulo interno del bulto diga <b>' + r.xs[0].pos + '/' + r.xs[0].tot + '</b> antes de pegar.</small>';
+    return h;
   },
   msj: function (html, quien) {
     var d = document.createElement('div'), c = U.$('wspChat');
@@ -4283,14 +4429,79 @@ var Asistente = {
   },
   OP_MENU: ['↩ Menú inicial', 'menu'],
   OP_HUMANO: ['Hablar con una persona', 'humano', 'verde'],
+  OP_FAQ: ['Preguntas frecuentes', 'faq', 'mor'],
   opsMenu: function () {
-    return [['1. ¿Dónde está ubicado un producto?', 'g:ubicacion'], ['2. Código o ID de un producto', 'g:codigo'], ['3. ¿Cuándo se despachó una orden o factura?', 'g:despacho'],
-      ['4. ¿Cuál es la OT de un ticket u orden?', 'g:ot'], ['5. ¿Cuántos bultos iban en una orden?', 'g:bultos'], ['6. Hablar con una persona', 'humano', 'verde']];
+    return [['1. ¿Dónde está un producto?', 'g:ubicacion'], ['2. Medidas y peso de un producto', 'g:medida'], ['3. Código o ID de un producto', 'g:codigo'],
+      ['4. Órdenes del courier de un documento', 'g:courier'], ['5. ¿Qué etiqueta va en cada bulto?', 'g:etiqueta'], ['6. ¿Cuándo se despachó una orden?', 'g:despacho'],
+      ['7. ¿Cuántos bultos iban en una orden?', 'g:bultos'], ['8. Preguntas frecuentes', 'faq', 'mor'], ['9. Hablar con una persona', 'humano', 'verde']];
   },
-  guias: { ubicacion: 'Escribe el nombre, marca o código del producto.', codigo: 'Escribe el nombre o la marca del producto.', despacho: 'Escribe el N° de orden, ticket, factura, boleta, guía u OT courier.', ot: 'Escribe el N° de ticket, orden, factura o boleta.', bultos: 'Escribe el N° de orden, ticket, factura o boleta.' },
+  guias: { ubicacion: 'Escribe el nombre, marca o código del producto.', medida: 'Escribe el nombre, marca o código del producto (o el N° de orden si buscas las medidas de un envío).', codigo: 'Escribe el nombre o la marca del producto.', despacho: 'Escribe el N° de orden, ticket, factura, boleta, guía u OT courier.', ot: 'Escribe el N° de ticket, orden, factura o boleta.', bultos: 'Escribe el N° de orden, ticket, factura o boleta.',
+    courier: 'Escribe el N° de orden, ticket, factura o boleta. Te muestro, bulto por bulto, el courier, su orden y el seguimiento de Correos.',
+    etiqueta: 'Escribe el N° de orden, factura o boleta, o el N° de seguimiento / orden que aparece en la etiqueta del courier. Te digo en qué bulto va cada una.' },
+  FAQ: [
+    { id: 'pareo', t: 'Asociar el rótulo interno con la etiqueta del courier', k: ['pare', 'asociar', 'asociacion', 'asocio', 'emparej', 'etiqueta del courier', 'etiqueta de correos', 'etiqueta courier', 'rotulo interno', 'pegar', 'equivoc', 'confund', 'cual etiqueta', 'que etiqueta'],
+      r: 'Cada bulto lleva <b>dos etiquetas</b> que deben coincidir:<br>1. <b>Rótulo interno</b> (Cubicación → ETIQUETAS): orden, documento y <b>BULTO n DE N</b>. Se pega al cubicar.<br>2. <b>Etiqueta del courier</b>: llega después.<br><br><b>Correos de Chile</b>: un envío = un bulto. La extensión escribe la marca <i>ORDEN TIPO N° Bn/N</i> en «Detalle del envío». Después del pago, en «Mi historial de envíos» pulse <b>Registrar</b>: el seguimiento queda junto al bulto. En bodega use <b>Rotulado → PAREO CORREOS</b> y escanee la etiqueta: le dice «PEGAR EN BULTO n/N».<br><b>Otros couriers</b>: en <b>Despacho</b> escanee la orden del courier sobre cada bulto; Satélite avisa si no corresponde.<br><br>También puede escribirme el N° de seguimiento u orden del courier y le digo en qué bulto va.', ir: ['Ir a Pareo Correos', 'ir:pareo'] },
+    { id: 'diferencia', t: 'Diferencia entre rótulo interno y etiqueta del courier', k: ['diferencia', 'interna', 'interno', 'oficial', 'reemplaza', 'sirve', 'si ya tengo', 'rotulo interno', 'etiqueta del courier', 'para que sirve el rotulo', 'para que sirve la etiqueta'],
+      r: 'El <b>rótulo interno</b> identifica el contenido para bodega (orden, documento, BULTO n DE N) y existe desde la cubicación, antes de pagar el envío. La <b>etiqueta del courier</b> es la oficial para el transporte y llega al pagar o generar la orden. Ninguna reemplaza a la otra: el rótulo interno sirve para saber dónde pegar la del courier y para revisar el despacho.' },
+    { id: 'rotulo', t: 'Etiquetas de bulto: formatos y numeración', k: ['formato', 'formatos', 'imprimir etiqueta', 'etiqueta de bulto', 'etiquetas de bulto', '60x29', '60x40', 'numeracion', '1/n', 'n de n'],
+      r: 'Las etiquetas de bulto se imprimen desde <b>Cubicación → ETIQUETAS</b> o desde <b>Packing</b>. El formato se elige al imprimir; el de uso habitual se fija en <b>Datos → Formato etiqueta de bulto</b>, y se editan en <b>Rotulado → FORMATOS</b> (sección bultos). La numeración <b>n DE N</b> cuenta todos los bultos del documento, estén cubicados o ya en una OT, así que sale igual en Cubicación y en Packing.', ir: ['Ir a Rotulado', 'ir:rotulado'] },
+    { id: 'cubicacion', t: 'Cómo cubicar un pedido', k: ['cubicar', 'cubicacion', 'agregar bulto', 'medir', 'repetir medidas', 'otro igual'],
+      r: 'En <b>Cubicación</b>: elija el pedido (o escriba orden y documento), busque el producto si quiere traer sus medidas, ingrese ancho, alto, largo y peso, y pulse <b>+ AGREGAR BULTO</b>. <b>REPETIR MEDIDAS</b> y <b>OTRO IGUAL</b> agilizan bultos iguales. Luego imprima las <b>ETIQUETAS</b> y pase a <b>PACKING</b>.', ir: ['Ir a Cubicación', 'ir:cubicacion'] },
+    { id: 'packing', t: 'Packing y OT', k: ['packing', 'crear ot', 'nueva ot', 'tomar ot', 'incorporar', 'asignar courier', 'orden de trabajo'],
+      r: 'En <b>Packing</b> se crea o toma una <b>OT</b> y se incorporan los documentos ya cubicados (uno a uno o en forma masiva). A cada documento se le asigna el courier. Los bultos conservan su número n DE N de la cubicación.', ir: ['Ir a Packing', 'ir:packing'] },
+    { id: 'despacho', t: 'Despacho y verificación', k: ['verificar', 'verificacion', 'escanear', 'escaneo', 'despachar', 'retiro', 'transportista'],
+      r: 'En <b>Despacho</b> se elige la OT y el courier, y se escanea la etiqueta u orden del courier de cada bulto. Satélite marca cada bulto verificado y avisa si la etiqueta no pertenece a esa OT o documento. Cuando todo está verificado se cierra el despacho y se genera el <b>Manifiesto</b>.', ir: ['Ir a Despacho', 'ir:despacho'] },
+    { id: 'manifiesto', t: 'Manifiesto', k: ['manifiesto', 'cerrar ot', 'cierre'],
+      r: 'El <b>Manifiesto</b> resume la OT despachada: courier, documentos y bultos. Se genera al cerrar el despacho; si después cambia algo en la OT, queda marcado como desactualizado y se puede regenerar.', ir: ['Ir a Manifiesto', 'ir:manifiesto'] },
+    { id: 'correos', t: 'Extensión de Correos de Chile', k: ['extension', 'portal de correos', 'transferir', 'vincular', 'registrar', 'historial de envios', 'correlativo', 'filtro por dia', 'pagar'],
+      r: 'La extensión trabaja en el portal de Correos (en Chrome de computador):<br>1. Busque el documento y pulse <b>Transferir medidas y peso</b> (un envío por bulto); también transfiere destinatario y remitente.<br>2. Antes de pagar, <b>Vincular</b> deja el ID de Correos junto al bulto.<br>3. Después de pagar, en «Mi historial de envíos» pulse <b>Registrar</b>: guarda el N° de seguimiento.<br>«Historial por día» filtra los envíos del día y los numera #01, #02… La extensión nunca confirma ni paga: eso lo hace usted.' },
+    { id: 'envio', t: 'Datos de envío: destinatario y remitente', k: ['destinatario', 'remitente', 'direccion', 'datos de envio', 'comuna', 'region'],
+      r: 'Son opcionales. En <b>Pedidos</b> (botón DATOS ENVÍO) o en <b>Cubicación</b> (DATOS DE ENVÍO) se registran nombre, región, comuna, calle, número, referencia, teléfono y correo. El remitente por defecto se configura en <b>Datos</b>. Todo queda en la nube y la extensión lo traspasa al formulario de Correos.', ir: ['Ir a Pedidos', 'ir:pedidos'] },
+    { id: 'ubicaciones', t: 'Ubicaciones y números de ingreso', k: ['ubicacion', 'import', 'erp', 'ingreso', 'ubicaciones por ingreso', 'importar ubicaciones', 'cambiar ubicacion', 'corregir ubicacion', 'actualizar ubicacion', 'ingreso erp', 'numero de ingreso', 'xls'],
+      r: 'Cada producto tiene una <b>ubicación principal</b> y las <b>ubicaciones por ingreso</b> del ERP (N° de ingreso, ítem, cantidad). Se importan en <b>Catálogo → Importar ubicaciones por ingreso (ERP)</b> con el .xls del ERP. Para corregir una, abra la <b>ficha</b> del producto, cambie la ubicación del ingreso y guarde: queda como corregida en bodega y una nueva importación no la pisa. Puede buscar por ingreso escribiendo <b>ING 255</b>.', ir: ['Ir a Catálogo', 'ir:catalogo'] },
+    { id: 'medidas', t: 'Medidas de los productos', k: ['medidas del producto', 'medidas de producto', 'estimad', 'medido en bodega', 'fabricante', 'actualizar medidas', 'importar medidas', 'ficha'],
+      r: 'Las medidas con embalaje de cada producto están en su <b>ficha</b> (Catálogo). Pueden ser <b>ESTIMADAS</b>, de <b>FABRICANTE</b> o <b>MEDIDO EN BODEGA</b>. Al cubicar, si mide distinto, Satélite ofrece actualizar la ficha; las medidas tomadas en bodega nunca se reemplazan con un archivo. Un archivo de medidas se carga en <b>Catálogo → MEDIDAS</b>.', ir: ['Ir a Catálogo', 'ir:catalogo'] },
+    { id: 'sync', t: 'Sincronización y conexión de equipos', k: ['sincroniz', 'enlace', 'colaborador', 'conectar', 'no veo datos', 'nube', 'clave', 'otro equipo'],
+      r: 'Los equipos se conectan con el <b>enlace para colaboradores</b> (Datos → Enlace para colaboradores): se abre en el mismo navegador y queda conectado sin escribir clave. El botón de la nube arriba a la derecha sincroniza; si un equipo no ve datos, revise en <b>Datos → Sincronización</b> el último error y pulse SINCRONIZAR AHORA.', ir: ['Ir a Datos', 'ir:datos'] },
+    { id: 'impresion', t: 'Impresión de etiquetas', k: ['impres', 'imprime', 'impresora', 'fondo negro', 'sunmi', '58 mm', '80 mm'],
+      r: 'En <b>Datos</b> elija el método de impresión <b>Documento dedicado con fondo blanco</b> (recomendado) y use PRUEBA 58 mm o PRUEBA 80 mm. Si sale fondo negro o márgenes, vuelva a ese método y revise en el diálogo de impresión que el tamaño de papel sea el de la etiqueta.', ir: ['Ir a Datos', 'ir:datos'] },
+    { id: 'seguimiento', t: 'Pantalla de Seguimiento', k: ['pantalla de seguimiento', 'filtrar', 'filtros', 'exportar csv', 'cuadros'],
+      r: '<b>Seguimiento</b> muestra el avance de cada documento: pedido, cubicación, packing, verificación y despacho. Busque por orden, documento, OT, orden courier o ID de Correos, filtre por etapa, courier o fechas, y toque los cuadros (Bultos, En proceso, Despachados) para filtrar la lista.', ir: ['Ir a Seguimiento', 'ir:seguimiento'] },
+    { id: 'pedidos', t: 'Registrar pedidos', k: ['registrar pedido', 'nuevo pedido', 'pegar desde excel', 'importar pedidos', 'estados del pedido'],
+      r: 'En <b>Pedidos</b> use <b>+ NUEVO</b> o <b>PEGAR DESDE EXCEL</b> (origen, orden, tipo y N° de documento, fecha, monto). El documento puede agregarse después. El estado avanza solo: CUBICADO al cubicar, EN PREPARACIÓN en Packing y ENVIADO al verificar todos sus bultos.', ir: ['Ir a Pedidos', 'ir:pedidos'] }
+  ],
+  faqBuscar: function (txt) {
+    var t = Asistente.norm(txt), tok = t.split(' '), mejor = null;
+    U.each(Asistente.FAQ, function (f) {
+      var s = 0;
+      U.each(f.k, function (k) {
+        if (k.indexOf(' ') >= 0) { if ((' ' + t + ' ').indexOf(' ' + k) >= 0) s += 2; }
+        else if (U.find(tok, function (w) { return w.indexOf(k) === 0; })) s += 1;
+      });
+      if (s && (!mejor || s > mejor.s)) mejor = { f: f, s: s };
+    });
+    return mejor;
+  },
+  responderFaq: function (f) {
+    Asistente.ult = null;
+    var ops = []; if (f.ir) ops.push([f.ir[0] + ' →', f.ir[1], 'mor']);
+    ops.push(Asistente.OP_FAQ); ops.push(Asistente.OP_MENU);
+    Asistente.dice('<b>' + U.esc(f.t) + '</b><br>' + f.r, ops);
+  },
+  listaFaq: function () {
+    Asistente.dice('Elige un tema o escríbeme tu pregunta con tus palabras:', U.map(Asistente.FAQ, function (f) { return [f.t, 'f:' + f.id]; }).concat([Asistente.OP_MENU]));
+  },
+  resumenHtml: function () {
+    var pa = 0, cp = 0, oa = 0, bs = 0, bv = 0, cs = 0, cg = 0, sinEtq = 0;
+    U.each(Pedidos.lista, function (p) { if (p.estado !== 'ENTREGADO' && p.estado !== 'CANCELADO') pa++; });
+    U.each(CubPool.lista, function (c) { if (c.estado === 'DISPONIBLE' && !c.otId) cp++; });
+    U.each(OT.lista, function (o) { if (o.estado !== 'CERRADA') { oa++; U.each(o.bultos || [], function (b) { bs++; if (b.verificadoCourier || b.despachoId) bv++; else if (!CorreosSat.deBulto(b) && !U.trim(b.ordenCourierEscaneada || b.ordenCourier)) sinEtq++; }); } });
+    U.each(CorreosSat.lista, function (e) { if (!CorreosSat.ACTIVOS[e.estado]) return; if (e.seguimiento) cg++; else cs++; });
+    return '📊 <b>Resumen de este equipo</b><table class="tb"><tr><td>Pedidos activos</td><td><b>' + pa + '</b></td></tr><tr><td>Bultos cubicados sin OT</td><td><b>' + cp + '</b></td></tr><tr><td>OT abiertas</td><td><b>' + oa + '</b></td></tr><tr><td>Bultos en OT abiertas</td><td><b>' + bs + '</b> (' + bv + ' verificados)</td></tr><tr><td>Bultos sin etiqueta del courier</td><td><b>' + sinEtq + '</b></td></tr><tr><td>Envíos Correos preparados / pagados</td><td><b>' + cs + '</b> / <b>' + cg + '</b></td></tr></table>';
+  },
   inicio: function () {
     U.$('wspChat').innerHTML = ''; Asistente.modo = ''; Asistente.intento = ''; Asistente.ult = null;
-    Asistente.dice('¡Hola! 👋 Soy el asistente del Satélite. Puedo decirte dónde está un producto, su código, cuándo se despachó una orden, su OT o cuántos bultos llevaba. Elige una opción o escribe tu pregunta.', Asistente.opsMenu());
+    Asistente.dice('¡Hola! 👋 Soy el asistente del Satélite. Te digo dónde está un producto y sus medidas, las órdenes del courier de un documento, qué etiqueta va en cada bulto y cuándo se despachó. También respondo dudas sobre cómo usar el Satélite. Elige una opción o escribe tu pregunta.', Asistente.opsMenu());
   },
   abrir: function () {
     U.$('wspPanel').style.display = ''; Asistente.ocultarPop();
@@ -4299,20 +4510,38 @@ var Asistente = {
   cerrar: function () { U.$('wspPanel').style.display = 'none'; Asistente.pararMic(); },
   ocultarPop: function () { U.$('wspGlobo').style.display = 'none'; try { localStorage.setItem('rdm_pop', '1'); } catch (e) {} },
   fh: function (iso, f, h) { var ts = Seguimiento._ts(iso, f, h); return ts ? U.fechaCL(ts.substr(0, 10)) + (ts.length > 10 ? ' ' + ts.substr(11, 5) : '') : ''; },
+  ubicHtml: function (f) {
+    var ubs = Ubicaciones.de(f.codigo), h = '📍 Ubicación principal: ' + (U.trim(f.ubicacion) ? '<b>' + U.esc(f.ubicacion) + '</b>' : '<i>sin ubicación principal</i>');
+    if (ubs.length) {
+      h += '<br>Por ingreso (ERP):<table class="tb">' + U.map(ubs.slice(0, 6), function (o) { return '<tr><td>ING <b>' + U.esc(o.ingreso) + '</b></td><td>' + U.esc(o.cantidad) + ' un.</td><td>' + (o.ubicacion ? '<b>' + U.esc(o.ubicacion) + '</b>' : '<i>sin ubicación</i>') + '</td></tr>'; }).join('') + '</table>' + (ubs.length > 6 ? '<small>… y ' + (ubs.length - 6) + ' ingresos más (ver ficha).</small>' : '');
+    } else if (!U.trim(f.ubicacion)) h += '<br><small>No hay ingresos del ERP con ubicación para este código.</small>';
+    return h;
+  },
+  medHtml: function (f) {
+    var m = f.med;
+    if (!m || !(Medidas.tiene(m) || m.peso)) return '📐 <i>Sin medidas registradas.</i> Puede medirlo al cubicar o completarlas en la ficha del producto (Catálogo).';
+    var est = m.fuente === 'BODEGA' ? 'medido en bodega' : (Medidas.estimado(m) ? 'estimado: confirme con huincha y báscula' : 'dato de fabricante');
+    var h = '📐 Con embalaje: <b>' + U.esc(Medidas.tiene(m) ? m.ancho + ' × ' + m.alto + ' × ' + m.largo + ' cm' : 'sin dimensiones') + '</b>' + (m.peso ? ' · <b>' + U.esc(String(U.red(m.peso, 2)).replace('.', ',')) + ' kg</b>' : '') + '<br><small>(' + est + ')</small>';
+    if (m.bultos > 1) h += '<br>⚠️ Va en <b>' + m.bultos + ' bultos</b>: las medidas son por bulto.';
+    if (Medidas.tiene(m)) { var c = OT.calcular(m.ancho, m.alto, m.largo); h += '<br>Volumen ' + U.fx(c.volumen, 3) + ' m³ · peso volumétrico ' + U.fx(c.pesoVol, 2) + ' kg'; }
+    if (m.anchoProd || m.altoProd || m.largoProd) h += '<br>Sin embalaje: ' + U.esc((m.anchoProd || '?') + ' × ' + (m.altoProd || '?') + ' × ' + (m.largoProd || '?')) + ' cm' + (m.pesoProd ? ' · ' + U.esc(m.pesoProd) + ' kg' : '');
+    if (m.claseEmbalaje || m.referenciaCaja) h += '<br>Embalaje: ' + U.esc(U.trim((m.claseEmbalaje || '') + ' ' + (m.referenciaCaja || '')));
+    return h;
+  },
   prodHtml: function (p, it) {
-    var h = '<b>' + U.esc(p.descripcion || p.codigo) + '</b>' + (p.marca ? '<br>Marca: ' + U.esc(p.marca) : '');
-    var ub = p.ubicacion ? '<b>' + U.esc(p.ubicacion) + '</b>' : '<i>sin ubicación registrada en el catálogo</i>';
-    if (it === 'ubicacion') return '📍 Ubicación: ' + ub + '<br>' + h + '<br>Código: ' + U.esc(p.codigo);
-    if (it === 'precio') return h + '<br>Precio: <b>$' + U.esc(String(p.precio).replace(/\B(?=(\d{3})+(?!\d))/g, '.')) + '</b><br>Código: ' + U.esc(p.codigo);
-    if (it === 'medida') return h + '<br>Código: ' + U.esc(p.codigo) + '<br>El catálogo no registra medidas ni peso del producto. Si buscas las medidas de un envío, consúltame por la orden o la factura.';
-    return h + '<br>Código: <b>' + U.esc(p.codigo) + '</b>' + (p.codigoBarra ? '<br>Cód. barras: ' + U.esc(p.codigoBarra) : '') + '<br>Ubicación: ' + ub + (p.familia ? '<br>Familia: ' + U.esc(p.familia) : '');
+    var f = Productos.ficha(p.codigo) || p;
+    var h = '<b>' + U.esc(f.descripcion || f.codigo) + '</b>' + (f.marca ? '<br>Marca: ' + U.esc(f.marca) : '') + '<br>Código: <b>' + U.esc(f.codigo) + '</b>';
+    if (it === 'ubicacion') return Asistente.ubicHtml(f) + '<br>' + h;
+    if (it === 'medida') return h + '<br>' + Asistente.medHtml(f);
+    if (it === 'precio') return h + '<br>Precio: <b>$' + U.esc(String(f.precio || 0).replace(/\B(?=(\d{3})+(?!\d))/g, '.')) + '</b>';
+    return h + (f.codigoBarra ? '<br>Cód. barras: ' + U.esc(f.codigoBarra) : '') + (f.familia ? '<br>Familia: ' + U.esc(f.familia) : '') + '<br>' + Asistente.ubicHtml(f) + '<br>' + Asistente.medHtml(f);
   },
   docHtml: function (d, it) {
     var h = '<b>' + U.esc(d.orden || '—') + '</b> · ' + U.esc(d.numeroDocumento ? d.tipoDocumento + ' ' + d.numeroDocumento : 'sin documento') + '<br>Etapa: <b>' + U.esc(d.etapa) + '</b>';
     var ots = U.map(d.ots, function (o) { return o.numero; }).join(', ');
     var man = U.filter(d.ots, function (o) { return o.manifiesto && o.manifiesto.generado; }), ver = '';
     U.each(d.bultos, function (x) { if (x.b.verificadoCourierAt && x.b.verificadoCourierAt > ver) ver = x.b.verificadoCourierAt; });
-    var cou = (d.couriers.join(', ') || 'sin courier asignado') + (d.ordenesCourier.length ? ' · OT courier: <b>' + U.esc(d.ordenesCourier.join(', ')) + '</b>' : '');
+    var cou = (d.couriers.join(', ') || 'sin courier asignado') + (d.ordenesCourier.length ? ' · orden courier: <b>' + U.esc(d.ordenesCourier.join(', ')) + '</b>' : '');
     if (it === 'despacho') {
       if (d.etapa === 'DESPACHADO' || d.etapa === 'ENTREGADO') h += '<br>🚚 Despachado: <b>' + U.map(man, function (o) { return U.esc(Asistente.fh('', o.manifiesto.fecha, o.manifiesto.hora)) + ' (manifiesto ' + U.esc(o.numero) + ')'; }).join(', ') + '</b>';
       else if (d.bultos.length) h += '<br>Aún no se despacha.' + (d.verificados ? ' Verificados ' + d.verificados + ' de ' + d.bultos.length + ' bultos' + (ver ? ', último el ' + U.esc(Asistente.fh(ver)) : '') + '.' : ' Ningún bulto verificado todavía.');
@@ -4320,23 +4549,43 @@ var Asistente = {
       if (d.couriers.length) h += '<br>Courier: ' + cou;
       return h;
     }
-    if (it === 'ot') return h + '<br>OT interna: <b>' + U.esc(ots || 'sin OT asignada') + '</b><br>Courier: ' + cou;
-    if (it === 'bultos' || it === 'medida') {
-      var lb = d.bultos.length ? U.map(d.bultos, function (x) { return x.b; }) : d.cub, tp = 0, tb = '';
-      if (!lb.length) return h + '<br>No tiene bultos registrados todavía.';
-      U.each(lb, function (b) { tp += Number(b.peso) || 0; tb += '<tr><td>' + b.numero + '</td><td>' + U.esc(b.ancho + '×' + b.alto + '×' + b.largo) + ' cm</td><td>' + U.fx(b.peso, 2) + ' kg</td></tr>'; });
-      return h + '<br>📦 <b>' + lb.length + ' bulto(s)</b> · ' + U.fx(tp, 2) + ' kg en total' + (d.bultos.length ? '' : ' (cubicados, aún sin OT)') + '<table class="tb">' + tb + '</table>';
+    var xs = Asistente.bultosDoc(d);
+    if (it === 'courier' || it === 'ot') {
+      if (!xs.length) return h + '<br>No tiene bultos registrados todavía.' + (d.correos && d.correos.length ? '<br>Correos: ' + U.esc(CorreosSat.ids(d.correos).join(', ')) : '');
+      h += '<br>OT interna: <b>' + U.esc(ots || 'sin OT asignada') + '</b><br>🚚 Courier por bulto:<table class="tb">' + U.map(xs, function (x) { return '<tr><td><b>' + x.pos + '/' + x.tot + '</b></td><td>' + (x.ot ? U.esc(x.ot.numero) : '<i>sin OT</i>') + '</td><td>' + Asistente.etqCourier(x) + '</td></tr>'; }).join('') + '</table>';
+      var cs = U.filter(d.correos || [], function (e) { return CorreosSat.ACTIVOS[e.estado]; });
+      if (cs.length) h += 'Envíos de Correos: ' + U.map(cs, function (e) { return '<b>' + U.esc(e.seguimiento || e.numeroEnvio) + '</b> (' + CorreosSat.estadoTxt(e).toLowerCase() + (e.correlativoDia ? ', #' + U.esc(String(e.correlativoDia).split('-')[1]) + ' del día' : '') + ')'; }).join(', ');
+      return h;
     }
-    return h + (ots ? '<br>OT interna: <b>' + U.esc(ots) + '</b>' : '') + '<br>Bultos: <b>' + (d.bultos.length || d.cub.length) + '</b>' + (d.bultos.length ? ' · verificados ' + d.verificados + '/' + d.bultos.length : '') + (d.couriers.length ? '<br>Courier: ' + cou : '') +
+    if (it === 'etiqueta') {
+      if (!xs.length) return h + '<br>No tiene bultos registrados todavía: primero se cubica y se imprime el rótulo interno.';
+      var falta = U.filter(xs, function (x) { return !Asistente.tieneEtq(x); }).length;
+      h += '<br>🏷️ Rótulo interno ↔ etiqueta del courier:<table class="tb">' + U.map(xs, function (x) { return '<tr><td><b>BULTO ' + x.pos + ' DE ' + x.tot + '</b></td><td>' + Asistente.etqCourier(x) + '</td></tr>'; }).join('') + '</table>';
+      h += falta ? '⚠️ ' + falta + ' bulto(s) aún sin etiqueta del courier asociada.' : '✓ Todos los bultos tienen su etiqueta del courier asociada.';
+      if (U.find(xs, function (x) { return x.cor && x.cor.seguimiento; })) h += '<br><small>En bodega: Rotulado → PAREO CORREOS y escanee la etiqueta para saber dónde pegarla.</small>';
+      return h;
+    }
+    if (it === 'bultos' || it === 'medida') {
+      if (!xs.length) return h + '<br>No tiene bultos registrados todavía.';
+      var tp = 0, tb = '';
+      U.each(xs, function (x) { var b = x.b; tp += Number(b.peso) || 0; tb += '<tr><td>' + x.pos + '/' + x.tot + '</td><td>' + U.esc(b.ancho + '×' + b.alto + '×' + b.largo) + ' cm</td><td>' + U.fx(b.peso, 2) + ' kg</td></tr>'; });
+      return h + '<br>📦 <b>' + xs.length + ' bulto(s)</b> · ' + U.fx(tp, 2) + ' kg en total' + (d.bultos.length ? '' : ' (cubicados, aún sin OT)') + '<table class="tb">' + tb + '</table>';
+    }
+    return h + (ots ? '<br>OT interna: <b>' + U.esc(ots) + '</b>' : '') + '<br>Bultos: <b>' + xs.length + '</b>' + (d.bultos.length ? ' · verificados ' + d.verificados + '/' + d.bultos.length : '') + (d.couriers.length ? '<br>Courier: ' + cou : '') +
+      (d.correos && d.correos.length ? '<br>Correos: ' + U.esc(CorreosSat.ids(d.correos).join(', ')) : '') +
       (man.length ? '<br>Manifiesto: ' + U.map(man, function (o) { return U.esc(Asistente.fh('', o.manifiesto.fecha, o.manifiesto.hora)); }).join(', ') : '');
   },
   responderDoc: function (d, it) {
     Asistente.ult = { tipo: 'doc', d: d };
-    Asistente.dice(Asistente.docHtml(d, it), [['Ver en Seguimiento →', 'verseg', 'mor'], ['¿Cuántos bultos?', 'r:bultos'], ['¿Cuándo se despachó?', 'r:despacho'], Asistente.OP_MENU]);
+    Asistente.dice(Asistente.docHtml(d, it), [['Ver en Seguimiento →', 'verseg', 'mor'], ['Courier por bulto', 'r:courier'], ['¿Qué etiqueta va en cada bulto?', 'r:etiqueta'], ['¿Cuántos bultos?', 'r:bultos'], ['¿Cuándo se despachó?', 'r:despacho'], Asistente.OP_MENU]);
   },
   responderProd: function (p, it) {
     Asistente.ult = { tipo: 'prod', p: p };
-    Asistente.dice(Asistente.prodHtml(p, it), [['¿Dónde está?', 'r:ubicacion'], ['Código y datos', 'r:codigo'], Asistente.OP_MENU]);
+    Asistente.dice(Asistente.prodHtml(p, it), [['¿Dónde está?', 'r:ubicacion'], ['Medidas y peso', 'r:medida'], ['Código y datos', 'r:codigo'], ['Ver ficha →', 'verficha', 'mor'], Asistente.OP_MENU]);
+  },
+  responderEtiqueta: function (r) {
+    Asistente.ult = { tipo: 'doc', d: r.d };
+    Asistente.dice(Asistente.etiquetaHtml(r), [['Todas las etiquetas del documento', 'r:etiqueta'], ['Ver en Seguimiento →', 'verseg', 'mor'], Asistente.OP_MENU]);
   },
   elegir: function (lista, tipo, it) {
     Asistente.cand = lista.slice(0, 6); Asistente.intento = it;
@@ -4350,15 +4599,27 @@ var Asistente = {
     var it = Asistente.intencion(t);
     if (it === 'humano') { Asistente.humano(); return; }
     if (it === 'menu' || it === 'hola') { Asistente.modo = ''; Asistente.dice('¿En qué te ayudo?', Asistente.opsMenu()); return; }
+    if (it === 'faq') { Asistente.modo = ''; Asistente.listaFaq(); return; }
     if (it === 'gracias') { Asistente.dice('¡De nada! 😊 Si necesitas algo más, aquí estoy.', [Asistente.OP_MENU]); return; }
-    if (!it && Asistente.modo) it = Asistente.modo;
+    var modoPrev = Asistente.modo;
+    if (!it && modoPrev) it = modoPrev;
     Asistente.modo = '';
-    var cl = Asistente.claves(t), prodIt = it === 'ubicacion' || it === 'codigo' || it === 'precio';
-    if (cl.length && !prodIt) {
-      var ds = Asistente.buscarDocs(cl);
-      if (ds.length === 1) { Asistente.responderDoc(ds[0], it); return; }
-      if (ds.length > 1) { Asistente.elegir(ds, 'doc', it); return; }
+    var cl = Asistente.claves(t), prodIt = it === 'ubicacion' || it === 'codigo' || it === 'precio' || (it === 'medida' && !cl.length);
+    if (cl.length) {
+      if (it !== 'ubicacion' && it !== 'codigo' && it !== 'precio') {
+        var et = Asistente.porEtiqueta(cl);
+        if (et && et.xs.length) { Asistente.responderEtiqueta(et); return; }
+      }
+      if (!prodIt) {
+        var ds = Asistente.buscarDocs(cl);
+        if (ds.length === 1) { Asistente.responderDoc(ds[0], it); return; }
+        if (ds.length > 1) { Asistente.elegir(ds, 'doc', it); return; }
+      }
     }
+    if (it === 'resumen' && !cl.length) { Asistente.dice(Asistente.resumenHtml(), [Asistente.OP_FAQ, Asistente.OP_MENU]); return; }
+    var fq = !cl.length ? Asistente.faqBuscar(t) : null, preg = Asistente.pregunta(t);
+    if (fq && (fq.s >= 3 || (preg && fq.s >= 2) || (preg && !modoPrev && (it === 'etiqueta' || it === 'courier' || it === '')))) { Asistente.responderFaq(fq.f); return; }
+    if (!cl.length && !Asistente.palabras(t).length && it && Asistente.guias[it]) { Asistente.modo = it; Asistente.dice(Asistente.guias[it]); return; }
     var ps = Asistente.buscarProd(t, cl);
     if (ps.length === 1) { Asistente.responderProd(ps[0], it); return; }
     if (ps.length > 1) { Asistente.elegir(ps, 'prod', it); return; }
@@ -4367,18 +4628,27 @@ var Asistente = {
       if (d2.length === 1) { Asistente.responderDoc(d2[0], it); return; }
       if (d2.length > 1) { Asistente.elegir(d2, 'doc', it); return; }
     }
-    if (it && Asistente.guias[it] && !cl.length && !Asistente.palabras(t).length) { Asistente.modo = it; Asistente.dice(Asistente.guias[it]); return; }
-    Asistente.dice('No encontré ' + (cl.length ? 'documentos ni productos con <b>' + U.esc(cl.join(', ')) + '</b>' : 'lo que buscas') + '. Revisa el número o el nombre, o prueba otra opción.' + (Sync.modo() !== 'local' ? '' : '<br><small>Este equipo no está sincronizado: solo consulto sus datos locales.</small>'), [Asistente.OP_MENU, Asistente.OP_HUMANO]);
+    if (fq) { Asistente.responderFaq(fq.f); return; }
+    if (it && Asistente.guias[it] && !cl.length) { Asistente.modo = it; Asistente.dice(Asistente.guias[it]); return; }
+    Asistente.dice('No encontré ' + (cl.length ? 'documentos, productos ni etiquetas con <b>' + U.esc(cl.join(', ')) + '</b>' : 'lo que buscas') + '. Revisa el número o el nombre, prueba otra opción o revisa las preguntas frecuentes.' + (Sync.modo() !== 'local' ? '' : '<br><small>Este equipo no está sincronizado: solo consulto sus datos locales.</small>'), [Asistente.OP_FAQ, Asistente.OP_MENU, Asistente.OP_HUMANO]);
   },
   accion: function (a) {
     var u = Asistente.ult;
     if (a === 'menu') { Asistente.msj('Menú inicial', 'yo'); Asistente.modo = ''; Asistente.dice('¿En qué más te ayudo?', Asistente.opsMenu()); return; }
+    if (a === 'faq') { Asistente.msj('Preguntas frecuentes', 'yo'); Asistente.modo = ''; Asistente.listaFaq(); return; }
     if (a === 'humano') { Asistente.msj('Hablar con una persona', 'yo'); Asistente.humano(); return; }
     if (a === 'abrirwsp') { Asistente.msj('Abrir WhatsApp', 'yo'); Asistente.enviarWsp(''); return; }
+    if (a.indexOf('f:') === 0) { var f = U.find(Asistente.FAQ, function (x) { return x.id === a.substr(2); }); if (f) { Asistente.msj(U.esc(f.t), 'yo'); Asistente.responderFaq(f); } return; }
+    if (a.indexOf('ir:') === 0) {
+      var dest = a.substr(3); Asistente.cerrar();
+      if (dest === 'pareo') { Rotulado.sub = 'pareo'; App.ir('rotulado'); } else App.ir(dest);
+      return;
+    }
     if (a === 'verseg' && u && u.tipo === 'doc') {
-      Seguimiento.filtro = { campo: 'ORDEN', valor: u.d.orden, etapa: 'TODAS', courier: 'TODOS', desde: '', hasta: '' };
+      Seguimiento.filtro = { campo: 'ORDEN', valor: u.d.orden, etapa: 'TODAS', courier: 'TODOS', desde: '', hasta: '' }; Seguimiento.kpi = '';
       Asistente.cerrar(); App.ir('seguimiento'); return;
     }
+    if (a === 'verficha' && u && u.tipo === 'prod') { Asistente.cerrar(); App.ir('catalogo'); CatUI.ficha(u.p.codigo); return; }
     if (a.indexOf('g:') === 0) {
       var g = a.substr(2), op = U.find(Asistente.opsMenu(), function (o) { return o[1] === a; });
       Asistente.msj(U.esc(op ? op[0].replace(/^\d+\.\s*/, '') : g), 'yo'); Asistente.modo = g;
@@ -5191,6 +5461,7 @@ Pantallas.datos = function (m) {
     '<div class="tot">OT: <b>' + OT.lista.length + '</b> · Bultos: <b>' + nb + '</b> · Productos: <b>' + Catalogo.lista.length + '</b> · Formatos: <b>' + DB.formatos.length + '</b><br>' +
     '<span class="muted">Uso almacenamiento: ' + U.fx(StorageManager.uso() / 1024, 0) + ' KB (límite ≈ 5000 KB)</span></div>' +
     '<button class="btn" data-a="exportar">EXPORTAR RESPALDO</button>' +
+    (function () { var a = StorageManager.leer(CLAVES.archivados, []); return U.esArray(a) && a.length ? '<button class="btn btn-sec" data-a="verArchivados">DESCARGAR ARCHIVADOS (' + a.length + ')</button><div class="muted">Registros antiguos de este equipo que no estaban en la nube y no se subieron. Se guardan aquí por seguridad.</div>' : ''; })() +
     '<button class="btn btn-sec" data-a="verRespaldo">VER RESPALDO</button>' +
     '<label class="lbl">IMPORTAR RESPALDO (.json)</label><input id="rsFile" type="file" accept=".json,application/json,text/plain" class="inp sm" style="padding:8px">' +
     '<label class="lbl">…o pegar contenido</label><textarea id="rsTxt" class="inp"></textarea>' +
@@ -5259,6 +5530,7 @@ Pantallas.datos = function (m) {
       Compartida.subir(function (ok, msg) { UI.toast(ok ? 'Remitente guardado y compartido con todos los equipos' : (Compartida.activo() ? 'Guardado en este equipo; no se pudo compartir: ' + (msg || '') : 'Remitente guardado (solo este equipo)'), ok ? 'ok' : 'warn', 4000); });
     },
     exportar: function () { StorageManager.backup(); },
+    verArchivados: function () { UI.descargar('rdm_archivados_' + U.sello() + '.json', JSON.stringify(StorageManager.leer(CLAVES.archivados, []), null, 1), 'application/json'); },
     syGuardar: function () {
       if (U.$('syUrl')) {
         var u = U.trim(U.$('syUrl').value);
