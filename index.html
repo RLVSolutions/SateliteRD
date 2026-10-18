@@ -332,6 +332,13 @@ textarea.inp{font-size:13px;border-radius:8px}
 .tile .ts{display:block;font-size:12px;color:#5f5a63;line-height:16px;overflow:hidden}
 .res-l{font-size:14px;line-height:1.9;color:#49454f}
 .res-l b{float:right;color:#1d1b20}
+.kpi[data-a]{cursor:pointer;-webkit-tap-highlight-color:rgba(107,42,114,.15)}
+.kpi[data-a]:after{content:"\203A";position:absolute;right:10px;top:6px;font-size:20px;color:#9a949e}
+.kpi[data-a]:active{background:#f3ecf4}
+.kpi.act{background:#f6eef7;border-color:#6b2a72;box-shadow:inset 0 0 0 1px #6b2a72}
+.res-l .rl{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #eee8ef;padding:4px 0;font:inherit;color:inherit;cursor:pointer}
+.res-l .rl:after{content:" \203A";color:#9a949e}
+.res-l .rl:active{background:#f3ecf4}
 .seg-doc{border-left:6px solid #d6ced9}
 .seg-doc.seg-COMPLETO{border-left-color:#1b7a3d}
 .seg-doc.seg-PARCIAL{border-left-color:#6b2a72}
@@ -423,8 +430,8 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.11.0', build: '2026-10-17', formatoRespaldo: 4 };
-var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos' };
+var APP = { nombre: 'RDMusico Packing', version: '2.12.1', build: '2026-10-17', formatoRespaldo: 4 };
+var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
 var MM_PX = 3.7795;
@@ -629,6 +636,7 @@ var DB = {
     OT.cargar();
     Pedidos.cargar();
     CubPool.cargar();
+    Ubicaciones.cargar();
     Catalogo.cargar();
     Medidas.cargar();
     CorreosSat.cargar();
@@ -1184,7 +1192,7 @@ var Catalogo = {
   reindex: function () {
     Catalogo.idx = {};
     U.each(Catalogo.lista, function (p, i) {
-      p._s = U.sinAcentos((p.codigo + ' ' + p.descripcion + ' ' + p.marca + ' ' + p.familia + ' ' + p.codigoBarra + ' ' + (p.ubicacion || '')).toUpperCase());
+      p._s = U.sinAcentos((p.codigo + ' ' + p.descripcion + ' ' + p.marca + ' ' + p.familia + ' ' + p.codigoBarra + ' ' + (p.ubicacion || '') + ' ' + Ubicaciones.textoBusqueda(p.codigo)).toUpperCase());
       Catalogo.idx['C:' + U.norm(p.codigo)] = i;
       if (p.codigoBarra) Catalogo.idx['B:' + U.norm(p.codigoBarra)] = i;
       Catalogo.idx['Z:' + Medidas.sinCeros(p.codigo)] = i;
@@ -1346,7 +1354,8 @@ var Productos = {
     var t = q ? q.split(' ') : [], exactos = [], pri = [], res = [], vistos = {};
     var pasa = function (s) { for (var i = 0; i < t.length; i++) if (s.indexOf(t[i]) < 0) return false; return true; };
     var ok = function (f) {
-      if (filtro === 'sinubi') return f.cat && !U.trim(f.ubicacion);
+      if (filtro === 'sinubi') return f.cat && !U.trim(f.ubicacion) && !Ubicaciones.distintas(f.codigo).length;
+      if (filtro === 'coning') return Ubicaciones.de(f.codigo).length > 0;
       if (filtro === 'sinmed') return !Medidas.tiene(f.med);
       if (filtro === 'estim') return Medidas.tiene(f.med) && Medidas.estimado(f.med);
       if (filtro === 'bodega') return f.med && f.med.fuente === 'BODEGA';
@@ -1367,8 +1376,8 @@ var Productos = {
     return exactos.concat(pri, res);
   },
   linea: function (f) {
-    var med = Medidas.texto(f.med);
-    return '<span class="' + (U.trim(f.ubicacion) ? 'ubi' : 'ubi nada') + '">' + (U.trim(f.ubicacion) ? U.esc(f.ubicacion) : 'SIN UBICACIÓN') + '</span> ' +
+    var med = Medidas.texto(f.med), ri = Ubicaciones.resumen(f.codigo, 2), hay = U.trim(f.ubicacion) || ri;
+    return '<span class="' + (hay ? 'ubi' : 'ubi nada') + '">' + (U.trim(f.ubicacion) ? U.esc(f.ubicacion) : (ri ? '' : 'SIN UBICACIÓN')) + (ri ? (U.trim(f.ubicacion) ? ' · ' : '') + U.esc(ri) : '') + '</span> ' +
       (med ? '<span class="medl"><b>' + U.esc(med) + '</b>' + Medidas.etiqueta(f.med) + '</span>' : '<span class="muted">sin medidas</span>');
   }
 };
@@ -1393,16 +1402,36 @@ var ProdSync = {
       if (cb) cb(ok);
     }, function () { if (cb) cb(false); });
   },
+  bajarUbicaciones: function (cb) {
+    Sync.llamar('satUbicaciones', {}, function (r) {
+      var ok = !!(r && U.esArray(r.filas) && Ubicaciones.reemplazar(r.campos, r.filas, r.actualizado));
+      if (cb) cb(ok);
+    }, function () { if (cb) cb(false); });
+  },
+  bajarCatalogo: function (cb) {
+    Sync.llamar('satCatalogo', {}, function (r) {
+      var campos = r && r.campos, filas = (r && r.filas) || [];
+      if (!filas.length) { if (cb) cb(false); return; }
+      var prods = U.map(filas, function (f) { var p = {}; U.each(campos, function (k, i) { p[k] = f[i]; }); return p; });
+      var res = Catalogo.importar(prods, 'fusionar');
+      if (cb) cb(res.ok);
+    }, function () { if (cb) cb(false); });
+  },
   _cambios: function (desde, cb) {
     Sync.llamar('satProductosCambios', { desde: desde }, function (r) {
       var n = 0;
       U.each((r && r.cambios) || [], function (c) { if (ProdSync.aplicar(c)) n++; });
+      var pasos = [];
+      if (r && r.recargarMedidas && desde) pasos.push(function (sig) { ProdSync.bajarMedidas(function (ok) { if (ok) n++; U.each(r.cambios || [], function (c) { if (c.hoja === 'MEDIDAS') ProdSync.aplicar(c); }); sig(); }); });
+      if (r && ((r.recargarUbicaciones && desde) || (r.ubicacionesActualizado && r.ubicacionesActualizado !== Ubicaciones.actualizado))) pasos.push(function (sig) { ProdSync.bajarUbicaciones(function (ok) { if (ok) n++; sig(); }); });
+      if (r && ((r.recargarCatalogo && desde) || !Catalogo.lista.length)) pasos.push(function (sig) { ProdSync.bajarCatalogo(function (ok) { if (ok) n++; sig(); }); });
       var fin = function () { if (n) { Catalogo.reindex(); Catalogo.guardar(); Medidas.reindex(); Medidas.guardar(); } if (r && r.servidor) { DB.cfg.prodDesde = r.servidor; DB.guardarCfg(); } cb(n > 0); };
-      if (r && r.recargarMedidas && desde) ProdSync.bajarMedidas(function (ok) { if (ok) n++; U.each(r.cambios || [], function (c) { if (c.hoja === 'MEDIDAS') ProdSync.aplicar(c); }); fin(); });
-      else fin();
+      var correr = function (i) { if (i >= pasos.length) { fin(); return; } pasos[i](function () { correr(i + 1); }); };
+      correr(0);
     }, function () { cb(false); });
   },
   aplicar: function (c) {
+    if (c.hoja === 'UBICACIONES' && c.detalle) { var o = Ubicaciones.porId[c.detalle]; if (o && o.ubicacion !== c.nuevo) { o.ubicacion = c.nuevo; o.fuente = 'BODEGA'; o.actualizado = c.fecha; o.usuario = c.usuario; Ubicaciones.guardar(); Ubicaciones.indexar(); return true; } return false; }
     if (c.hoja === 'CATALOGO' && c.campo === 'ubicacion') { var p = Catalogo.porCodigo(c.codigo); if (p && p.ubicacion !== c.nuevo) { p.ubicacion = c.nuevo; return true; } return false; }
     if (c.hoja === 'MEDIDAS' && MED_NUM[c.campo]) {
       var m = Medidas.porCodigo(c.codigo);
@@ -1491,6 +1520,135 @@ var MedCSV = {
       if (Medidas.tiene(o)) r.conMedidas++;
       r.filas.push(o);
     });
+    return r;
+  }
+};
+
+var UBI_CAMPOS = ['id', 'ingreso', 'idItem', 'codigo', 'cantidad', 'ubicacion', 'fuente', 'ubicacionErp', 'actualizado', 'usuario'];
+var Ubicaciones = {
+  lista: [], porCod: {}, porId: {}, actualizado: '',
+  cargar: function () {
+    var raw = StorageManager.leer(CLAVES.ubicaciones, null), l = [];
+    if (raw && U.esArray(raw.filas)) {
+      var c = U.esArray(raw.campos) ? raw.campos : UBI_CAMPOS;
+      U.each(raw.filas, function (f) { var o = {}; U.each(c, function (k, i) { o[k] = f[i] == null ? '' : f[i]; }); l.push(o); });
+      Ubicaciones.actualizado = raw.actualizado || '';
+    }
+    Ubicaciones.lista = l; Ubicaciones.indexar();
+  },
+  guardar: function () {
+    return StorageManager.guardar(CLAVES.ubicaciones, { v: 1, campos: UBI_CAMPOS, actualizado: Ubicaciones.actualizado || '', filas: U.map(Ubicaciones.lista, function (o) { return U.map(UBI_CAMPOS, function (k) { return o[k] == null ? '' : o[k]; }); }) });
+  },
+  indexar: function () {
+    Ubicaciones.porCod = {}; Ubicaciones.porId = {};
+    U.each(Ubicaciones.lista, function (o) {
+      var k = Medidas.sinCeros(o.codigo);
+      (Ubicaciones.porCod[k] = Ubicaciones.porCod[k] || []).push(o);
+      Ubicaciones.porId[o.id] = o;
+    });
+    for (var k in Ubicaciones.porCod) Ubicaciones.porCod[k].sort(function (a, b) { return (Number(b.ingreso) || 0) - (Number(a.ingreso) || 0) || (Number(b.idItem) || 0) - (Number(a.idItem) || 0); });
+  },
+  reemplazar: function (campos, filas, act) {
+    var l = [];
+    U.each(filas, function (f) { var o = {}; U.each(campos, function (k, i) { o[k] = f[i] == null ? '' : f[i]; }); if (o.id) l.push(o); });
+    var previo = Ubicaciones.lista;
+    Ubicaciones.lista = l; Ubicaciones.actualizado = act || new Date().toISOString(); Ubicaciones.indexar();
+    if (!Ubicaciones.guardar()) { Ubicaciones.lista = previo; Ubicaciones.indexar(); return false; }
+    Catalogo.reindex();
+    return true;
+  },
+  aplicarFilas: function (campos, filas) {
+    U.each(filas, function (f) {
+      var o = {}; U.each(campos, function (k, i) { o[k] = f[i] == null ? '' : f[i]; });
+      var ex = Ubicaciones.porId[o.id];
+      if (ex) U.assign(ex, o); else Ubicaciones.lista.push(o);
+    });
+    Ubicaciones.indexar(); Ubicaciones.guardar(); Catalogo.reindex();
+  },
+  de: function (cod) { return Ubicaciones.porCod[Medidas.sinCeros(cod)] || []; },
+  distintas: function (cod) {
+    var r = [], vis = {};
+    U.each(Ubicaciones.de(cod), function (o) { var u = U.trim(o.ubicacion); if (!u || vis[u]) return; vis[u] = 1; r.push({ ubicacion: u, ingreso: o.ingreso }); });
+    return r;
+  },
+  textoBusqueda: function (cod) {
+    var l = Ubicaciones.de(cod), t = [];
+    U.each(l, function (o) { t.push('ING' + o.ingreso); if (o.ubicacion) t.push(o.ubicacion); });
+    return t.join(' ');
+  },
+  resumen: function (cod, max) {
+    var d = Ubicaciones.distintas(cod), m = max || 2;
+    if (!d.length) return '';
+    return U.map(d.slice(0, m), function (x) { return x.ubicacion + ' (ING ' + x.ingreso + ')'; }).join(' · ') + (d.length > m ? ' · +' + (d.length - m) : '');
+  }
+};
+
+var Excel = {
+  URL: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+  _cbs: null,
+  cargar: function (ok, err) {
+    if (window.XLSX) { ok(); return; }
+    if (Excel._cbs) { Excel._cbs.push([ok, err]); return; }
+    Excel._cbs = [[ok, err]];
+    var fin = function (bien) { var l = Excel._cbs; Excel._cbs = null; U.each(l, function (x) { if (bien && window.XLSX) x[0](); else if (x[1]) x[1]('sinred'); }); };
+    var sc = document.createElement('script');
+    sc.src = Excel.URL; sc.onload = function () { fin(true); }; sc.onerror = function () { fin(false); };
+    document.getElementsByTagName('head')[0].appendChild(sc);
+  },
+  celda: function (v) {
+    if (v == null) return '';
+    if (typeof v === 'number') return Math.round(v) === v ? String(v) : String(Math.round(v * 1000000) / 1000000);
+    return String(v).replace(/[\t\r\n]+/g, ' ');
+  },
+  aTexto: function (file, cb, err) {
+    Excel.cargar(function () {
+      var fr = new FileReader();
+      fr.onload = function () {
+        try {
+          var wb = XLSX.read(new Uint8Array(fr.result), { type: 'array' }), ws = wb.Sheets[wb.SheetNames[0]];
+          var filas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: false });
+          cb(U.map(filas, function (f) { return U.map(f, Excel.celda).join('\t'); }).join('\n'));
+        } catch (e) { if (err) err('formato'); }
+      };
+      fr.onerror = function () { if (err) err('lectura'); };
+      fr.readAsArrayBuffer(file);
+    }, err);
+  },
+  mensaje: function (tipo) {
+    if (tipo === 'xlsx-sinred') return 'No se pudo cargar el lector de Excel (requiere internet). Guarde el archivo como CSV o copie el rango y péguelo.';
+    if (tipo === 'xlsx-formato') return 'No se pudo leer el archivo Excel. Ábralo en Excel y guárdelo de nuevo, o copie el rango y péguelo.';
+    return 'No se pudo leer el archivo.';
+  }
+};
+
+var UbiCSV = {
+  ALIAS: { ingreso: ['INGRESO', 'NRO_INGRESO', 'N_INGRESO', 'NUMERO_INGRESO', 'INGRESO_NRO'], idItem: ['ID_ITEM', 'IDITEM', 'ITEM_ID'], codigo: ['COD_PROD', 'CODIGO', 'SKU', 'COD_PRODUCTO'],
+    descripcion: ['DESCRIP', 'DESCRIPCION', 'PRODUCTO'], cantidad: ['CANTIDAD', 'CANT'], unitario: ['UNITARIO', 'COSTO', 'COSTO_UNITARIO'], ubicacion: ['UBICACION', 'UBIC'],
+    cuenta: ['CUENTA'], serie: ['SERIE'], observacion: ['OBSERV', 'OBSERVACION', 'OBS'] },
+  analizar: function (txt) {
+    var p = CSV.parse(txt), r = { filas: [], cab: [], mapa: {}, omitidas: 0, duplicados: 0, error: '', ingresos: 0, sinUbicacion: 0, productos: 0, enCatalogo: 0, ubicaciones: 0 };
+    if (p.filas.length < 2) { r.error = 'El archivo no tiene filas de datos.'; return r; }
+    var n = U.map(p.filas[0], MedCSV.normCab), k, a;
+    r.cab = p.filas[0];
+    for (k in UbiCSV.ALIAS) for (a = 0; a < UbiCSV.ALIAS[k].length && r.mapa[k] == null; a++) { var i = n.indexOf(UbiCSV.ALIAS[k][a]); if (i >= 0) r.mapa[k] = i; }
+    var falta = U.filter(['ingreso', 'idItem', 'codigo', 'ubicacion'], function (x) { return r.mapa[x] == null; });
+    if (falta.length) { r.error = 'Faltan columnas: ' + U.map(falta, function (x) { return { ingreso: 'INGRESO', idItem: 'ID_ITEM', codigo: 'COD_PROD', ubicacion: 'UBICACION' }[x]; }).join(', ') + '.'; return r; }
+    var vis = {}, ings = {}, prods = {}, ubis = {};
+    U.each(p.filas.slice(1), function (f) {
+      var o = {};
+      for (k in r.mapa) o[k] = U.trim(f[r.mapa[k]] == null ? '' : f[r.mapa[k]]);
+      o.codigo = o.codigo.replace(/\s+/g, '').toUpperCase();
+      if (!o.codigo || !o.idItem || !/^\d+$/.test(o.ingreso)) { r.omitidas++; return; }
+      if (vis[o.idItem]) { r.duplicados++; return; }
+      vis[o.idItem] = 1; ings[o.ingreso] = 1;
+      o.ubicacion = U.norm(o.ubicacion);
+      if (!o.ubicacion) r.sinUbicacion++; else ubis[o.ubicacion] = 1;
+      var kc = Medidas.sinCeros(o.codigo);
+      if (!prods[kc]) { prods[kc] = 1; r.productos++; if (Catalogo.porCodigo(o.codigo)) r.enCatalogo++; }
+      r.filas.push(o);
+    });
+    for (k in ings) r.ingresos++;
+    for (k in ubis) r.ubicaciones++;
     return r;
   }
 };
@@ -1599,6 +1757,8 @@ var CSV = {
     if (p.filas.length < 2) { r.error = 'El archivo no tiene filas de datos (se necesita una fila de cabecera).'; return r; }
     r.cab = p.filas[0]; r.mapa = CSV.mapear(r.cab);
     if (r.mapa.codigo == null) { r.error = 'No se encontró la columna de código (COD_PROD, CODIGO o SKU).'; return r; }
+    var cabN = U.map(r.cab, MedCSV.normCab);
+    if (cabN.indexOf('INGRESO') >= 0 && cabN.indexOf('ID_ITEM') >= 0) { r.error = 'Este archivo es de ubicaciones por ingreso (trae costos unitarios, no precios). Impórtelo con el botón UBICACIONES ERP.'; return r; }
     var vistos = {}, m = r.mapa;
     for (var i = 1; i < p.filas.length; i++) {
       var f = p.filas[i], g = function (k) { return m[k] == null ? '' : U.trim(f[m[k]]); };
@@ -1613,8 +1773,8 @@ var CSV = {
   },
   leerArchivo: function (file, cb, onError) {
     var nombre = String(file && file.name || '').toLowerCase();
-    if (/\.xlsx?$/.test(nombre)) {
-      if (onError) onError('xlsx');
+    if (/\.xls[xm]?$/.test(nombre)) {
+      Excel.aTexto(file, cb, function (t) { if (onError) onError('xlsx-' + t); });
       return;
     }
     var fr = new FileReader();
@@ -1685,7 +1845,7 @@ function entrarDatos(fn) {
 
 var Sync = {
   _t: null, _enCurso: false, _cola: [],
-  FUNCIONES: ['satInfo','satSubir','satBajar','satCatalogo','satMedidas','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
+  FUNCIONES: ['satInfo','satSubir','satBajar','satCatalogo','satMedidas','satUbicaciones','satUbicacionesImportar','satUbicacionesGuardar','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
   gas: function () { try { return typeof google !== 'undefined' && !!google.script && !!google.script.run; } catch (e) { return false; } },
   urlServidor: function () {
     var u = U.trim((DB.cfg && DB.cfg.sync && DB.cfg.sync.url) || '');
@@ -2613,17 +2773,17 @@ Pantallas.inicio = function (m) {
     U.each(CubPool.lista||[],function(c){ if(!c.usado && !c.otId) cubPend++; });
   } catch(e) {}
 
-  var k=function(n,t,s,c){return '<div class="kpi '+(c||'')+'"><div class="v">'+n+'</div><div class="t">'+U.esc(t)+'</div><div class="s">'+U.esc(s||'')+'</div></div>';};
+  var k=function(n,t,s,c,dest){return '<div class="kpi '+(c||'')+'" role="button" tabindex="0" data-a="iniKpi" data-x="'+dest+'"><div class="v">'+n+'</div><div class="t">'+U.esc(t)+'</div><div class="s">'+U.esc(s||'')+'</div></div>';};
   var acceso=function(p,ic,t,sub,pri){return '<button class="tile'+(pri?' pri':'')+'" data-a="iniIr" data-x="'+p+'"><span class="ic">'+ic+'</span><span class="tt">'+U.esc(t)+'</span><span class="ts">'+U.esc(sub)+'</span></button>';};
-  var fila=function(t,v){return '<div>'+U.esc(t)+'<b>'+v+'</b></div>';};
+  var fila=function(t,v,dest){return '<button type="button" class="rl" data-a="iniKpi" data-x="'+dest+'">'+U.esc(t)+'<b>'+v+'</b></button>';};
 
   m.innerHTML =
     '<div class="dash-h"><div class="t">Dashboard</div><div class="s">Centro de operación · RDMusico Packing '+U.esc(APP.version)+'</div></div>'+
     '<div class="kpis">'+
-      k(pedAct,'PEDIDOS ACTIVOS','Pendientes de completar')+
-      k(cubPend,'CUBICACIONES','Disponibles / pendientes','k2')+
-      k(otAb,'OT ABIERTAS','En preparación','k3')+
-      k(bultos,'BULTOS','Registrados en OT','k4')+
+      k(pedAct,'PEDIDOS ACTIVOS','Pendientes de completar','','pedidos:ACTIVOS')+
+      k(cubPend,'CUBICACIONES','Disponibles / pendientes','k2','cubicacion:pendientes')+
+      k(otAb,'OT ABIERTAS','En preparación','k3','packing:ots')+
+      k(bultos,'BULTOS','Registrados en OT','k4','seguimiento:bultos')+
     '</div>'+
     '<div class="card"><h2>OPERACIÓN</h2><div class="tiles">'+
       acceso('pedidos','PE','Pedidos','Pedidos y órdenes de compra',true)+
@@ -2634,29 +2794,44 @@ Pantallas.inicio = function (m) {
       acceso('seguimiento','SG','Seguimiento','Consulta de documentos')+
     '</div></div>'+
     '<div class="card"><h2>RESUMEN</h2><div class="res-l">'+
-      fila('Pedidos cubicados',pedCub)+
-      fila('OT despachadas / en proceso',otDesp)+
-      fila('OT cerradas',otCer)+
+      fila('Pedidos cubicados',pedCub,'pedidos:CUBICADO')+
+      fila('OT despachadas / en proceso',otDesp,'despacho:')+
+      fila('OT cerradas',otCer,'packing:historico')+
     '</div></div>'+
     '<div class="card"><h2>HERRAMIENTAS</h2><div class="tiles">'+
       acceso('rotulado','RO','Rotulado','Etiquetas de producto')+
       acceso('catalogo','CA','Catálogo','Productos y códigos')+
       acceso('datos','DA','Datos','Sincronización y respaldo')+
     '</div></div>';
-  UI.delegar(m,{iniIr:function(p){App.ir(p);}});
+  UI.delegar(m,{iniIr:function(p){App.ir(p);},iniKpi:function(x){Dash.ir(x);}});
+  m.onkeydown=function(e){if((e.keyCode===13||e.keyCode===32)&&e.target&&e.target.getAttribute&&e.target.getAttribute('data-a')==='iniKpi'){e.preventDefault();Dash.ir(e.target.getAttribute('data-x'));}};
+};
+
+var PedUI = { filtro: '' };
+var Dash = {
+  ir: function (x) {
+    var p = String(x || '').split(':'), pant = p[0], op = p[1] || '';
+    if (pant === 'pedidos') { PedUI.filtro = op || 'VIGENTES'; App.ir('pedidos'); return; }
+    if (pant === 'cubicacion') { CubUI.vista = op || 'pendientes'; App.ir('cubicacion'); return; }
+    if (pant === 'seguimiento') { Seguimiento.filtro = { campo: 'TODOS', valor: '', etapa: 'TODAS', courier: 'TODOS', desde: '', hasta: '' }; Seguimiento.kpi = op; App.ir('seguimiento'); return; }
+    App.ir(pant);
+    if (op) setTimeout(function () { var b = document.querySelector('#main [data-a="' + op + '"]') || document.querySelector('[data-a="' + op + '"]'); if (b) b.click(); }, 0);
+  }
 };
 
 Pantallas.pedidos = function (m) {
   Pedidos.reconciliarEstados();
-  var estadoFiltro = 'VIGENTES', canalFiltro = 'TODOS';
+  var estadoFiltro = PedUI.filtro || 'VIGENTES', canalFiltro = 'TODOS';
+  PedUI.filtro = '';
   var render = function () {
     var q = U.norm((U.$('peBuscar') && U.$('peBuscar').value) || ''), hh='', n=0;
     var l = Pedidos.lista.slice(0);
     l.sort(function(a,b){ return String(a.fecha||'') < String(b.fecha||'') ? 1 : -1; });
     U.each(l,function(p){
+      if (estadoFiltro === 'ACTIVOS' && (p.estado === 'ENTREGADO' || p.estado === 'CANCELADO')) return;
       if (estadoFiltro === 'VIGENTES' && ['CUBICADO','EN PREPARACIÓN','ENVIADO','ENTREGADO','CANCELADO'].indexOf(p.estado)>=0) return;
       if (estadoFiltro === 'HISTÓRICO' && ['CUBICADO','EN PREPARACIÓN','ENVIADO','ENTREGADO','CANCELADO'].indexOf(p.estado)<0) return;
-      if (estadoFiltro !== 'TODOS' && estadoFiltro !== 'VIGENTES' && estadoFiltro !== 'HISTÓRICO' && p.estado !== estadoFiltro) return;
+      if (estadoFiltro !== 'TODOS' && estadoFiltro !== 'VIGENTES' && estadoFiltro !== 'HISTÓRICO' && estadoFiltro !== 'ACTIVOS' && p.estado !== estadoFiltro) return;
       if (canalFiltro !== 'TODOS' && U.norm(p.origen)!==canalFiltro) return;
       if(q && U.norm([p.numero,p.origen,p.tipo,p.tipoDocumento,p.numeroDocumento,p.estado,p.envio&&p.envio.destinatario?EnvioDatos.resumen(p.envio.destinatario):''].join(' ')).indexOf(q)<0)return;
       n++;
@@ -2671,7 +2846,7 @@ Pantallas.pedidos = function (m) {
   m.innerHTML = '<div class="otbar"><div class="n">PEDIDOS / ÓRDENES DE COMPRA</div><div class="muted">Registro previo a Cubicación. El documento de venta puede agregarse después.</div></div>'+
     '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="pedNuevo">+ NUEVO</button><button class="btn btn-sec" data-a="pedPegar">PEGAR DESDE EXCEL</button></div>'+
     '<label class="lbl">BUSCAR</label><input id="peBuscar" class="inp sm" placeholder="Pedido, O.C., documento, origen…">'+
-    '<div class="fila"><div class="c"><label class="lbl">ETAPA / ESTADO</label><select id="peFiltro" class="inp sm"><option>VIGENTES</option><option>HISTÓRICO</option><option>TODOS</option>'+U.map(Pedidos.estados,function(e){return '<option>'+U.esc(e)+'</option>';}).join('')+'</select></div><div class="c"><label class="lbl">CANAL</label><select id="peCanal" class="inp sm"><option>TODOS</option>'+U.map(['WEB','M.P.','MERCADOLIBRE','ERP','MANUAL','EXCEL','OTRO'],function(c){return '<option>'+c+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="fila"><div class="c"><label class="lbl">ETAPA / ESTADO</label><select id="peFiltro" class="inp sm">'+U.map(['VIGENTES','ACTIVOS','HISTÓRICO','TODOS'].concat(Pedidos.estados),function(e){return '<option'+(e===estadoFiltro?' selected':'')+'>'+U.esc(e)+'</option>';}).join('')+'</select></div><div class="c"><label class="lbl">CANAL</label><select id="peCanal" class="inp sm"><option>TODOS</option>'+U.map(['WEB','M.P.','MERCADOLIBRE','ERP','MANUAL','EXCEL','OTRO'],function(c){return '<option>'+c+'</option>';}).join('')+'</select></div></div>'+
     '<div id="peConteo" class="muted" style="margin:8px 0"></div><div id="peLista"></div></div>';
   var editar=function(p){
     p=p||{origen:'MANUAL',tipo:'PEDIDO',numero:'',fecha:U.fechaISO(),tipoDocumento:'',numeroDocumento:'',estado:'RECIBIDO',observacion:''};
@@ -2771,7 +2946,7 @@ Pantallas.cubicacion = function (m) {
     if (!q || q.length < 2) { el.innerHTML = ''; return; }
     if (!prodRes.length) { el.innerHTML = '<div class="muted" style="padding:6px 2px">Sin coincidencias' + (!Catalogo.lista.length && !Medidas.lista.length ? ': el catálogo y las medidas están vacíos en este equipo' : '') + '.</div>'; return; }
     el.innerHTML = '<div class="prs">' + U.map(prodRes.slice(0, 8), function (f, i) {
-      return '<div class="pr" data-a="prodSel" data-x="' + i + '"><div class="d">' + U.esc(f.descripcion) + '</div><div class="s">' + U.esc(f.codigo) + ' · ' + (U.trim(f.ubicacion) ? '<b>' + U.esc(f.ubicacion) + '</b>' : 'sin ubicación') + ' · ' + U.esc(Medidas.texto(f.med) || 'sin medidas') + (f.med && Medidas.tiene(f.med) && Medidas.estimado(f.med) ? ' (estimado)' : '') + '</div></div>';
+      return '<div class="pr" data-a="prodSel" data-x="' + i + '"><div class="d">' + U.esc(f.descripcion) + '</div><div class="s">' + U.esc(f.codigo) + ' · ' + (U.trim(f.ubicacion) || Ubicaciones.resumen(f.codigo, 1) ? '<b>' + U.esc([U.trim(f.ubicacion), Ubicaciones.resumen(f.codigo, 1)].filter(function (x) { return !!x; }).join(' · ')) + '</b>' : 'sin ubicación') + ' · ' + U.esc(Medidas.texto(f.med) || 'sin medidas') + (f.med && Medidas.tiene(f.med) && Medidas.estimado(f.med) ? ' (estimado)' : '') + '</div></div>';
     }).join('') + (prodRes.length > 8 ? '<div class="pr muted">… ' + (prodRes.length - 8) + ' más: siga escribiendo para afinar</div>' : '') + '</div>';
   };
   var prodUsar = function (silencio) {
@@ -3755,6 +3930,7 @@ var Alta = {
 };
 
 var Seguimiento = {
+  kpi: '',
   etapas: ['PEDIDO', 'CUBICADO', 'EN PACKING', 'DESPACHO PARCIAL', 'VERIFICADO', 'DESPACHADO', 'ENTREGADO', 'CANCELADO'],
   clases: { 'PEDIDO': 'PENDIENTE', 'CUBICADO': 'PARCIAL', 'EN PACKING': 'PARCIAL', 'DESPACHO PARCIAL': 'PENDIENTE', 'VERIFICADO': 'COMPLETO', 'DESPACHADO': 'COMPLETO', 'ENTREGADO': 'COMPLETO', 'CANCELADO': 'ANULADO' },
   pasos: ['PEDIDO', 'CUBICADO', 'EN PACKING', 'VERIFICADO', 'DESPACHADO'],
@@ -3976,20 +4152,26 @@ Pantallas.seguimiento = function (m) {
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="segRango" data-x="0">HOY</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="7">7 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="30">30 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segLimpiar">LIMPIAR</button></div></div>' +
     '<div id="sgKpis" class="kpis"></div>' +
     '<div class="card"><div class="fila"><div class="c2"><div id="sgConteo" class="muted" style="padding-top:12px"></div></div><div class="c"><button class="btn btn-sec btn-sm" data-a="segCsv">EXPORTAR CSV</button></div></div><div id="sgLista"></div></div>';
-  var kpi = function (n, t, s, c) { return '<div class="kpi ' + (c || '') + '"><div class="v">' + n + '</div><div class="t">' + U.esc(t) + '</div><div class="s">' + U.esc(s) + '</div></div>'; };
+  var kpi = function (n, t, s, c, k) { var act = (Seguimiento.kpi || '') === k; return '<div class="kpi ' + (c || '') + (act ? ' act' : '') + '" role="button" tabindex="0" aria-pressed="' + act + '" data-a="segKpi" data-x="' + k + '"><div class="v">' + n + '</div><div class="t">' + U.esc(t) + '</div><div class="s">' + U.esc(act && k ? 'Filtro activo · tocar para quitar' : s) + '</div></div>'; };
+  var nBultos = function (d) { return d.bultos.length || d.cub.length; };
+  var esDesp = function (d) { return d.etapa === 'DESPACHADO' || d.etapa === 'ENTREGADO'; };
+  var KPI_FILTRO = { bultos: function (d) { return nBultos(d) > 0; }, proceso: function (d) { return !esDesp(d) && d.etapa !== 'CANCELADO'; }, despachados: esDesp };
+  var KPI_TXT = { bultos: 'CON BULTOS', proceso: 'EN PROCESO', despachados: 'DESPACHADOS' };
   var render = function () {
-    vista = Seguimiento.filtrar(todos);
+    var base = Seguimiento.filtrar(todos);
     var nb = 0, pend = 0, desp = 0, h = '';
-    U.each(vista, function (d) {
-      nb += d.bultos.length || d.cub.length;
-      if (d.etapa === 'DESPACHADO' || d.etapa === 'ENTREGADO') desp++;
+    U.each(base, function (d) {
+      nb += nBultos(d);
+      if (esDesp(d)) desp++;
       else if (d.etapa !== 'CANCELADO') pend++;
     });
-    U.$('sgKpis').innerHTML = kpi(vista.length, 'DOCUMENTOS', 'En la consulta') + kpi(nb, 'BULTOS', 'Cubicados o en OT', 'k4') + kpi(pend, 'EN PROCESO', 'Sin despachar', 'k2') + kpi(desp, 'DESPACHADOS', 'Manifiesto cerrado', 'k3');
+    if (!KPI_FILTRO[Seguimiento.kpi]) Seguimiento.kpi = '';
+    vista = Seguimiento.kpi ? U.filter(base, KPI_FILTRO[Seguimiento.kpi]) : base;
+    U.$('sgKpis').innerHTML = kpi(base.length, 'DOCUMENTOS', 'En la consulta', '', '') + kpi(nb, 'BULTOS', 'Cubicados o en OT', 'k4', 'bultos') + kpi(pend, 'EN PROCESO', 'Sin despachar', 'k2', 'proceso') + kpi(desp, 'DESPACHADOS', 'Manifiesto cerrado', 'k3', 'despachados');
     U.each(vista.slice(0, Seguimiento.max), function (d, i) { h += Seguimiento.tarjeta(d, i); });
     if (vista.length > Seguimiento.max) h += '<div class="muted" style="padding:10px">Se muestran ' + Seguimiento.max + ' de ' + vista.length + '. Ajuste los filtros o exporte a CSV.</div>';
     U.$('sgLista').innerHTML = h || '<div class="muted" style="padding:12px">Sin documentos para estos filtros.</div>';
-    U.$('sgConteo').innerHTML = vista.length + ' documento(s) de ' + todos.length;
+    U.$('sgConteo').innerHTML = vista.length + ' documento(s) de ' + todos.length + (Seguimiento.kpi ? ' · <b>' + KPI_TXT[Seguimiento.kpi] + '</b>' : '');
   };
   var leer = function () {
     f.campo = U.$('sgCampo').value; f.valor = U.$('sgValor').value; f.etapa = U.$('sgEtapa').value; f.courier = U.$('sgCourier').value;
@@ -3999,12 +4181,19 @@ Pantallas.seguimiento = function (m) {
   };
   m.oninput = function (e) { if (e.target.id === 'sgValor') leer(); };
   m.onchange = function (e) { if (/^sg/.test(e.target.id || '')) leer(); };
+  m.onkeydown = function (e) { if ((e.keyCode === 13 || e.keyCode === 32) && e.target && e.target.getAttribute && e.target.getAttribute('data-a') === 'segKpi') { e.preventDefault(); e.target.click(); } };
   UI.delegar(m, {
     segRango: function (x) {
       var d = new Date(), n = parseInt(x, 10) || 0, ini = new Date(d.getFullYear(), d.getMonth(), d.getDate() - n);
       U.$('sgDesde').value = U.fechaISO(ini); U.$('sgHasta').value = U.fechaISO(d); leer();
     },
+    segKpi: function (k) {
+      Seguimiento.kpi = !k || Seguimiento.kpi === k ? '' : k;
+      render();
+      var l = U.$('sgLista'); if (l && l.scrollIntoView && Seguimiento.kpi) l.scrollIntoView({ block: 'start' });
+    },
     segLimpiar: function () {
+      Seguimiento.kpi = '';
       Seguimiento.filtro = f = { campo: 'TODOS', valor: '', etapa: 'TODAS', courier: 'TODOS', desde: '', hasta: '' };
       U.$('sgCampo').value = 'TODOS'; U.$('sgValor').value = ''; U.$('sgEtapa').value = 'TODAS'; U.$('sgCourier').value = 'TODOS'; U.$('sgDesde').value = ''; U.$('sgHasta').value = '';
       render();
@@ -4616,18 +4805,19 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
 var CatUI = { q: '', max: 50, filtro: '' };
 
 Pantallas.catalogo = function (m) {
-  m.innerHTML = '<div class="card"><label class="lbl">BUSCAR PRODUCTO</label><input id="ctQ" class="inp" type="text" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre, marca o ubicación" value="' + U.esc(CatUI.q) + '">' +
-    '<div class="fila" style="margin-top:6px"><div class="c"><select id="ctF" class="inp sm"><option value="">TODOS</option><option value="sinubi">SIN UBICACIÓN</option><option value="sinmed">SIN MEDIDAS</option><option value="estim">MEDIDAS ESTIMADAS</option><option value="bodega">MEDIDO EN BODEGA</option></select></div></div>' +
+  m.innerHTML = '<div class="card"><label class="lbl">BUSCAR PRODUCTO</label><input id="ctQ" class="inp" type="text" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre, ubicación o ING 255" value="' + U.esc(CatUI.q) + '">' +
+    '<div class="fila" style="margin-top:6px"><div class="c"><select id="ctF" class="inp sm"><option value="">TODOS</option><option value="sinubi">SIN UBICACIÓN</option><option value="coning">CON INGRESOS ERP</option><option value="sinmed">SIN MEDIDAS</option><option value="estim">MEDIDAS ESTIMADAS</option><option value="bodega">MEDIDO EN BODEGA</option></select></div></div>' +
     '<div class="muted" id="ctCnt" style="margin-top:4px"></div>' +
     '<div class="btns"><button class="btn btn-ok btn-sm" data-a="nuevo">+ AGREGAR</button><button class="btn btn-sec btn-sm" data-a="imp">IMPORTAR</button><button class="btn btn-sec btn-sm" data-a="impMed">MEDIDAS</button><button class="btn btn-sec btn-sm" data-a="exp">EXPORTAR</button></div>' +
+    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="impUbi">IMPORTAR UBICACIONES POR INGRESO (ERP)</button></div>' +
     (Sync.modo() !== 'local' ? '<div class="btns"><button class="btn btn-sm" data-a="bajarCat">DESCARGAR CATÁLOGO</button><button class="btn btn-sm" data-a="bajarMed">ACTUALIZAR MEDIDAS Y UBICACIONES</button></div>' : '') + '</div>' +
     '<div id="ctRes" class="lista"></div>';
   U.$('ctF').value = CatUI.filtro || '';
   var pintar = function () {
     var r = Productos.buscar(CatUI.q, CatUI.filtro), h = '', nUbi = 0, nMed = 0;
-    U.each(Catalogo.lista, function (p) { if (U.trim(p.ubicacion)) nUbi++; });
+    U.each(Catalogo.lista, function (p) { if (U.trim(p.ubicacion) || Ubicaciones.distintas(p.codigo).length) nUbi++; });
     U.each(Medidas.lista, function (x) { if (Medidas.tiene(x)) nMed++; });
-    U.$('ctCnt').innerHTML = Catalogo.lista.length + ' en catálogo · ' + nUbi + ' con ubicación · ' + nMed + ' con medidas' + (U.trim(CatUI.q) || CatUI.filtro ? ' · <b>' + r.length + ' coinciden</b>' : '');
+    U.$('ctCnt').innerHTML = Catalogo.lista.length + ' en catálogo · ' + nUbi + ' con ubicación · ' + nMed + ' con medidas' + (Ubicaciones.lista.length ? ' · ' + Ubicaciones.lista.length + ' líneas de ingreso' : '') + (U.trim(CatUI.q) || CatUI.filtro ? ' · <b>' + r.length + ' coinciden</b>' : '');
     U.each(r.slice(0, CatUI.max), function (f) {
       h += '<div class="it" data-a="ficha" data-x="' + U.esc(f.codigo) + '" style="cursor:pointer"><div class="c1">' + U.esc(f.codigo) + (f.precio ? ' · ' + U.clp(f.precio) : '') + (!f.cat ? ' <span class="tag rev">NO ESTÁ EN CATÁLOGO</span>' : '') + '</div>' +
         '<div class="c2" style="font-size:14px;color:#000">' + U.esc(f.descripcion) + '</div>' +
@@ -4648,6 +4838,7 @@ Pantallas.catalogo = function (m) {
     mas: function () { CatUI.max += 100; pintar(); },
     imp: function () { CatUI.importar(pintar); },
     impMed: function () { CatUI.importarMedidas(pintar); },
+    impUbi: function () { CatUI.importarUbicaciones(pintar); },
     exp: function () { if (!Catalogo.lista.length && !Medidas.lista.length) { UI.toast('Sin datos', 'error'); return; } UI.descargar('rdm_productos_' + U.sello() + '.csv', CSV.exportarProductos(), 'text/csv'); },
     bajarMed: function () {
       UI.toast('Actualizando medidas y ubicaciones…', '', 15000);
@@ -4675,14 +4866,16 @@ Pantallas.catalogo = function (m) {
 CatUI.ficha = function (cod, alFin) {
   var f = Productos.ficha(cod);
   if (!f) { UI.toast('Producto no encontrado', 'error'); return; }
-  var m = f.med || {}, v = function (x) { return x === '' || x == null ? '' : x; };
+  var m = f.med || {}, v = function (x) { return x === '' || x == null ? '' : x; }, ubs = Ubicaciones.de(f.codigo);
   var base = { ubicacion: U.trim(f.ubicacion), bultos: v(m.bultos), ancho: v(m.ancho), alto: v(m.alto), largo: v(m.largo), peso: v(m.peso) };
   var sin = (m.anchoProd || m.altoProd || m.largoProd || m.pesoProd) ? 'Producto sin embalaje: ' + v(m.anchoProd) + '×' + v(m.altoProd) + '×' + v(m.largoProd) + ' cm' + (m.pesoProd ? ' · ' + m.pesoProd + ' kg' : '') : '';
   var info = U.filter([m.origenPeso ? 'Origen del peso: ' + m.origenPeso : '', m.pesoExacto && m.fuente !== 'BODEGA' ? 'Peso fabricante: ' + m.pesoExacto + ' kg' : '', sin, m.claseEmbalaje || m.referenciaCaja ? 'Embalaje: ' + U.trim((m.claseEmbalaje || '') + ' ' + (m.referenciaCaja ? '· ' + m.referenciaCaja : '')) : '', U.trim(m.revisar) ? 'Revisar: ' + m.revisar : '', m.actualizado ? 'Última actualización: ' + U.fechaCL(m.actualizado) + (m.usuario ? ' · ' + m.usuario : '') : ''], function (x) { return !!x; });
   var c = function (id, lbl, val) { return '<div class="c"><label class="lbl">' + lbl + '</label><input id="' + id + '" class="inp" type="number" step="any" inputmode="decimal" value="' + U.esc(val) + '"></div>'; };
   var h = '<div class="c1" style="font-weight:bold">' + U.esc(f.codigo) + (f.codigoBarra ? ' · ' + U.esc(f.codigoBarra) : '') + '</div><div style="font-size:15px">' + U.esc(f.descripcion) + '</div><div class="muted">' + U.esc([f.marca, f.familia].join(' · ').replace(/^ · | · $/g, '')) + '</div>' +
     (!f.cat ? '<div class="aviso amar" style="margin-top:6px">Este código está en el archivo de medidas pero no en el catálogo. Al guardar una ubicación se agrega al catálogo de la hoja.</div>' : '') +
-    '<label class="lbl">UBICACIÓN</label><input id="fiUbi" class="inp" autocomplete="off" style="text-transform:uppercase" value="' + U.esc(base.ubicacion) + '" placeholder="Ej: B2-P3-N1">' +
+    '<label class="lbl">UBICACIÓN PRINCIPAL</label><input id="fiUbi" class="inp" autocomplete="off" style="text-transform:uppercase" value="' + U.esc(base.ubicacion) + '" placeholder="Ej: B2-P3-N1">' +
+    (ubs.length ? '<label class="lbl" style="margin-top:12px">UBICACIÓN POR INGRESO (ERP)</label><table class="tbl" style="font-size:14px"><thead><tr><th>Ingreso</th><th>Cant.</th><th>Ubicación</th></tr></thead><tbody>' +
+      U.map(ubs, function (o, i) { return '<tr><td><b>' + U.esc(o.ingreso) + '</b><div class="muted" style="font-size:11px">ítem ' + U.esc(o.idItem) + '</div></td><td>' + U.esc(o.cantidad) + '</td><td><input id="fiU' + i + '" class="inp sm" autocomplete="off" style="text-transform:uppercase;margin:0" value="' + U.esc(o.ubicacion) + '" placeholder="sin ubicación">' + (o.fuente === 'BODEGA' && o.ubicacionErp !== o.ubicacion ? '<div class="muted" style="font-size:11px">ERP: ' + U.esc(o.ubicacionErp || 'vacío') + ' · corregido en bodega</div>' : '') + '</td></tr>'; }).join('') + '</tbody></table>' : '') +
     '<label class="lbl" style="margin-top:12px">MEDIDAS CON EMBALAJE ' + Medidas.etiqueta(f.med) + '</label>' +
     '<div class="fila num">' + c('fiAncho', 'ANCHO cm', base.ancho) + c('fiAlto', 'ALTO cm', base.alto) + c('fiLargo', 'LARGO cm', base.largo) + '</div>' +
     '<div class="fila num">' + c('fiPeso', 'PESO kg', base.peso) + c('fiBul', 'BULTOS', base.bultos) + '</div>' +
@@ -4705,13 +4898,100 @@ CatUI.ficha = function (cod, alFin) {
     var resp = U.trim(U.$('fiResp').value);
     if (ProdSync.activo() && !resp) { UI.toast('Indique el responsable del cambio', 'error'); U.$('fiResp').focus(); return false; }
     if (resp !== ProdSync.operador()) { DB.cfg.operador = resp; DB.guardarCfg(); }
-    ProdSync.guardar(f, cambios, base, function (ok, msg) {
-      UI.toast(msg, ok ? 'ok' : 'error', ok ? 2500 : 5000);
-      if (ok) { UI.cerrarModal(); if (alFin) alFin(); }
+    var cUbi = [];
+    U.each(ubs, function (o, i) { var el = U.$('fiU' + i); if (el && U.norm(el.value) !== U.norm(o.ubicacion)) cUbi.push({ id: o.id, ubicacion: U.norm(el.value), base: o.ubicacion }); });
+    CatUI.guardarUbicaciones(cUbi, false, function (okU, msgU) {
+      if (!okU) { UI.toast(msgU, 'error', 5000); return; }
+      ProdSync.guardar(f, cambios, base, function (ok, msg) {
+        var txt = cUbi.length ? (msg === 'Sin cambios' ? msgU : msgU + ' · ' + msg) : msg;
+        UI.toast(txt, ok ? 'ok' : 'error', ok ? 3000 : 5000);
+        if (ok) { UI.cerrarModal(); if (alFin) alFin(); }
+      });
     });
     return false;
   } });
   UI.modal({ titulo: 'Ficha del producto', html: h, botones: bot });
+};
+
+CatUI.guardarUbicaciones = function (cUbi, confirmar, cb) {
+  if (!cUbi.length) { cb(true, ''); return; }
+  if (!ProdSync.activo()) {
+    U.each(cUbi, function (c) { var o = Ubicaciones.porId[c.id]; if (o) { o.ubicacion = c.ubicacion; o.fuente = 'BODEGA'; o.actualizado = new Date().toISOString(); o.usuario = ProdSync.operador(); } });
+    Ubicaciones.indexar(); Ubicaciones.guardar(); Catalogo.reindex();
+    cb(true, cUbi.length + ' ubicación(es) por ingreso guardadas solo en este equipo');
+    return;
+  }
+  if (!ProdSync.operador()) { cb(false, 'Indique el responsable del cambio'); return; }
+  Sync.llamar('satUbicacionesGuardar', { cambios: cUbi, confirmar: !!confirmar, usuario: ProdSync.operador(), dispositivo: DB.cfg.sync.dispositivo }, function (r) {
+    if (r && r.conflictos && r.conflictos.length) {
+      var t = U.map(r.conflictos, function (c) { return 'Ingreso ' + c.ingreso + ': usted vio «' + (c.base || 'vacío') + '», en la hoja ahora hay «' + (c.actual || 'vacío') + '»'; }).join('\n');
+      UI.confirmar('Otra persona cambió estas ubicaciones mientras usted editaba:\n\n' + t + '\n\n¿Guardar su versión de todas formas?', function () { CatUI.guardarUbicaciones(cUbi, true, cb); }, { si: 'GUARDAR MI VERSIÓN', titulo: 'Cambio simultáneo' });
+      return;
+    }
+    if (!r || !r.ok) { cb(false, 'No se pudo guardar la ubicación por ingreso'); return; }
+    if (r.filas) Ubicaciones.aplicarFilas(r.campos, r.filas);
+    if (r.fecha) { DB.cfg.prodDesde = r.fecha; DB.guardarCfg(); }
+    cb(true, cUbi.length + ' ubicación(es) por ingreso guardadas');
+  }, function (e) { cb(false, 'Error: ' + e); });
+};
+
+CatUI.importarUbicaciones = function (alFin) {
+  var h = '<div class="muted">Archivo del ERP con una línea por ítem de ingreso: <b>INGRESO, ID_ITEM, COD_PROD, DESCRIP, CANTIDAD, UBICACION</b>. Acepta <b>.xls</b>, <b>.xlsx</b> o <b>.csv</b>, o copie y pegue el rango desde Excel.</div>' +
+    '<div class="aviso amar" style="margin-top:6px;font-size:13px">Las ubicaciones corregidas en bodega no se reemplazan con un archivo. El costo unitario queda solo en la hoja: no se descarga a los equipos.</div>' +
+    '<label class="lbl">ARCHIVO</label><input id="uiFile" type="file" accept=".xls,.xlsx,.csv,.tsv,.txt" class="inp sm" style="padding:8px">' +
+    '<label class="lbl">…o pegar desde Excel</label><textarea id="uiTxt" class="inp" placeholder="INGRESO&#9;ID_ITEM&#9;COD_PROD&#9;DESCRIP&#9;…&#9;UBICACION"></textarea><div id="uiPrev"></div>';
+  var datos = null, nombre = '';
+  var analizar = function (txt) {
+    var r = UbiCSV.analizar(txt), pv = U.$('uiPrev');
+    datos = null;
+    if (r.error) { pv.innerHTML = '<div class="aviso rojo">' + U.esc(r.error) + '</div>'; return; }
+    datos = r;
+    var t = '<div class="card" style="margin-top:8px"><b>Previsualización</b><br>Líneas: <b>' + r.filas.length + '</b> · ingresos: <b>' + r.ingresos + '</b> · productos: <b>' + r.productos + '</b> (en catálogo: ' + r.enCatalogo + ') · ubicaciones distintas: <b>' + r.ubicaciones + '</b>' +
+      (r.sinUbicacion ? '<br><span style="color:#8c1d18">Líneas sin ubicación: <b>' + r.sinUbicacion + '</b></span>' : '') + (r.omitidas ? ' · omitidas: ' + r.omitidas : '') + (r.duplicados ? ' · ítems repetidos: ' + r.duplicados : '') +
+      '<table class="tbl" style="margin-top:6px"><thead><tr><th>Ing.</th><th>Código</th><th>Producto</th><th>Cant.</th><th>Ubicación</th></tr></thead><tbody>';
+    U.each(r.filas.slice(0, 6), function (o) { t += '<tr><td>' + U.esc(o.ingreso) + '</td><td>' + U.esc(o.codigo) + '</td><td>' + U.esc(o.descripcion) + '</td><td>' + U.esc(o.cantidad) + '</td><td>' + U.esc(o.ubicacion || '—') + '</td></tr>'; });
+    t += '</tbody></table>' +
+      '<label class="chk"><input type="checkbox" id="uiComp" checked> Completar la ubicación principal del catálogo cuando esté vacía (usa el ingreso más reciente)</label>' +
+      '<label class="chk"><input type="checkbox" id="uiAgr" checked> Agregar al catálogo los productos que no están (' + (r.productos - r.enCatalogo) + ')</label>' +
+      '<label class="chk"><input type="radio" name="uiModo" value="fusionar" checked> FUSIONAR: agrega y actualiza líneas</label>' +
+      '<label class="chk"><input type="radio" name="uiModo" value="reemplazar"> REEMPLAZAR: además borra las líneas que ya no vienen en el archivo</label></div>';
+    pv.innerHTML = t;
+  };
+  UI.modal({ titulo: 'Importar ubicaciones por ingreso', html: h, botones: [
+    { txt: 'CANCELAR', cls: 'btn-sec' },
+    { txt: 'ANALIZAR TEXTO', cls: 'btn-sec', fn: function () { nombre = 'pegado'; analizar(U.$('uiTxt').value); return false; } },
+    { txt: 'IMPORTAR', cls: 'btn-ok', fn: function () {
+      if (!datos) { UI.toast('Primero seleccione o analice un archivo', 'error'); return false; }
+      if (!ProdSync.activo()) { UI.toast('Requiere conexión con la hoja: las ubicaciones por ingreso se guardan en la nube', 'error', 5000); return false; }
+      if (!ProdSync.operador()) {
+        UI.modal({ titulo: 'Responsable', html: '<label class="lbl">NOMBRE DE QUIEN IMPORTA</label><input id="uiResp" class="inp sm" maxlength="60">', botones: [{ txt: 'CANCELAR', cls: 'btn-sec' }, { txt: 'CONTINUAR', cls: 'btn-ok', fn: function () { var x = U.trim(U.$('uiResp').value); if (!x) { UI.toast('Indique el nombre', 'error'); return false; } DB.cfg.operador = x; DB.guardarCfg(); CatUI.importarUbicaciones(alFin); return false; } }] });
+        return false;
+      }
+      var modo = 'fusionar', rs = document.getElementsByName('uiModo'), d = datos, comp = U.$('uiComp').checked, agr = U.$('uiAgr').checked;
+      for (var i = 0; i < rs.length; i++) if (rs[i].checked) modo = rs[i].value;
+      UI.confirmar((modo === 'reemplazar' ? 'Se reemplazarán las líneas de ingreso de la hoja por ' : 'Se fusionarán ') + d.filas.length + ' líneas de ' + d.ingresos + ' ingresos, para todos los equipos.\n¿Continuar?', function () {
+        UI.toast('Subiendo ' + d.filas.length + ' líneas…', '', 90000);
+        Sync.llamar('satUbicacionesImportar', { filas: d.filas, modo: modo, archivo: nombre, completarCatalogo: comp, agregarProductos: agr, usuario: ProdSync.operador(), dispositivo: DB.cfg.sync.dispositivo }, function (r) {
+          ProdSync.bajarUbicaciones(function () {
+            var fin = function () {
+              DB.cfg.prodDesde = r.fecha || ''; DB.guardarCfg();
+              UI.toast('Ubicaciones: ' + r.nuevos + ' nuevas, ' + r.actualizados + ' actualizadas' + (r.protegidos ? ', ' + r.protegidos + ' corregidas en bodega conservadas' : '') + (r.eliminados ? ', ' + r.eliminados + ' eliminadas' : '') + '. Catálogo: ' + r.catalogoCompletados + ' ubicaciones completadas, ' + r.catalogoAgregados + ' productos agregados.', 'ok', 8000);
+              if (alFin) alFin();
+            };
+            if (r.catalogoCompletados || r.catalogoAgregados) ProdSync.bajarCatalogo(fin); else fin();
+          });
+        }, function (e) { UI.toast('No se importó: ' + e, 'error', 6000); });
+      }, { si: 'IMPORTAR', peligro: modo === 'reemplazar' });
+      return false;
+    } }
+  ], alAbrir: function () {
+    U.$('uiFile').onchange = function () {
+      var f = this.files && this.files[0]; if (!f) return;
+      nombre = f.name || '';
+      U.$('uiPrev').innerHTML = '<div class="muted">Leyendo…</div>';
+      CSV.leerArchivo(f, analizar, function (tipo) { U.$('uiPrev').innerHTML = '<div class="aviso rojo">' + U.esc(Excel.mensaje(tipo)) + '</div>'; });
+    };
+  } });
 };
 
 CatUI.historial = function (f) {
@@ -4758,7 +5038,7 @@ CatUI.editar = function (p, alFin) {
 CatUI.importarMedidas = function (alFin) {
   var h = '<div class="muted">Archivo de medidas por SKU (por ejemplo, el export de productos con embalaje). Formatos: <b>.csv</b> o <b>.tsv</b>; desde Excel use <b>Guardar como → CSV UTF-8</b> o copie y pegue el rango.</div>' +
     '<div class="aviso amar" style="margin-top:6px;font-size:13px">Las fichas medidas o pesadas en bodega nunca se reemplazan con un archivo.</div>' +
-    '<label class="lbl">ARCHIVO</label><input id="miFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" class="inp sm" style="padding:8px">' +
+    '<label class="lbl">ARCHIVO</label><input id="miFile" type="file" accept=".csv,.tsv,.txt,.xls,.xlsx,text/csv,text/plain" class="inp sm" style="padding:8px">' +
     '<label class="lbl">…o pegar desde Excel</label><textarea id="miTxt" class="inp" placeholder="SKU&#9;Ancho (cm)&#9;Alto (cm)&#9;Largo (cm)&#9;Peso sugerido (kg)"></textarea><div id="miPrev"></div>';
   var datos = null, nombre = '';
   var analizar = function (txt) {
@@ -4808,7 +5088,7 @@ CatUI.importarMedidas = function (alFin) {
       nombre = f.name || '';
       U.$('miPrev').innerHTML = '<div class="muted">Leyendo…</div>';
       CSV.leerArchivo(f, analizar, function (tipo) {
-        if (tipo === 'xlsx') U.$('miPrev').innerHTML = '<div class="aviso rojo">El archivo es .xlsx. En Excel: <b>Archivo → Guardar como → CSV UTF-8</b>, o copie el rango y péguelo arriba.</div>';
+        if (/^xlsx/.test(tipo)) U.$('miPrev').innerHTML = '<div class="aviso rojo">' + U.esc(Excel.mensaje(tipo)) + '</div>';
         else UI.toast('No se pudo leer el archivo', 'error');
       });
     };
@@ -4818,7 +5098,7 @@ CatUI.importarMedidas = function (alFin) {
 CatUI.importar = function (alFin) {
   var h = '<div class="muted">Formatos aceptados: <b>.csv</b> y <b>.tsv</b> con separador ; , o tabulador.<br>' +
     'Para <b>.xlsx</b>: en Excel use <b>Archivo → Guardar como → CSV UTF-8</b> (o copie el rango y péguelo directamente más abajo).</div>' +
-    '<label class="lbl">ARCHIVO CSV / TSV</label><input id="ciFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" class="inp sm" style="padding:8px">' +
+    '<label class="lbl">ARCHIVO CSV / TSV</label><input id="ciFile" type="file" accept=".csv,.tsv,.txt,.xls,.xlsx,text/csv,text/plain" class="inp sm" style="padding:8px">' +
     '<label class="lbl">…o pegar desde Excel (Ctrl+C / mantenga presionado → Pegar)</label><textarea id="ciTxt" class="inp" placeholder="COD_PROD&#9;DESCRIP&#9;MARCA&#9;PVENTA2"></textarea>' +
     '<div id="ciPrev"></div>';
   var datos = null;
@@ -4859,10 +5139,8 @@ CatUI.importar = function (alFin) {
       var f = this.files && this.files[0]; if (!f) return;
       U.$('ciPrev').innerHTML = '<div class="muted">Leyendo…</div>';
       CSV.leerArchivo(f, analizar, function (tipo) {
-        if (tipo === 'xlsx') {
-          U.$('ciPrev').innerHTML = '<div class="aviso rojo">El archivo es .xlsx.<br><br>' +
-            'En Excel: <b>Archivo → Guardar como → CSV UTF-8 (delimitado por comas)</b>.<br>O seleccione el rango, <b>Ctrl+C</b> y pegue en el campo de texto de arriba.</div>';
-        } else UI.toast('No se pudo leer el archivo', 'error');
+        if (/^xlsx/.test(tipo)) U.$('ciPrev').innerHTML = '<div class="aviso rojo">' + U.esc(Excel.mensaje(tipo)) + '</div>';
+        else UI.toast('No se pudo leer el archivo', 'error');
       });
     };
   } });
