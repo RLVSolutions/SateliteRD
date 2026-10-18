@@ -423,7 +423,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.10.1', build: '2026-10-17', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.11.0', build: '2026-10-17', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -580,7 +580,7 @@ var CONFIG_DEFECTO = {
   formatoRapida: 'prod-58-std', formatoRotulo: 'prod-58-std', formatoBulto: 'bul-60x29', escaneoImprime: false,
   rotuloLibre: null,
   couriers: ['STARKEN', 'CHILEXPRESS', 'BLUE EXPRESS', 'CORREOS DE CHILE', '99MINUTOS', 'ENVIA', 'RETIRO EN TIENDA', 'REPARTO PROPIO'],
-  courierActual: '', equipo: '', claveAdmin: '', nombreAdmin: '', whatsapp: '56962789403',
+  courierActual: '', equipo: '', claveAdmin: '', nombreAdmin: '', whatsapp: '56962789403', remitente: null,
   sync: null
 };
 var SYNC_DEFECTO = { url: '', token: '', dispositivo: '', pendOT: {}, elimOT: {}, ultimaBajada: '', ultimoOk: '', ultimoError: '', intentosFallidos: 0, proximoIntento: 0 };
@@ -765,6 +765,130 @@ var Pedidos = {
       if(e!==p.estado && p.estado!=='ENTREGADO' && p.estado!=='CANCELADO'){p.estado=e;p.actualizado=new Date().toISOString();cambio=true;}
     });
     if(cambio)Pedidos.guardar();
+  }
+};
+
+var REGIONES_CL = ['ARICA Y PARINACOTA', 'TARAPACÁ', 'ANTOFAGASTA', 'ATACAMA', 'COQUIMBO', 'VALPARAÍSO', 'METROPOLITANA', "LIBERTADOR B. O'HIGGINS", 'MAULE', 'ÑUBLE', 'BIOBÍO', 'LA ARAUCANÍA', 'LOS RÍOS', 'LOS LAGOS', 'AYSÉN', 'MAGALLANES'];
+var CAMPOS_DIRECCION = [
+  { k: 'nombre', n: 'NOMBRE', max: 80, req: true },
+  { k: 'region', n: 'REGIÓN', max: 40, req: true },
+  { k: 'comuna', n: 'COMUNA', max: 40, req: true },
+  { k: 'ciudad', n: 'CIUDAD', max: 40 },
+  { k: 'calle', n: 'CALLE', max: 80, req: true },
+  { k: 'numero', n: 'NÚMERO', max: 12, req: true },
+  { k: 'referencia', n: 'REFERENCIA (depto, oficina, indicaciones)', max: 80 },
+  { k: 'telefono', n: 'TELÉFONO', max: 15 },
+  { k: 'correo', n: 'CORREO', max: 80 }
+];
+
+var EnvioDatos = {
+  vacia: function () { var o = {}; U.each(CAMPOS_DIRECCION, function (c) { o[c.k] = ''; }); return o; },
+  limpiar: function (d) {
+    var o = EnvioDatos.vacia(); d = d || {};
+    U.each(CAMPOS_DIRECCION, function (c) {
+      var v = U.trim(String(d[c.k] == null ? '' : d[c.k])).replace(/\s+/g, ' ');
+      if (c.k === 'correo') v = v.toLowerCase().replace(/\s/g, '');
+      else if (c.k === 'telefono') v = v.replace(/[^0-9+]/g, '');
+      else v = v.toUpperCase();
+      o[c.k] = v.substr(0, c.max);
+    });
+    return o;
+  },
+  tieneDatos: function (d) { if (!d) return false; for (var i = 0; i < CAMPOS_DIRECCION.length; i++) if (U.trim(d[CAMPOS_DIRECCION[i].k])) return true; return false; },
+  errores: function (d, titulo) {
+    var e = [];
+    if (!EnvioDatos.tieneDatos(d)) return e;
+    U.each(CAMPOS_DIRECCION, function (c) { if (c.req && !U.trim(d[c.k])) e.push(titulo + ': falta ' + c.n.split(' (')[0]); });
+    if (d.correo && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(d.correo)) e.push(titulo + ': correo inválido');
+    var dig = String(d.telefono || '').replace(/\D/g, '');
+    if (d.telefono && (dig.length < 8 || dig.length > 12)) e.push(titulo + ': teléfono debe tener entre 8 y 12 dígitos');
+    if (d.region && REGIONES_CL.indexOf(d.region) < 0) e.push(titulo + ': región no reconocida');
+    return e;
+  },
+  remitenteDefecto: function () { return EnvioDatos.limpiar(DB.cfg.remitente || {}); },
+  remitenteDe: function (env) { return env && env.remitente && env.remitente.usarDefecto === false ? EnvioDatos.limpiar(env.remitente) : EnvioDatos.remitenteDefecto(); },
+  resumen: function (d) { if (!EnvioDatos.tieneDatos(d)) return ''; return U.trim([d.nombre, [d.calle, d.numero].join(' '), d.comuna, d.region].filter(function (x) { return U.trim(x); }).join(' · ')); },
+  buscarPedido: function (orden, tipo, numDoc) {
+    var o = U.norm(orden), n = U.norm(numDoc), t = U.norm(tipo);
+    if (!o) return null;
+    var cands = U.filter(Pedidos.lista, function (p) { return U.norm(p.numero) === o; });
+    var exacto = U.find(cands, function (p) { return U.norm(p.numeroDocumento) === n && (!t || !p.tipoDocumento || U.norm(p.tipoDocumento) === t); });
+    if (exacto) return exacto;
+    var sinDoc = U.filter(cands, function (p) { return !U.trim(p.numeroDocumento); });
+    if (sinDoc.length === 1) return sinDoc[0];
+    return cands.length === 1 && !n ? cands[0] : null;
+  },
+  marcaPrevia: function (p) {
+    var ab = { FACTURA: 'FAC', BOLETA: 'BOL', GUIA: 'GUI', 'GUÍA': 'GUI', 'NOTA DE CREDITO': 'NCR' }[U.norm(p.tipoDocumento)] || (U.sinAcentos(U.norm(p.tipoDocumento)).replace(/[^A-Z]/g, '').substr(0, 3) || 'DOC');
+    var l = function (v) { return U.norm(v).replace(/\s+/g, '').replace(/[^A-Z0-9\-\/\.]/g, ''); };
+    return l(p.numero) + ' ' + ab + ' ' + (l(p.numeroDocumento) || 'SN') + ' B1/N';
+  },
+  formulario: function (pref, d) {
+    d = d || EnvioDatos.vacia();
+    return U.map(CAMPOS_DIRECCION, function (c) {
+      var id = pref + c.k;
+      if (c.k === 'region') return '<label class="lbl" for="' + id + '">' + c.n + '</label><select id="' + id + '" class="inp sm"><option value=""></option>' + U.map(REGIONES_CL, function (r) { return '<option' + (d.region === r ? ' selected' : '') + '>' + U.esc(r) + '</option>'; }).join('') + '</select>';
+      var tipo = c.k === 'correo' ? 'email' : (c.k === 'telefono' ? 'tel' : 'text');
+      return '<label class="lbl" for="' + id + '">' + c.n + '</label><input id="' + id + '" class="inp sm" type="' + tipo + '" maxlength="' + c.max + '" autocomplete="off"' + (c.k === 'telefono' ? ' inputmode="tel" placeholder="56912345678"' : '') + ' value="' + U.esc(d[c.k] || '') + '">';
+    }).join('');
+  },
+  leerForm: function (pref) { var o = {}; U.each(CAMPOS_DIRECCION, function (c) { var el = U.$(pref + c.k); o[c.k] = el ? el.value : ''; }); return EnvioDatos.limpiar(o); },
+  abrir: function (ref, alGuardar) {
+    var p = ref.pedidoId ? Pedidos.porId(ref.pedidoId) : null;
+    if (!p) p = EnvioDatos.buscarPedido(ref.orden, ref.tipoDocumento, ref.numeroDocumento);
+    var orden = p ? p.numero : U.trim(ref.orden);
+    if (!orden) { UI.toast('Escriba primero la orden / ticket', 'error'); return; }
+    var env = (p && p.envio) || {}, dest = EnvioDatos.limpiar(env.destinatario || {}), remP = env.remitente && env.remitente.usarDefecto === false;
+    var rem = remP ? EnvioDatos.limpiar(env.remitente) : EnvioDatos.remitenteDefecto(), remDef = EnvioDatos.remitenteDefecto();
+    var docTxt = p ? (p.tipoDocumento ? p.tipoDocumento + ' ' + (p.numeroDocumento || 'sin número') : 'sin documento') : ((ref.tipoDocumento || '') + ' ' + (ref.numeroDocumento || 'sin número'));
+    var html = '<div class="muted">Orden <b>' + U.esc(orden) + '</b> · ' + U.esc(docTxt) + (p ? '' : ' · <b>se registrará como pedido</b>') + '</div>' +
+      '<div class="muted">Todos los campos son opcionales. La extensión los traspasa al formulario de Correos.</div>' +
+      '<div class="btns" style="margin-top:8px"><button type="button" class="btn btn-ok btn-sm" data-tab="ed">DESTINATARIO</button><button type="button" class="btn btn-sec btn-sm" data-tab="er">REMITENTE</button></div>' +
+      '<div id="edPanel">' + EnvioDatos.formulario('edD_', dest) + '</div>' +
+      '<div id="erPanel" style="display:none"><label class="chk"><input type="checkbox" id="edRemDef"' + (remP ? '' : ' checked') + '> Usar remitente por defecto (Datos)</label>' +
+      (EnvioDatos.tieneDatos(remDef) ? '<div class="muted" style="margin-bottom:6px">Por defecto: ' + U.esc(EnvioDatos.resumen(remDef)) + '</div>' : '<div class="aviso amar" style="font-size:13px">No hay remitente por defecto. Configúrelo en DATOS.</div>') +
+      '<div id="edRemCampos"' + (remP ? '' : ' style="display:none"') + '>' + EnvioDatos.formulario('edR_', rem) + '</div></div>' +
+      '<div class="muted" style="margin-top:8px">Marca que la extensión escribe en «Detalle del envío»: <b>' + U.esc(EnvioDatos.marcaPrevia(p || { numero: orden, tipoDocumento: ref.tipoDocumento, numeroDocumento: ref.numeroDocumento })) + '</b></div>' +
+      (env.act ? '<div class="muted">Última modificación: ' + U.esc(U.fechaCL(U.fechaISO(new Date(env.act))) + ' ' + U.hora(new Date(env.act))) + (env.usuario ? ' · ' + U.esc(env.usuario) : '') + '</div>' : '');
+    var botones = [{ txt: 'CANCELAR', cls: 'btn-sec' }];
+    if (p && p.envio) botones.push({ txt: 'BORRAR DATOS', cls: 'btn-dan', fn: function () {
+      UI.confirmar('¿Borrar los datos de envío de ' + orden + '?', function () { EnvioDatos.guardar(p, ref, null, alGuardar); });
+      return false;
+    } });
+    botones.push({ txt: 'GUARDAR', cls: 'btn-ok', fn: function () {
+      var d = EnvioDatos.leerForm('edD_'), usarDef = U.$('edRemDef').checked, r = usarDef ? null : EnvioDatos.leerForm('edR_');
+      var er = EnvioDatos.errores(d, 'Destinatario').concat(r ? EnvioDatos.errores(r, 'Remitente') : []);
+      if (er.length) { UI.toast(er.join(' · '), 'error', 6000); return false; }
+      var nuevo = { destinatario: d, remitente: usarDef ? { usarDefecto: true } : U.assign({ usarDefecto: false }, r) };
+      if (!EnvioDatos.tieneDatos(d) && usarDef) nuevo = null;
+      EnvioDatos.guardar(p, ref, nuevo, alGuardar);
+      return false;
+    } });
+    UI.modal({ titulo: 'Datos de envío', html: html, botones: botones, alAbrir: function (host) {
+      host.onclick = function (e) {
+        var t = U.cerca(e.target, 'data-tab', host);
+        if (!t) return;
+        var k = t.getAttribute('data-tab');
+        U.$('edPanel').style.display = k === 'ed' ? '' : 'none'; U.$('erPanel').style.display = k === 'er' ? '' : 'none';
+        U.each(host.querySelectorAll('[data-tab]'), function (b) { b.className = 'btn btn-sm ' + (b.getAttribute('data-tab') === k ? 'btn-ok' : 'btn-sec'); });
+      };
+      host.onchange = function (e) { if (e.target.id === 'edRemDef') U.$('edRemCampos').style.display = e.target.checked ? 'none' : ''; };
+    } });
+  },
+  guardar: function (p, ref, envio, cb) {
+    if (!p) {
+      var r = Pedidos.upsert({ origen: 'MANUAL', tipo: 'PEDIDO', numero: ref.orden, tipoDocumento: ref.tipoDocumento, numeroDocumento: ref.numeroDocumento, estado: 'RECIBIDO' });
+      if (!r.ok) { UI.toast(r.error, 'error'); return; }
+      p = r.pedido;
+    }
+    if (envio) { envio.act = new Date().toISOString(); envio.usuario = DB.cfg.operador || ''; }
+    p.envio = envio || null;
+    p.actualizado = new Date().toISOString();
+    Pedidos.guardar();
+    UI.cerrarModal();
+    if (Sync.modo() !== 'local') Sync.llamar('satPedidoGuardar', { pedido: p, dispositivo: DB.cfg.sync.dispositivo }, function () { UI.toast(envio ? 'Datos de envío guardados en la nube' : 'Datos de envío borrados', 'ok', 3000); }, function (m) { UI.toast('Guardado en este equipo; no se pudo subir: ' + m, 'warn', 5000); });
+    else UI.toast(envio ? 'Datos de envío guardados (solo este equipo)' : 'Datos de envío borrados', 'ok');
+    if (cb) cb(p);
   }
 };
 
@@ -2534,12 +2658,12 @@ Pantallas.pedidos = function (m) {
       if (estadoFiltro === 'HISTÓRICO' && ['CUBICADO','EN PREPARACIÓN','ENVIADO','ENTREGADO','CANCELADO'].indexOf(p.estado)<0) return;
       if (estadoFiltro !== 'TODOS' && estadoFiltro !== 'VIGENTES' && estadoFiltro !== 'HISTÓRICO' && p.estado !== estadoFiltro) return;
       if (canalFiltro !== 'TODOS' && U.norm(p.origen)!==canalFiltro) return;
-      if(q && U.norm([p.numero,p.origen,p.tipo,p.tipoDocumento,p.numeroDocumento,p.estado].join(' ')).indexOf(q)<0)return;
+      if(q && U.norm([p.numero,p.origen,p.tipo,p.tipoDocumento,p.numeroDocumento,p.estado,p.envio&&p.envio.destinatario?EnvioDatos.resumen(p.envio.destinatario):''].join(' ')).indexOf(q)<0)return;
       n++;
       var cls = p.estado === 'ENTREGADO' ? 'COMPLETO' : (p.estado === 'CANCELADO' ? 'ANULADO' : (p.estado === 'ENVIADO' ? 'COMPLETO' : (p.estado === 'CUBICADO' || p.estado === 'EN PREPARACIÓN' ? 'PARCIAL' : 'PENDIENTE')));
       var cubYa = p.estado==='CUBICADO'||p.estado==='EN PREPARACIÓN'||p.estado==='ENVIADO'||p.estado==='ENTREGADO';
       hh += '<div class="doc" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(p.estado)+'</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(p.monto?' · $'+U.esc(p.monto):'')+'</div></div>'+
-        '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div></div></div>';
+        '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO')+'</button><button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
     });
     U.$('peLista').innerHTML = hh || '<div class="muted" style="padding:12px">Sin pedidos en este filtro.</div>';
     U.$('peConteo').innerHTML = n+' registro(s)';
@@ -2572,6 +2696,7 @@ Pantallas.pedidos = function (m) {
     pedNuevo:function(){editar(null);},
     pedEditar:function(id){editar(Pedidos.porId(id));},
     pedCubicar:function(id){ CubUI.pedidoId=id; App.ir('cubicacion'); },
+    pedEnvio:function(id){ EnvioDatos.abrir({pedidoId:id},function(){render();}); },
     pedPegar:function(){
       UI.modal({titulo:'Pegar / importar desde Excel',html:
         '<div class="msg"><b>Formato esperado (6 columnas):</b><br>ORIGEN · ORDEN/TICKET · TIPO DOCUMENTO · N° DOCUMENTO · FECHA · MONTO/VALOR</div>'+
@@ -2604,6 +2729,7 @@ Pantallas.cubicacion = function (m) {
     '<div class="card"><label class="lbl">PEDIDO / O.C. REGISTRADO</label><select id="cuPedido" class="inp sm">'+pedOpts+'</select><div class="muted">'+(pedSel?('Estado: <b>'+U.esc(pedSel.estado)+'</b> · '+U.esc(pedSel.origen)+' · '+U.esc(U.fechaCL(pedSel.fecha))):'Seleccione un registro o use cubicación manual.')+'</div><label class="lbl">ORDEN / TICKET</label><input id="cuOrden" class="inp" autocomplete="off" placeholder="Orden, ticket o referencia" value="'+U.esc(pedSel?pedSel.numero:'')+'" data-next="cuTipo">' +
     '<label class="lbl">TIPO DOCUMENTO</label><select id="cuTipo" class="inp sm" data-next="cuDoc">' + CubUI.tipos(pedSel&&pedSel.tipoDocumento?pedSel.tipoDocumento:CubUI.tipo) + '</select>' +
     '<label class="lbl">N° DOCUMENTO</label><input id="cuDoc" class="inp" autocomplete="off" placeholder="Puede quedar vacío si aún no existe" value="'+U.esc(pedSel?pedSel.numeroDocumento:'')+'" data-next="cuProd">' +
+    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="cuEnvio">'+(function(){var pe=pedSel||null;return pe&&pe.envio?'✓ DATOS DE ENVÍO':'DATOS DE ENVÍO';})()+'</button></div><div id="cuEnvioRes" class="muted"></div>' +
     '<label class="lbl">PRODUCTO <span class="unidad">opcional · trae medidas y ubicación</span></label><input id="cuProd" class="inp sm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre o marca" data-enter="prodEnter"><div id="cuProdRes"></div><div id="cuProdSel"></div>' +
     '<div class="fila num"><div class="c"><label class="lbl">ANCHO cm</label><input id="cuAncho" class="inp" type="number" step="any" data-next="cuAlto"></div><div class="c"><label class="lbl">ALTO cm</label><input id="cuAlto" class="inp" type="number" step="any" data-next="cuLargo"></div><div class="c"><label class="lbl">LARGO cm</label><input id="cuLargo" class="inp" type="number" step="any" data-next="cuPeso"></div></div>' +
     '<label class="lbl">PESO kg</label><input id="cuPeso" class="inp" type="number" step="any" data-enter="agregar"><div id="cuCalc" class="calc"></div>' +
@@ -2684,13 +2810,21 @@ Pantallas.cubicacion = function (m) {
       } }
     ] });
   };
-  m.oninput = function (e) { if (e.target.id === 'cuAncho' || e.target.id === 'cuAlto' || e.target.id === 'cuLargo') calc(); if (e.target.id === 'cuBuscar') pintar(); if (e.target.id === 'cuProd') { clearTimeout(tp); tp = setTimeout(prodBuscar, 120); } };
+  m.oninput = function (e) { if (e.target.id === 'cuOrden' || e.target.id === 'cuDoc') envioRes(); if (e.target.id === 'cuAncho' || e.target.id === 'cuAlto' || e.target.id === 'cuLargo') calc(); if (e.target.id === 'cuBuscar') pintar(); if (e.target.id === 'cuProd') { clearTimeout(tp); tp = setTimeout(prodBuscar, 120); } };
   m.onchange = function (e) {
-    if (e.target.id === 'cuTipo') CubUI.tipo = e.target.value;
+    if (e.target.id === 'cuTipo') { CubUI.tipo = e.target.value; envioRes(); }
     if (e.target.id === 'cuPedido') { CubUI.pedidoId = e.target.value || null; App.ir('cubicacion'); }
   };
   var leer = function () { return { pedidoId: CubUI.pedidoId || '', cubicacionId: CubUI.cubId, orden: U.$('cuOrden').value, tipoDocumento: U.$('cuTipo').value, numeroDocumento: U.$('cuDoc').value, ancho: U.num(U.$('cuAncho').value), alto: U.num(U.$('cuAlto').value), largo: U.num(U.$('cuLargo').value), peso: U.num(U.$('cuPeso').value), producto: CubUI.prod ? CubUI.prod.codigo : '', productoDesc: CubUI.prod ? CubUI.prod.descripcion : '' }; };
+  var envioRes = function () {
+    var el = U.$('cuEnvioRes'); if (!el) return;
+    var pe = CubUI.pedidoId ? Pedidos.porId(CubUI.pedidoId) : EnvioDatos.buscarPedido(U.$('cuOrden').value, U.$('cuTipo').value, U.$('cuDoc').value);
+    var d = pe && pe.envio ? pe.envio.destinatario : null;
+    el.innerHTML = d && EnvioDatos.tieneDatos(d) ? 'Para: ' + U.esc(EnvioDatos.resumen(d)) : '';
+    var bt = m.querySelector('[data-a="cuEnvio"]'); if (bt) bt.innerHTML = pe && pe.envio ? '✓ DATOS DE ENVÍO' : 'DATOS DE ENVÍO';
+  };
   var acciones = {
+    cuEnvio: function () { EnvioDatos.abrir({ pedidoId: CubUI.pedidoId || '', orden: U.$('cuOrden').value, tipoDocumento: U.$('cuTipo').value, numeroDocumento: U.$('cuDoc').value }, function () { envioRes(); }); },
     agregar: function () {
       var now = +new Date(); if (now - CubUI.ultimoClick < 600) return; CubUI.ultimoClick = now;
       var d = leer(), er = OT.validar(d);
@@ -2776,6 +2910,7 @@ Pantallas.cubicacion = function (m) {
   UI.delegar(m, acciones);
   pintar();
   prodPintarSel();
+  envioRes();
   CorreosSat.actualizar(function (hubo) { if (hubo && App.pantalla === 'cubicacion' && U.$('cuLista')) pintar(); });
   ProdSync.actualizar(function (hubo) { if (hubo && App.pantalla === 'cubicacion') prodPintarSel(); });
   CubPool.bajar(function () { if (App.pantalla === 'cubicacion' && U.$('cuLista')) pintar(); });
@@ -3510,7 +3645,7 @@ var DespachoGrupo = {
 Pantallas.despacho = function (m) { DespachoGrupo.pantalla(m); };
 
 var Compartida = {
-  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'couriers', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto'],
+  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'couriers', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto', 'remitente'],
   datos: function () { var o = {}; U.each(Compartida.CAMPOS, function (k) { if (DB.cfg[k] != null) o[k] = DB.cfg[k]; }); return o; },
   activo: function () { return Sync.modo() !== 'local' && !!DB.cfg.sync.token; },
   subir: function (cb) {
@@ -4758,6 +4893,9 @@ Pantallas.datos = function (m) {
     '<label class="lbl">PREFIJO DE ESTE EQUIPO</label><input id="cfEq" class="inp sm" maxlength="6" autocapitalize="characters" value="' + U.esc(c.equipo) + '">' +
     '<div class="muted">Con varios equipos, un prefijo distinto evita números de OT repetidos.</div>' +
     '<button class="btn btn-ok" data-a="guardarCfg">GUARDAR CONFIGURACIÓN</button></div>';
+  h += '<div class="card"><h2>Remitente por defecto (envíos)</h2><div class="muted">Se usa en los datos de envío de cada pedido, salvo que el pedido indique otro. Se comparte con todos los equipos y con la extensión de Correos.</div>' +
+    EnvioDatos.formulario('rmD_', EnvioDatos.remitenteDefecto()) +
+    '<button class="btn btn-ok" data-a="guardarRem">GUARDAR REMITENTE</button></div>';
   var sy = c.sync, modo = Sync.modo();
   h += '<div class="card"><h2>Sincronización</h2>' +
     '<div class="aviso ' + (modo === 'local' ? 'gris' : (sy.ultimoError ? 'rojo' : 'verde')) + '">' +
@@ -4834,6 +4972,13 @@ Pantallas.datos = function (m) {
       Compartida.subir(function (ok) { if (ok) UI.toast('Configuración guardada y compartida con todos los equipos', 'ok', 3500); });
       if (cambioFv) { var n = OT.recalcularPesoVol(); UI.toast('Guardado. Peso volumétrico recalculado en ' + n + ' bulto(s).', 'ok', 3500); }
       else UI.toast('Configuración guardada', 'ok');
+    },
+    guardarRem: function () {
+      var r = EnvioDatos.leerForm('rmD_'), er = EnvioDatos.errores(r, 'Remitente');
+      if (er.length) { UI.toast(er.join(' · '), 'error', 6000); return; }
+      c.remitente = EnvioDatos.tieneDatos(r) ? r : null;
+      DB.guardarCfg();
+      Compartida.subir(function (ok, msg) { UI.toast(ok ? 'Remitente guardado y compartido con todos los equipos' : (Compartida.activo() ? 'Guardado en este equipo; no se pudo compartir: ' + (msg || '') : 'Remitente guardado (solo este equipo)'), ok ? 'ok' : 'warn', 4000); });
     },
     exportar: function () { StorageManager.backup(); },
     syGuardar: function () {
