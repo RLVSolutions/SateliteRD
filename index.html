@@ -430,7 +430,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.15.1', build: '2026-10-17', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.16.0', build: '2026-10-18', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -691,7 +691,86 @@ var Pedidos = {
   porId: function (id) { return U.find(Pedidos.lista, function (p) { return p.id === id; }); },
   porClave: function (origen, tipo, numero) {
     var k = Pedidos.clave(origen, tipo, numero);
-    return U.find(Pedidos.lista, function (p) { return Pedidos.clave(p.origen, p.tipo, p.numero) === k; });
+    return U.find(Pedidos.lista, function (p) { return Pedidos.clave(p.origen, p.tipo, p.numero) === k && p.estado !== 'ELIMINADO'; }) ||
+      U.find(Pedidos.lista, function (p) { return Pedidos.clave(p.origen, p.tipo, p.numero) === k; });
+  },
+  vigentes: function () { return U.filter(Pedidos.lista, function (p) { return p.estado !== 'ELIMINADO'; }); },
+  PREVIOS: ['RECIBIDO','EN RECOLECCIÓN','PARA REVISIÓN','REVISADO'],
+  AUTOMATICOS: ['CUBICADO','EN PREPARACIÓN','ENVIADO'],
+  sinRespaldo: function (p) {
+    if (!p || Pedidos.AUTOMATICOS.indexOf(p.estado) < 0) return false;
+    var ev = Pedidos.evidencia(p), orden = Pedidos.estados;
+    return !ev || orden.indexOf(ev) < orden.indexOf(p.estado);
+  },
+  transiciones: function (p) {
+    var e = p && p.estado, pre = Pedidos.PREVIOS, i = pre.indexOf(e), r = [];
+    if (!p || !e) return ['RECIBIDO'];
+    if (i >= 0) {
+      for (var k = 0; k <= i; k++) r.push(pre[k]);
+      if (i < pre.length - 1) r.push(pre[i + 1]);
+      r.push('CANCELADO');
+      return r;
+    }
+    if (Pedidos.sinRespaldo(p)) { r = pre.slice(0); r.push(e); if (e === 'ENVIADO') r.push('ENTREGADO'); r.push('CANCELADO'); return r; }
+    if (e === 'CUBICADO') return ['CUBICADO', 'CANCELADO'];
+    if (e === 'EN PREPARACIÓN') return ['EN PREPARACIÓN'];
+    if (e === 'ENVIADO') return ['ENVIADO', 'ENTREGADO'];
+    if (e === 'CANCELADO') return ['CANCELADO', 'RECIBIDO'];
+    return [e];
+  },
+  puedeCambiar: function (p, nuevo) { return !p || p.estado === nuevo || Pedidos.transiciones(p).indexOf(nuevo) >= 0; },
+  motivoEstado: function (p, nuevo) {
+    if (Pedidos.puedeCambiar(p, nuevo)) return '';
+    if (Pedidos.AUTOMATICOS.indexOf(nuevo) >= 0) return nuevo + ' lo asigna el sistema: CUBICADO al registrar medidas en Cubicación, EN PREPARACIÓN al crear la OT en Packing y ENVIADO al despachar.';
+    if (nuevo === 'ENTREGADO') return 'ENTREGADO solo se marca después de ENVIADO (o con retiro en bodega).';
+    if (p.estado === 'EN PREPARACIÓN') return 'El pedido ya tiene OT en Packing; su estado avanza solo con el despacho.';
+    return 'De ' + p.estado + ' solo puede pasar a: ' + Pedidos.transiciones(p).filter(function (x) { return x !== p.estado; }).join(', ') + '.';
+  },
+  duplicados: function (d, idPropio) {
+    var num = U.norm(d.numero), td = U.norm(d.tipoDocumento), nd = U.norm(d.numeroDocumento), out = [];
+    U.each(Pedidos.lista, function (p) {
+      if (p.id === idPropio || p.estado === 'ELIMINADO') return;
+      var m = [];
+      if (num && U.norm(p.numero) === num) m.push('mismo N° de pedido / O.C.');
+      if (nd && U.norm(p.numeroDocumento) === nd && (!td || !p.tipoDocumento || U.norm(p.tipoDocumento) === td)) m.push('mismo documento ' + (p.tipoDocumento || '') + ' ' + p.numeroDocumento);
+      if (m.length) out.push({ p: p, motivo: m.join(' y '), exacto: Pedidos.clave(p.origen, p.tipo, p.numero) === Pedidos.clave(d.origen, d.tipo, d.numero) });
+    });
+    return out;
+  },
+  bloqueoEliminar: function (p) {
+    if (!p) return 'Pedido no encontrado.';
+    if (p.estado === 'ELIMINADO') return 'El pedido ya está eliminado.';
+    var key = OT.docKey(p.numero, p.tipoDocumento, p.numeroDocumento), enOT = 0;
+    U.each(OT.lista, function (ot) { enOT += OT.bultosDoc(ot, key).length; });
+    if (enOT) return 'Tiene ' + enOT + ' bulto(s) en una OT de Packing. Quítelos o anule la OT antes de eliminar el pedido.';
+    var cor = U.filter(CorreosSat.deDoc(key), function (e) { return CorreosSat.ACTIVOS[e.estado]; });
+    if (cor.length) return 'Tiene envío(s) de Correos vinculado(s) (' + U.map(cor, function (e) { return e.seguimiento || e.numeroEnvio || e.estado; }).join(', ') + '). No se puede eliminar.';
+    return '';
+  },
+  bultosDe: function (p) {
+    var key = OT.docKey(p.numero, p.tipoDocumento, p.numeroDocumento);
+    return U.filter(CubPool.lista, function (b) { return b.estado !== 'ELIMINADO' && !b.otId && (b.pedidoId === p.id || OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento) === key); });
+  },
+  eliminar: function (id, aut) {
+    var p = Pedidos.porId(id), bloqueo = Pedidos.bloqueoEliminar(p);
+    if (bloqueo) return { ok: false, error: bloqueo };
+    var bs = Pedidos.bultosDe(p), ahora = new Date().toISOString();
+    U.each(bs, function (b) { b.estado = 'ELIMINADO'; b.act = ahora; SyncReg.marcar(b); });
+    if (bs.length) CubPool.guardar();
+    var nota = 'ELIMINADO ' + U.fechaCL(ahora.slice(0, 10)) + ' por ' + (aut && aut.usuario || DB.cfg.operador || 'usuario') + ': ' + (aut && aut.motivo || '(sin motivo)') + ' [estado previo ' + p.estado + ']';
+    p.eliminado = { fecha: ahora, usuario: aut && aut.usuario || '', motivo: aut && aut.motivo || '', estadoPrevio: p.estado, bultos: bs.length };
+    p.observacion = U.trim((p.observacion ? p.observacion + ' · ' : '') + nota).substr(0, 480);
+    p.estado = 'ELIMINADO'; p.actualizado = ahora;
+    SyncReg.marcar(p); Pedidos.guardar();
+    return { ok: true, bultos: bs.length };
+  },
+  restaurar: function (id) {
+    var p = Pedidos.porId(id);
+    if (!p || p.estado !== 'ELIMINADO') return { ok: false, error: 'El pedido no está eliminado.' };
+    p.estado = 'RECIBIDO'; p.eliminado = null; p.actualizado = new Date().toISOString();
+    p.observacion = U.trim(p.observacion + ' · RESTAURADO ' + U.fechaCL(p.actualizado.slice(0, 10))).substr(0, 480);
+    SyncReg.marcar(p); Pedidos.guardar(); Pedidos.reconciliarEstados();
+    return { ok: true, pedido: p };
   },
   upsert: function (p) {
     p = p || {};
@@ -699,7 +778,7 @@ var Pedidos = {
     if (!numero) return { ok:false, error:'Falta número de pedido / O.C.' };
     var origen = U.norm(p.origen || 'MANUAL'), tipo = U.norm(p.tipo || 'PEDIDO');
     var x = p.id ? Pedidos.porId(p.id) : Pedidos.porClave(origen, tipo, numero);
-    var ahora = new Date().toISOString(), nuevo = !x;
+    var ahora = new Date().toISOString(), nuevo = !x || x.estado === 'ELIMINADO', aviso = '';
     if (!x) {
       x = { id: U.uid('ped-'), creado: ahora };
       Pedidos.lista.push(x);
@@ -708,12 +787,16 @@ var Pedidos = {
     x.fecha = U.trim(p.fecha || x.fecha || U.fechaISO());
     x.tipoDocumento = U.norm(p.tipoDocumento || x.tipoDocumento || '');
     x.numeroDocumento = U.trim(p.numeroDocumento || x.numeroDocumento || '');
-    x.estado = U.norm(p.estado || x.estado || 'RECIBIDO');
+    if (nuevo) { x.estado = 'RECIBIDO'; x.eliminado = null; }
+    else if (p.estado) {
+      var ne = U.norm(p.estado);
+      if (Pedidos.puedeCambiar(x, ne)) x.estado = ne; else aviso = Pedidos.motivoEstado(x, ne);
+    }
     x.observacion = U.trim(p.observacion != null ? p.observacion : (x.observacion || ''));
     x.actualizado = ahora;
     SyncReg.marcar(x);
     Pedidos.guardar();
-    return { ok:true, pedido:x, nuevo:nuevo };
+    return { ok:true, pedido:x, nuevo:nuevo, avisoEstado:aviso };
   },
   fechaCanon: function (v) {
     var s=U.trim(v); if(!s)return '';
@@ -728,7 +811,7 @@ var Pedidos = {
   },
   existeIdentidad: function (p) {
     var k=Pedidos.identidadDoc(p);
-    return U.find(Pedidos.lista,function(x){return Pedidos.identidadDoc(x)===k;});
+    return U.find(Pedidos.lista,function(x){return x.estado!=='ELIMINADO'&&Pedidos.identidadDoc(x)===k;});
   },
   _limpiarCelda: function(s){return U.trim(String(s==null?'':s).replace(/^\|+|\|+$/g,'').replace(/^["']|["']$/g,''));},
   _filaTabla: function(linea) {
@@ -753,7 +836,7 @@ var Pedidos = {
       if(/^(MP|ORIGEN|CANAL)$/.test(k)){mapa.origen=i;reconocidas++;}
       else if(/^(PEDIDO|NUMEROPEDIDO|ORDEN|NUMEROORDEN|ORDENTICKET|TICKET|OC|NUMEROOC)$/.test(k)){mapa.numero=i;reconocidas++;}
       else if(/^(TIPODOCUMENTO|DOCUMENTOTIPO|TIPODOC)$/.test(k)){mapa.tipoDocumento=i;reconocidas++;}
-      else if(/^(NUMERODOCUMENTO|NUMERODOC|DOCUMENTO|NRODOCUMENTO|NRODOC)$/.test(k)){mapa.numeroDocumento=i;reconocidas++;}
+      else if(/^(NUMERODOCUMENTO|NUMERODOC|DOCUMENTO|NRODOCUMENTO|NRODOC|NDOCUMENTO|NDOC|NUMDOC|FOLIO)$/.test(k)){mapa.numeroDocumento=i;reconocidas++;}
       else if(/^FECHA/.test(k)){mapa.fecha=i;reconocidas++;}
       else if(/^(TOTAL|MONTO|VALOR|IMPORTE)$/.test(k)){mapa.monto=i;reconocidas++;}
     }
@@ -761,20 +844,29 @@ var Pedidos = {
     else {
       mapa={origen:0,numero:1,tipoDocumento:2,numeroDocumento:3,fecha:4,monto:5}; inicio=0;
     }
-    var nuevos=0, duplicados=0, invalidos=0, agregados=[];
+    var nuevos=0, duplicados=0, invalidos=0, completados=0, agregados=[], revisar=[];
     for(i=inicio;i<filas.length;i++){
       f=filas[i];
       var get=function(k){return mapa[k]==null?'':Pedidos._limpiarCelda(f[mapa[k]]||'');};
       var p={origen:get('origen')||'EXCEL',tipo:'PEDIDO',numero:get('numero'),tipoDocumento:get('tipoDocumento'),
-        numeroDocumento:get('numeroDocumento'),fecha:Pedidos.fechaCanon(get('fecha')),estado:'RECIBIDO',
+        numeroDocumento:get('numeroDocumento'),fecha:Pedidos.fechaCanon(get('fecha')),
         monto:get('monto'),observacion:''};
       if(!p.numero||!p.tipoDocumento||!p.numeroDocumento||!p.fecha){invalidos++;continue;}
       if(Pedidos.existeIdentidad(p)){duplicados++;continue;}
+      var mismo=U.find(Pedidos.lista,function(x){return x.estado!=='ELIMINADO'&&Pedidos.clave(x.origen,x.tipo,x.numero)===Pedidos.clave(p.origen,p.tipo,p.numero);});
+      if(mismo){
+        if(!U.trim(mismo.numeroDocumento)){
+          var rc=Pedidos.upsert({id:mismo.id,origen:mismo.origen,tipo:mismo.tipo,numero:mismo.numero,fecha:mismo.fecha||p.fecha,tipoDocumento:p.tipoDocumento,numeroDocumento:p.numeroDocumento});
+          if(rc.ok){if(p.monto)rc.pedido.monto=p.monto;Pedidos.guardar();completados++;agregados.push(rc.pedido);}
+        } else revisar.push(p.numero+' ('+p.tipoDocumento+' '+p.numeroDocumento+' ≠ registrado '+mismo.tipoDocumento+' '+mismo.numeroDocumento+')');
+        continue;
+      }
+      var otros=Pedidos.duplicados(p,null);
       var r=Pedidos.upsert(p);
-      if(r.ok){r.pedido.monto=p.monto; Pedidos.guardar(); nuevos++; agregados.push(r.pedido);}
+      if(r.ok){r.pedido.monto=p.monto; Pedidos.guardar(); nuevos++; agregados.push(r.pedido); if(otros.length)revisar.push(p.numero+' (nuevo; '+otros[0].motivo+' que '+otros[0].p.numero+')');}
       else invalidos++;
     }
-    return {ok:true,nuevos:nuevos,duplicados:duplicados,invalidos:invalidos,agregados:agregados};
+    return {ok:true,nuevos:nuevos,duplicados:duplicados,invalidos:invalidos,completados:completados,revisar:revisar,agregados:agregados};
   },
   marcarCubicado: function (id) {
     var p=Pedidos.porId(id); if(!p)return;
@@ -783,6 +875,9 @@ var Pedidos = {
   estadoOperativo: function(p) {
     if(!p)return 'RECIBIDO';
     if(p.estado==='ENTREGADO'||p.estado==='CANCELADO')return p.estado;
+    return Pedidos.evidencia(p)||p.estado;
+  },
+  evidencia: function(p) {
     var key=OT.docKey(p.numero,p.tipoDocumento,p.numeroDocumento), tieneCub=false, tieneOT=false, total=0, desp=0, ret=0;
     U.each(CubPool.lista,function(b){
       if(b.estado==='ELIMINADO')return;
@@ -796,7 +891,7 @@ var Pedidos = {
     if(total>0 && desp===total)return ret===total?'ENTREGADO':'ENVIADO';
     if(tieneOT)return 'EN PREPARACIÓN';
     if(tieneCub)return 'CUBICADO';
-    return p.estado;
+    return '';
   },
   reconciliarEstados: function() {
     var cambio=false;
@@ -851,7 +946,7 @@ var EnvioDatos = {
   buscarPedido: function (orden, tipo, numDoc) {
     var o = U.norm(orden), n = U.norm(numDoc), t = U.norm(tipo);
     if (!o) return null;
-    var cands = U.filter(Pedidos.lista, function (p) { return U.norm(p.numero) === o; });
+    var cands = U.filter(Pedidos.lista, function (p) { return p.estado !== 'ELIMINADO' && U.norm(p.numero) === o; });
     var exacto = U.find(cands, function (p) { return U.norm(p.numeroDocumento) === n && (!t || !p.tipoDocumento || U.norm(p.tipoDocumento) === t); });
     if (exacto) return exacto;
     var sinDoc = U.filter(cands, function (p) { return !U.trim(p.numeroDocumento); });
@@ -917,7 +1012,7 @@ var EnvioDatos = {
   },
   guardar: function (p, ref, envio, cb) {
     if (!p) {
-      var r = Pedidos.upsert({ origen: 'MANUAL', tipo: 'PEDIDO', numero: ref.orden, tipoDocumento: ref.tipoDocumento, numeroDocumento: ref.numeroDocumento, estado: 'RECIBIDO' });
+      var r = Pedidos.upsert({ origen: 'MANUAL', tipo: 'PEDIDO', numero: ref.orden, tipoDocumento: ref.tipoDocumento, numeroDocumento: ref.numeroDocumento });
       if (!r.ok) { UI.toast(r.error, 'error'); return; }
       p = r.pedido;
     }
@@ -2857,7 +2952,7 @@ CubUI.editarBulto = function (id) {
 
 Pantallas.inicio = function (m) {
   var pedAct=0, pedCub=0, otAb=0, otDesp=0, otCer=0, bultos=0, cubPend=0;
-  U.each(Pedidos.lista,function(p){
+  U.each(Pedidos.vigentes(),function(p){
     if(p.estado!=='ENTREGADO' && p.estado!=='CANCELADO') pedAct++;
     if(p.estado==='CUBICADO') pedCub++;
   });
@@ -2925,17 +3020,22 @@ Pantallas.pedidos = function (m) {
     var l = Pedidos.lista.slice(0);
     l.sort(function(a,b){ return String(a.fecha||'') < String(b.fecha||'') ? 1 : -1; });
     U.each(l,function(p){
+      if ((estadoFiltro === 'ELIMINADOS') !== (p.estado === 'ELIMINADO')) return;
       if (estadoFiltro === 'ACTIVOS' && (p.estado === 'ENTREGADO' || p.estado === 'CANCELADO')) return;
       if (estadoFiltro === 'VIGENTES' && ['CUBICADO','EN PREPARACIÓN','ENVIADO','ENTREGADO','CANCELADO'].indexOf(p.estado)>=0) return;
       if (estadoFiltro === 'HISTÓRICO' && ['CUBICADO','EN PREPARACIÓN','ENVIADO','ENTREGADO','CANCELADO'].indexOf(p.estado)<0) return;
-      if (estadoFiltro !== 'TODOS' && estadoFiltro !== 'VIGENTES' && estadoFiltro !== 'HISTÓRICO' && estadoFiltro !== 'ACTIVOS' && p.estado !== estadoFiltro) return;
+      if (estadoFiltro !== 'TODOS' && estadoFiltro !== 'VIGENTES' && estadoFiltro !== 'HISTÓRICO' && estadoFiltro !== 'ACTIVOS' && estadoFiltro !== 'ELIMINADOS' && p.estado !== estadoFiltro) return;
       if (canalFiltro !== 'TODOS' && U.norm(p.origen)!==canalFiltro) return;
       if(q && U.norm([p.numero,p.origen,p.tipo,p.tipoDocumento,p.numeroDocumento,p.estado,p.envio&&p.envio.destinatario?EnvioDatos.resumen(p.envio.destinatario):''].join(' ')).indexOf(q)<0)return;
       n++;
       var cls = p.estado === 'ENTREGADO' ? 'COMPLETO' : (p.estado === 'CANCELADO' ? 'ANULADO' : (p.estado === 'ENVIADO' ? 'COMPLETO' : (p.estado === 'CUBICADO' || p.estado === 'EN PREPARACIÓN' ? 'PARCIAL' : 'PENDIENTE')));
       var cubYa = p.estado==='CUBICADO'||p.estado==='EN PREPARACIÓN'||p.estado==='ENVIADO'||p.estado==='ENTREGADO';
-      hh += '<div class="doc" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(p.estado)+'</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(p.monto?' · $'+U.esc(p.monto):'')+'</div></div>'+
-        '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO')+'</button><button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
+      if (p.estado === 'ELIMINADO') {
+        hh += '<div class="doc" style="border-left:7px solid #6c757d;background:#f4f4f4"><div class="dh"><div class="cnt"><span class="est ANULADO">ELIMINADO</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):'')+'</div></div><div class="db"><div class="muted">'+U.esc(p.observacion||'')+'</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedRestaurar" data-x="'+p.id+'">RESTAURAR</button></div></div></div>';
+        return;
+      }
+      hh +='<div class="doc" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(p.estado)+'</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(p.monto?' · $'+U.esc(p.monto):'')+'</div></div>'+
+        '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO')+'</button><button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
     });
     U.$('peLista').innerHTML = hh || '<div class="muted" style="padding:12px">Sin pedidos en este filtro.</div>';
     U.$('peConteo').innerHTML = n+' registro(s)';
@@ -2943,30 +3043,68 @@ Pantallas.pedidos = function (m) {
   m.innerHTML = '<div class="otbar"><div class="n">PEDIDOS / ÓRDENES DE COMPRA</div><div class="muted">Registro previo a Cubicación. El documento de venta puede agregarse después.</div></div>'+
     '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="pedNuevo">+ NUEVO</button><button class="btn btn-sec" data-a="pedPegar">PEGAR DESDE EXCEL</button></div>'+
     '<label class="lbl">BUSCAR</label><input id="peBuscar" class="inp sm" placeholder="Pedido, O.C., documento, origen…">'+
-    '<div class="fila"><div class="c"><label class="lbl">ETAPA / ESTADO</label><select id="peFiltro" class="inp sm">'+U.map(['VIGENTES','ACTIVOS','HISTÓRICO','TODOS'].concat(Pedidos.estados),function(e){return '<option'+(e===estadoFiltro?' selected':'')+'>'+U.esc(e)+'</option>';}).join('')+'</select></div><div class="c"><label class="lbl">CANAL</label><select id="peCanal" class="inp sm"><option>TODOS</option>'+U.map(['WEB','M.P.','MERCADOLIBRE','ERP','MANUAL','EXCEL','OTRO'],function(c){return '<option>'+c+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="fila"><div class="c"><label class="lbl">ETAPA / ESTADO</label><select id="peFiltro" class="inp sm">'+U.map(['VIGENTES','ACTIVOS','HISTÓRICO','TODOS'].concat(Pedidos.estados).concat(['ELIMINADOS']),function(e){return '<option'+(e===estadoFiltro?' selected':'')+'>'+U.esc(e)+'</option>';}).join('')+'</select></div><div class="c"><label class="lbl">CANAL</label><select id="peCanal" class="inp sm"><option>TODOS</option>'+U.map(['WEB','M.P.','MERCADOLIBRE','ERP','MANUAL','EXCEL','OTRO'],function(c){return '<option>'+c+'</option>';}).join('')+'</select></div></div>'+
     '<div id="peConteo" class="muted" style="margin:8px 0"></div><div id="peLista"></div></div>';
   var editar=function(p){
     p=p||{origen:'MANUAL',tipo:'PEDIDO',numero:'',fecha:U.fechaISO(),tipoDocumento:'',numeroDocumento:'',estado:'RECIBIDO',observacion:''};
     var tipos=['PEDIDO','ORDEN DE COMPRA'], origenes=['WEB','MERCADOLIBRE','ERP','MANUAL','OTRO'];
-    UI.modal({titulo:p.id?'Editar pedido':'Nuevo pedido',html:
+    if (p.origen && origenes.indexOf(p.origen) < 0) origenes.push(p.origen);
+    if (p.tipo && tipos.indexOf(p.tipo) < 0) tipos.push(p.tipo);
+    var opcionesEstado = p.id ? Pedidos.transiciones(p) : ['RECIBIDO'], firmaAviso = '';
+    var avisoDup = function () {
+      var d = { origen: U.$('pnOrigen').value, tipo: U.$('pnTipo').value, numero: U.$('pnNumero').value, tipoDocumento: U.$('pnTD').value, numeroDocumento: U.$('pnND').value };
+      var l = Pedidos.duplicados(d, p.id), el = U.$('pnAviso');
+      if (!el) return l;
+      el.innerHTML = l.length ? '<div class="msg" style="background:#fff3cd;border-left:5px solid #f0ad00"><b>⚠ Ya existe un registro parecido. Revíselo antes de guardar:</b>' + U.map(l, function (x) { return '<div style="margin-top:4px">' + U.esc(x.p.numero) + ' · ' + U.esc(x.p.origen) + ' · ' + U.esc(U.fechaCL(x.p.fecha)) + (x.p.numeroDocumento ? ' · ' + U.esc(x.p.tipoDocumento + ' ' + x.p.numeroDocumento) : '') + ' · <b>' + U.esc(x.p.estado) + '</b> — ' + U.esc(x.motivo) + ' <button class="btn btn-sec btn-sm" data-a="pnRevisar" data-x="' + x.p.id + '">REVISAR</button></div>'; }).join('') + (U.find(l, function (x) { return x.exacto; }) ? '<div style="margin-top:6px"><b>Mismo origen, tipo y número: no se puede crear otro igual.</b> Edite el existente.</div>' : '<div style="margin-top:6px">Si de verdad es otro pedido, pulse GUARDAR otra vez.</div>') + '</div>' : '';
+      return l;
+    };
+    var est = p.id ? (Pedidos.sinRespaldo(p) ? '<div class="msg" style="background:#fff3cd">⚠ El estado <b>' + U.esc(p.estado) + '</b> no tiene respaldo en este equipo (sin medidas, OT o despacho registrados). Puede corregirlo a una etapa anterior.</div>' : '') +
+      '<label class="lbl">ESTADO <span class="unidad">según el flujo del proceso</span></label><select id="pnEstado" class="inp sm">' + U.map(opcionesEstado, function (x) { return '<option' + (p.estado === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
+      '<div class="muted">Flujo: RECIBIDO → EN RECOLECCIÓN → PARA REVISIÓN → REVISADO → CUBICADO (al medir) → EN PREPARACIÓN (OT) → ENVIADO (despacho) → ENTREGADO. Las etapas automáticas no se eligen a mano.</div>'
+      : '<label class="lbl">ESTADO</label><div class="inp sm" style="background:#f4f4f4">RECIBIDO</div><div class="muted">Todo pedido nuevo entra como RECIBIDO; avanza después según el flujo.</div>';
+    UI.modal({titulo:p.id?'Editar pedido':'Nuevo pedido',alAbrir:function(h){h.oninput=function(e){if(/^(pnNumero|pnND)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onchange=function(e){if(/^(pnOrigen|pnTipo|pnTD)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onclick=function(e){var b=U.cerca(e.target,'data-a',h);if(b&&b.getAttribute('data-a')==='pnRevisar'){var x=Pedidos.porId(b.getAttribute('data-x'));UI.cerrarModal();editar(x);}};if(p.id)avisoDup();},html:
       '<label class="lbl">ORIGEN</label><select id="pnOrigen" class="inp sm">'+U.map(origenes,function(x){return '<option'+(p.origen===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
       '<label class="lbl">TIPO</label><select id="pnTipo" class="inp sm">'+U.map(tipos,function(x){return '<option'+(p.tipo===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
       '<label class="lbl">N° PEDIDO / O.C.</label><input id="pnNumero" class="inp" value="'+U.esc(p.numero)+'">'+
       '<label class="lbl">FECHA</label><input id="pnFecha" class="inp sm" type="date" value="'+U.esc(p.fecha)+'">'+
       '<div class="fila"><div class="c"><label class="lbl">TIPO DOCUMENTO</label><select id="pnTD" class="inp sm"><option value=""></option>'+CubUI.tipos(p.tipoDocumento||'')+'</select></div><div class="c"><label class="lbl">N° DOCUMENTO</label><input id="pnND" class="inp sm" value="'+U.esc(p.numeroDocumento||'')+'"></div></div>'+
-      '<label class="lbl">ESTADO</label><select id="pnEstado" class="inp sm">'+U.map(Pedidos.estados,function(x){return '<option'+(p.estado===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
-      '<label class="lbl">OBSERVACIÓN</label><input id="pnObs" class="inp sm" value="'+U.esc(p.observacion||'')+'">',
+      est+
+      '<label class="lbl">OBSERVACIÓN</label><input id="pnObs" class="inp sm" value="'+U.esc(p.observacion||'')+'"><div id="pnAviso"></div>',
       botones:[{txt:'CANCELAR',cls:'btn-sec'},{txt:'GUARDAR',cls:'btn-ok',fn:function(){
+        if(!U.trim(U.$('pnNumero').value)){UI.toast('Falta número de pedido / O.C.','error');return false;}
+        var dups=avisoDup(), firma=U.map(dups,function(x){return x.p.id;}).join(',');
+        if(p.id&&U.norm(p.numero)===U.norm(U.$('pnNumero').value)&&U.norm(p.numeroDocumento)===U.norm(U.$('pnND').value)&&U.norm(p.origen)===U.norm(U.$('pnOrigen').value)&&U.norm(p.tipo)===U.norm(U.$('pnTipo').value))dups=[];
+        if(U.find(dups,function(x){return x.exacto;})){UI.toast('Ya existe ese pedido con el mismo origen y tipo. Revise el registro existente.','error',4500);return false;}
+        if(dups.length&&firmaAviso!==firma){firmaAviso=firma;UI.toast('Posible duplicado: revise el aviso y pulse GUARDAR otra vez para confirmar.','warn',4500);return false;}
+        var nuevoEstado=p.id?U.$('pnEstado').value:'RECIBIDO';
+        if(p.id&&!Pedidos.puedeCambiar(p,nuevoEstado)){UI.toast(Pedidos.motivoEstado(p,nuevoEstado),'error',5000);return false;}
+        if(p.id&&nuevoEstado==='CANCELADO'&&p.estado!=='CANCELADO'&&Pedidos.bultosDe(p).length&&firmaAviso!=='CANCELAR'){firmaAviso='CANCELAR';UI.toast('El pedido tiene '+Pedidos.bultosDe(p).length+' bulto(s) cubicado(s) que quedarán sin OT. Pulse GUARDAR otra vez para cancelarlo.','warn',5000);return false;}
+        var obs=U.$('pnObs').value;
+        if(dups.length)obs=U.trim(obs+(obs?' · ':'')+'Registrado pese a aviso de duplicado ('+U.map(dups,function(x){return x.p.numero;}).join(', ')+')');
         var r=Pedidos.upsert({id:p.id,origen:U.$('pnOrigen').value,tipo:U.$('pnTipo').value,numero:U.$('pnNumero').value,fecha:U.$('pnFecha').value,
-          tipoDocumento:U.$('pnTD').value,numeroDocumento:U.$('pnND').value,estado:U.$('pnEstado').value,observacion:U.$('pnObs').value});
+          tipoDocumento:U.$('pnTD').value,numeroDocumento:U.$('pnND').value,estado:nuevoEstado,observacion:obs});
         if(!r.ok){UI.toast(r.error,'error');return false;}
+        if(r.avisoEstado){UI.toast(r.avisoEstado,'warn',5000);}
         if(Sync.modo()!=='local') Sync.programar(300);
-        UI.cerrarModal();render();UI.toast('Pedido guardado','ok');return false;
+        UI.cerrarModal();render();if(!r.avisoEstado)UI.toast('Pedido guardado','ok');return false;
       }}]});
+  };
+  var eliminar=function(p){
+    var bloqueo=Pedidos.bloqueoEliminar(p);
+    if(bloqueo){UI.toast(bloqueo,'error',6000);return;}
+    var bs=Pedidos.bultosDe(p).length;
+    Seguridad.admin('Eliminar el pedido '+p.numero+(p.numeroDocumento?' ('+p.tipoDocumento+' '+p.numeroDocumento+')':'')+'. '+(bs?'También se eliminarán sus '+bs+' bulto(s) cubicado(s) sin OT. ':'')+'El registro queda en la nube como ELIMINADO y puede restaurarse desde el filtro ELIMINADOS.',function(aut){
+      var r=Pedidos.eliminar(p.id,aut);
+      if(!r.ok){UI.toast(r.error,'error',6000);return;}
+      if(Sync.modo()!=='local')Sync.programar(300);
+      render();UI.toast('Pedido eliminado'+(r.bultos?' junto con '+r.bultos+' bulto(s)':''),'ok');
+    });
   };
   UI.delegar(m,{
     pedNuevo:function(){editar(null);},
     pedEditar:function(id){editar(Pedidos.porId(id));},
+    pedEliminar:function(id){eliminar(Pedidos.porId(id));},
+    pedRestaurar:function(id){var r=Pedidos.restaurar(id);if(!r.ok){UI.toast(r.error,'error');return;}if(Sync.modo()!=='local')Sync.programar(300);render();UI.toast('Pedido '+r.pedido.numero+' restaurado como '+r.pedido.estado,'ok');},
     pedCubicar:function(id){ CubUI.pedidoId=id; App.ir('cubicacion'); },
     pedEnvio:function(id){ EnvioDatos.abrir({pedidoId:id},function(){render();}); },
     pedPegar:function(){
@@ -2979,7 +3117,8 @@ Pantallas.pedidos = function (m) {
           if(!r.ok){UI.toast(r.error,'error');return false;}
           if(r.agregados.length && Sync.modo()!=='local')Sync.programar(300);
           UI.cerrarModal();render();
-          UI.toast('Nuevos: '+r.nuevos+' · Repetidos omitidos: '+r.duplicados+' · Inválidos: '+r.invalidos,'ok',5000);
+          if(r.revisar.length)UI.modal({titulo:'Importación: revisar',html:'<div class="msg">Nuevos: <b>'+r.nuevos+'</b> · Completados con su documento: <b>'+r.completados+'</b> · Repetidos omitidos: <b>'+r.duplicados+'</b> · Inválidos: <b>'+r.invalidos+'</b></div><div class="msg" style="background:#fff3cd"><b>⚠ Revise estos pedidos (número ya registrado o parecido):</b>'+U.map(r.revisar,function(x){return '<div>'+U.esc(x)+'</div>';}).join('')+'</div><div class="muted">Los que ya existían con otro documento no se modificaron.</div>',botones:[{txt:'ENTENDIDO',cls:'btn-ok'}]});
+          else UI.toast('Nuevos: '+r.nuevos+(r.completados?' · Completados: '+r.completados:'')+' · Repetidos omitidos: '+r.duplicados+' · Inválidos: '+r.invalidos,'ok',5000);
           return false;
         }}]});
     }
@@ -2991,7 +3130,7 @@ Pantallas.pedidos = function (m) {
 
 Pantallas.cubicacion = function (m) {
   Pedidos.reconciliarEstados();
-  if (CubUI.pedidoId && Pedidos.porId(CubUI.pedidoId) && Pedidos.porId(CubUI.pedidoId).estado !== 'RECIBIDO') CubUI.pedidoId = null;
+  if (CubUI.pedidoId && Pedidos.porId(CubUI.pedidoId) && Pedidos.PREVIOS.indexOf(Pedidos.porId(CubUI.pedidoId).estado) < 0) CubUI.pedidoId = null;
   if (!CubUI.cubId) CubUI.cubId = CubPool.siguienteId();
   var pedSel = CubUI.pedidoId ? Pedidos.porId(CubUI.pedidoId) : null;
   var pedOpts = '<option value="">— CUBICACIÓN MANUAL —</option>';
@@ -4167,7 +4306,7 @@ var Seguimiento = {
       }
       return d;
     };
-    U.each(Pedidos.lista, function (p) { pedPorId[p.id] = p; });
+    U.each(Pedidos.vigentes(), function (p) { pedPorId[p.id] = p; });
     U.each(OT.lista, function (ot) {
       U.each(ot.bultos || [], function (b) {
         var d = reg(b.orden, b.tipoDocumento, b.numeroDocumento);
@@ -4184,7 +4323,7 @@ var Seguimiento = {
       d.cub.push(c);
       if (c.pedidoId && pedPorId[c.pedidoId] && !d.pedido) { d.pedido = pedPorId[c.pedidoId]; usados[c.pedidoId] = 1; }
     });
-    U.each(Pedidos.lista, function (p) {
+    U.each(Pedidos.vigentes(), function (p) {
       if (usados[p.id]) return;
       var k = OT.docKey(p.numero, p.tipoDocumento, p.numeroDocumento), d = mapa[k] || reg(p.numero, p.tipoDocumento, p.numeroDocumento);
       if (!d.pedido) d.pedido = p;
@@ -4615,7 +4754,7 @@ var Asistente = {
   },
   resumenHtml: function () {
     var pa = 0, cp = 0, oa = 0, bs = 0, bv = 0, cs = 0, cg = 0, sinEtq = 0;
-    U.each(Pedidos.lista, function (p) { if (p.estado !== 'ENTREGADO' && p.estado !== 'CANCELADO') pa++; });
+    U.each(Pedidos.vigentes(), function (p) { if (p.estado !== 'ENTREGADO' && p.estado !== 'CANCELADO') pa++; });
     U.each(CubPool.lista, function (c) { if (c.estado === 'DISPONIBLE' && !c.otId) cp++; });
     U.each(OT.lista, function (o) { if (o.estado !== 'CERRADA') { oa++; U.each(o.bultos || [], function (b) { bs++; if (b.verificadoCourier || b.despachoId) bv++; else if (!CorreosSat.deBulto(b) && !U.trim(b.ordenCourierEscaneada || b.ordenCourier)) sinEtq++; }); } });
     U.each(CorreosSat.lista, function (e) { if (!CorreosSat.ACTIVOS[e.estado]) return; if (e.seguimiento) cg++; else cs++; });
