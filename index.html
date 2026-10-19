@@ -430,7 +430,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.16.1', build: '2026-10-18', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.16.2', build: '2026-10-19', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -582,7 +582,7 @@ var StorageManager = (function () {
 
 var CONFIG_DEFECTO = {
   empresa: 'RD MUSICO', subtitulo: 'CONTROL BULTOS', factorVol: 5000,
-  facturaNumerica: true, barraBulto: true, autoImprimir: false, metodoImpresion: 'documento',
+  facturaNumerica: true, barraBulto: true, autoImprimir: false, metodoImpresion: 'documento', zoomImpresion: 100, paginaImpresion: 'etiqueta',
   otActivaId: null, contadoresOT: {},
   formatoRapida: 'prod-58-std', formatoRotulo: 'prod-58-std', formatoBulto: 'bul-60x29', escaneoImprime: false,
   rotuloLibre: null,
@@ -2366,6 +2366,8 @@ var Impresion = {
     '.pg .hoja{page-break-after:auto!important;break-after:auto!important;background:transparent!important;margin:0 auto}' +
     '.pg svg rect{shape-rendering:crispEdges}',
   metodo: function () { return DB.cfg.metodoImpresion === 'pagina' ? 'pagina' : 'documento'; },
+  zoom: function () { var z = parseInt(DB.cfg.zoomImpresion, 10); if (!(z >= 30 && z <= 600)) z = 100; return z; },
+  paginaServicio: function () { return DB.cfg.paginaImpresion === 'servicio'; },
   estilos: function () {
     var t = '', st = document.getElementsByTagName('style');
     for (var i = 0; i < st.length; i++) if (st[i].id !== 'pageRule' && st[i].id !== 'rdmPrintCss') t += st[i].innerHTML + '\n';
@@ -2405,14 +2407,17 @@ var Impresion = {
   imprimir: function (html, op) {
     op = op || {};
     var tipo = op.tipo || 'rollo', ancho = op.ancho || 58, margen = op.margen == null ? 2 : op.margen, css, paginas;
+    var z = tipo === 'a4' ? 100 : Impresion.zoom(), f = z / 100, serv = tipo !== 'a4' && Impresion.paginaServicio();
+    var tam = function (a, h) { return serv ? '@page{margin:0}' : '@page{size:' + Math.round(a * f * 10) / 10 + 'mm ' + Math.round(h * f * 10) / 10 + 'mm;margin:0}'; };
     if (tipo === 'a4') { paginas = Impresion.paginas(html, 'a4'); css = '@page{size:A4 portrait;margin:12mm}'; }
-    else if (tipo === 'troquel') { paginas = Impresion.paginas(html, 'troquel', ancho, op.alto); css = '@page{size:' + ancho + 'mm ' + op.alto + 'mm;margin:0}'; }
+    else if (tipo === 'troquel') { paginas = Impresion.paginas(html, 'troquel', ancho, op.alto); css = tam(ancho, op.alto); }
     else {
       paginas = Impresion.paginas(html, 'rollo', ancho, 0, margen);
       var altoMm = Impresion.medirAlto(paginas, ancho);
       paginas = paginas.replace(/class="pg" style="/g, 'class="pg" style="height:' + altoMm + 'mm;');
-      css = '@page{size:' + ancho + 'mm ' + altoMm + 'mm;margin:0}';
+      css = tam(ancho, altoMm);
     }
+    if (z !== 100) css += '.pg{zoom:' + f + '}#printArea .pg{zoom:' + f + '}';
     var doc = Impresion.documento(paginas, css), area = U.$('printArea');
     Impresion.ultimoDoc = doc;
     area.className = 'pa-' + tipo;
@@ -2443,13 +2448,26 @@ var Impresion = {
     d.open(); d.write(doc); d.close();
     if (d.readyState === 'complete') lanzar(); else { fr.onload = lanzar; setTimeout(lanzar, 800); }
   },
+  calibrar: function (ancho) {
+    var marcas = '';
+    for (var i = 0; i <= 40; i += 5) marcas += '<div style="position:absolute;left:' + i + 'mm;top:0;width:0.3mm;height:' + (i % 10 ? 3 : 5) + 'mm;background:#000"></div>' + (i % 10 ? '' : '<div style="position:absolute;left:' + (i ? i - 2 : 0) + 'mm;top:5.5mm;width:4mm;text-align:' + (i ? 'center' : 'left') + ';font-size:7pt">' + i + '</div>');
+    var h = '<div class="hoja" style="font-family:Arial,sans-serif;width:' + (ancho - 4) + 'mm">' +
+      '<div style="font-size:12pt;font-weight:bold;text-align:center">CALIBRACIÓN · ZOOM ' + Impresion.zoom() + ' %</div>' +
+      '<div style="font-size:9pt;margin:1mm 0">Mida con una regla la barra negra. Debe medir <b>40 mm</b>.</div>' +
+      '<div style="width:40mm;height:6mm;background:#000"></div>' +
+      '<div style="position:relative;width:40mm;height:9mm;margin-top:0.5mm">' + marcas + '</div>' +
+      '<div style="font-size:9pt;margin-top:1mm">Esta línea debe ir de borde a borde del papel:</div>' +
+      '<div style="width:100%;height:1.2mm;background:#000"></div>' +
+      '<div style="font-size:16pt;font-weight:bold;text-align:center;margin-top:2mm">RD MUSICO</div></div>';
+    Impresion.imprimir(h, { tipo: 'rollo', ancho: ancho, margen: 2 });
+  },
   prueba: function (ancho) {
     var g = '';
     for (var i = 0; i <= 4; i++) g += '<svg xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:5mm;margin-top:1mm" viewBox="0 0 10 1" preserveAspectRatio="none"><rect width="10" height="1" fill="rgb(' + (i * 60) + ',' + (i * 60) + ',' + (i * 60) + ')"/></svg>';
     var h = '<div class="hoja" style="font-family:Arial,sans-serif;text-align:center;width:' + (ancho - 4) + 'mm">' +
       '<div style="font-size:14pt;font-weight:bold;border-bottom:2px solid #000;padding-bottom:1mm">PRUEBA DE IMPRESIÓN</div>' +
       '<div style="font-size:10pt;margin-top:1mm">' + U.esc(APP.nombre + ' ' + APP.version) + '<br>' + U.fechaCL(U.fechaISO()) + ' ' + U.hora() + '<br>Método: ' + (Impresion.metodo() === 'pagina' ? 'página completa' : 'documento dedicado') + '</div>' +
-      '<div style="font-size:9pt;margin-top:2mm;text-align:left">El fondo de esta tira debe salir BLANCO, sin marco ni franjas negras. Las barras van de negro a gris claro.</div>' + g +
+      '<div style="font-size:9pt;margin-top:2mm;text-align:left">El fondo de esta tira debe salir BLANCO, sin marco ni franjas negras. Las barras van de negro a gris claro. Zoom: ' + Impresion.zoom() + ' %' + (Impresion.paginaServicio() ? ' · página del servicio' : '') + '</div>' + g +
       Code128.svg('PRUEBA-123', 11, true) + '</div>';
     Impresion.imprimir(h, { tipo: 'rollo', ancho: ancho, margen: 2 });
   }
@@ -5699,6 +5717,13 @@ Pantallas.datos = function (m) {
     '<label class="chk"><input type="checkbox" id="cfAi"' + (c.autoImprimir ? ' checked' : '') + '> Imprimir etiqueta al agregar bulto</label>' +
     '<label class="lbl">MÉTODO DE IMPRESIÓN</label><select id="cfMi" class="inp sm"><option value="documento"' + (c.metodoImpresion !== 'pagina' ? ' selected' : '') + '>Documento dedicado con fondo blanco (recomendado)</option><option value="pagina"' + (c.metodoImpresion === 'pagina' ? ' selected' : '') + '>Página completa (método anterior)</option></select>' +
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="prueba58">PRUEBA 58 mm</button><button class="btn btn-sec btn-sm" data-a="prueba80">PRUEBA 80 mm</button></div>' +
+    '<div class="card" style="margin:10px 0;background:#faf7fb"><h2 style="margin-top:0">Zoom de impresión (este equipo)</h2>' +
+    '<div class="muted">Si la etiqueta sale chica o grande (por ejemplo con el servicio de impresión ESC/POS), ajuste aquí. Se guarda solo en este equipo, porque cada impresora escala distinto.</div>' +
+    '<div class="fila"><div class="c"><button class="btn btn-sec" data-a="zoomMenos" style="margin:0">−</button></div><div class="c num"><input id="cfZoom" class="inp" type="number" min="30" max="600" step="5" value="' + Impresion.zoom() + '" style="text-align:center"></div><div class="c" style="max-width:40px;align-self:center;font-weight:bold">%</div><div class="c"><button class="btn btn-sec" data-a="zoomMas" style="margin:0">+</button></div></div>' +
+    '<label class="lbl" for="cfPag">TAMAÑO DE PÁGINA</label><select id="cfPag" class="inp sm"><option value="etiqueta"' + (!Impresion.paginaServicio() ? ' selected' : '') + '>El de la etiqueta (58/80 mm × alto)</option><option value="servicio"' + (Impresion.paginaServicio() ? ' selected' : '') + '>El que fije el servicio de impresión (ESC/POS, RawBT…)</option></select>' +
+    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="calib58">CALIBRAR 58 mm</button><button class="btn btn-sec btn-sm" data-a="calib80">CALIBRAR 80 mm</button></div>' +
+    '<label class="lbl" for="cfMedido">LA BARRA DE 40 mm MIDIÓ (mm)</label><div class="fila"><div class="c"><input id="cfMedido" class="inp sm" type="number" step="0.5" min="5" max="300" placeholder="ej. 14"></div><div class="c"><button class="btn btn-ok btn-sm" data-a="zoomCalc" style="margin:0">CALCULAR ZOOM</button></div></div>' +
+    '<div id="cfZoomInfo" class="muted"></div></div>' +
     '<label class="lbl">COURIERS (uno por línea)</label><textarea id="cfCou" class="inp" style="min-height:120px;font-family:Arial,sans-serif;font-size:15px">' + U.esc(c.couriers.join('\n')) + '</textarea>' +
     '<label class="lbl">CLAVE ADMINISTRADOR (acciones forzosas)</label><input id="cfAdm" class="inp sm" type="password" value="' + U.esc(c.claveAdmin || '') + '">' +
     '<label class="lbl">NOMBRE DE QUIEN AUTORIZA (por defecto)</label><input id="cfAdmNom" class="inp sm" value="' + U.esc(c.nombreAdmin || '') + '">' +
@@ -5761,7 +5786,29 @@ Pantallas.datos = function (m) {
         return false;
       } }] });
   };
+  var Datos_zoom = function (v, silencio) {
+    var z = Math.round(parseFloat(v) || 100);
+    if (z < 30) z = 30; if (z > 600) z = 600;
+    DB.cfg.zoomImpresion = z;
+    if (U.$('cfPag')) DB.cfg.paginaImpresion = U.$('cfPag').value;
+    DB.guardarCfg();
+    if (U.$('cfZoom')) U.$('cfZoom').value = z;
+    if (!silencio) UI.toast('Zoom de impresión: ' + z + ' %', 'ok');
+  };
+  m.onchange = function (e) { if (e.target && (e.target.id === 'cfZoom' || e.target.id === 'cfPag')) Datos_zoom(U.$('cfZoom').value); };
   UI.delegar(m, {
+    zoomMenos: function () { Datos_zoom(Impresion.zoom() - 5); },
+    zoomMas: function () { Datos_zoom(Impresion.zoom() + 5); },
+    calib58: function () { Datos_zoom(U.$('cfZoom').value, true); Impresion.calibrar(58); },
+    calib80: function () { Datos_zoom(U.$('cfZoom').value, true); Impresion.calibrar(80); },
+    zoomCalc: function () {
+      var med = parseFloat(String(U.$('cfMedido').value).replace(',', '.'));
+      if (!(med >= 5 && med <= 300)) { UI.toast('Ingrese cuánto midió la barra, en mm', 'error'); return; }
+      var nz = Math.round(Impresion.zoom() * 40 / med);
+      Datos_zoom(nz);
+      U.$('cfMedido').value = '';
+      U.$('cfZoomInfo').innerHTML = 'Midió ' + med + ' mm → zoom nuevo <b>' + Impresion.zoom() + ' %</b>. Imprima la calibración otra vez para confirmar.';
+    },
     prueba58: function () { if (U.$('cfMi')) { DB.cfg.metodoImpresion = U.$('cfMi').value; DB.guardarCfg(); } Impresion.prueba(58); },
     prueba80: function () { if (U.$('cfMi')) { DB.cfg.metodoImpresion = U.$('cfMi').value; DB.guardarCfg(); } Impresion.prueba(80); },
     guardarCfg: function () {
