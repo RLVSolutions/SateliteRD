@@ -430,7 +430,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.15.0', build: '2026-10-17', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.15.1', build: '2026-10-17', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1705,6 +1705,7 @@ var CorreosSat = {
   deDoc: function (k) { return CorreosSat.porDoc[k] || []; },
   deBulto: function (b) { return b ? (CorreosSat.porBulto[b.id] || (b.origenCubicacionId && CorreosSat.porBulto[b.origenCubicacionId]) || null) : null; },
   ids: function (l) { var r = []; U.each(l, function (e) { var n = e.seguimiento || e.numeroEnvio || e.estado; if (r.indexOf(n) < 0) r.push(n); }); return r; },
+  numeros: function (l) { var r = []; U.each(l, function (e) { U.each([e.seguimiento, e.numeroEnvio, e.idTemprano, e.pedidoCorreos], function (n) { n = String(n || ''); if (n && r.indexOf(n) < 0) r.push(n); }); }); return r; },
   porCodigo: function (cod) {
     var dig = String(cod || '').replace(/\s+/g, '').toUpperCase(), mejor = null;
     U.each(CorreosSat.lista, function (e) {
@@ -2382,7 +2383,7 @@ var Plantillas = {
   correosDe: function (b) {
     var e = typeof CorreosSat !== 'undefined' ? CorreosSat.deBulto(b) : null;
     if (!e) return '';
-    return e.seguimiento ? 'CORREOS ' + e.seguimiento : 'ID CORREOS ' + (e.idTemprano || e.numeroEnvio);
+    return e.seguimiento ? 'CORREOS ' + e.seguimiento + (e.pedidoCorreos ? ' · N° ' + e.pedidoCorreos : '') : 'N° CORREOS ' + (e.idTemprano || e.numeroEnvio);
   },
   valorBulto: function (ot, b, k, c, pb) {
     if (k === 'bulto') return 'BULTO ' + pb.pos + '/' + pb.tot;
@@ -4145,7 +4146,7 @@ var Seguimiento = {
   etapas: ['PEDIDO', 'CUBICADO', 'EN PACKING', 'DESPACHO PARCIAL', 'VERIFICADO', 'DESPACHADO', 'ENTREGADO', 'CANCELADO'],
   clases: { 'PEDIDO': 'PENDIENTE', 'CUBICADO': 'PARCIAL', 'EN PACKING': 'PARCIAL', 'DESPACHO PARCIAL': 'PENDIENTE', 'VERIFICADO': 'COMPLETO', 'DESPACHADO': 'COMPLETO', 'ENTREGADO': 'COMPLETO', 'CANCELADO': 'ANULADO' },
   pasos: ['PEDIDO', 'CUBICADO', 'EN PACKING', 'VERIFICADO', 'DESPACHADO'],
-  campos: [['TODOS', 'Todos los campos'], ['ORDEN', 'Orden / Ticket'], ['DOCUMENTO', 'N° Factura / Boleta'], ['COURIER', 'OT Courier'], ['OT', 'OT interna'], ['CORREOS', 'ID Correos de Chile']],
+  campos: [['TODOS', 'Todos los campos'], ['ORDEN', 'Orden / Ticket'], ['DOCUMENTO', 'N° Factura / Boleta'], ['COURIER', 'OT Courier'], ['OT', 'OT interna'], ['CORREOS', 'Correos: seguimiento o N° Correos']],
   filtro: { campo: 'TODOS', valor: '', etapa: 'TODAS', courier: 'TODOS', desde: '', hasta: '' },
   max: 100,
   _f: function (v) { return String(Pedidos.fechaCanon(v || '')).substr(0, 10); },
@@ -4233,8 +4234,8 @@ var Seguimiento = {
     if (campo === 'DOCUMENTO') return [d.numeroDocumento];
     if (campo === 'COURIER') return d.ordenesCourier;
     if (campo === 'OT') return U.map(d.ots, function (o) { return U.norm(o.numero); });
-    if (campo === 'CORREOS') return CorreosSat.ids(d.correos || []);
-    var t = [d.orden, d.numeroDocumento, d.tipoDocumento + ' ' + d.numeroDocumento, d.origen].concat(d.ordenesCourier, d.couriers, U.map(d.ots, function (o) { return U.norm(o.numero); }), CorreosSat.ids(d.correos || []));
+    if (campo === 'CORREOS') return CorreosSat.numeros(d.correos || []);
+    var t = [d.orden, d.numeroDocumento, d.tipoDocumento + ' ' + d.numeroDocumento, d.origen].concat(d.ordenesCourier, d.couriers, U.map(d.ots, function (o) { return U.norm(o.numero); }), CorreosSat.numeros(d.correos || []));
     U.each(d.cub, function (c) { t.push(U.norm(c.cubicacionId)); });
     return t;
   },
@@ -4326,7 +4327,7 @@ var Seguimiento = {
       h += '<label class="lbl">CORREOS DE CHILE</label><table class="tbl"><tr><th>Seguimiento / ID</th><th>Bulto</th><th>kg</th><th>Estado</th><th>Por</th></tr>';
       U.each(d.correos, function (e) {
         var ns = U.map(e.bultoIds || [], function (id) { return num[id] || '?'; });
-        h += '<tr><td><b style="font-size:14px">' + U.esc(e.seguimiento || e.numeroEnvio || '—') + '</b>' + (e.seguimiento && e.idTemprano ? '<br><span class="muted">ID temprano ' + U.esc(e.idTemprano) + '</span>' : '') + (e.etiquetaUrl ? '<br><a href="' + U.esc(e.etiquetaUrl) + '" target="_blank" rel="noopener">Etiqueta PDF</a>' : '') + '</td><td>' + U.esc(ns.join(', ')) + '</td><td>' + U.fx(e.kilos, 2) + '</td><td>' + CorreosSat.estadoTxt(e) + '<br><span class="muted">' + U.esc(U.fechaCL(Seguimiento._ts(e.actualizado || e.creado).substr(0, 10))) + '</span></td><td>' + U.esc(e.usuario || '') + '</td></tr>';
+        h += '<tr><td><b style="font-size:14px">' + U.esc(e.seguimiento || e.numeroEnvio || '—') + '</b>' + (e.pedidoCorreos ? '<br><span class="muted">N° Correos ' + U.esc(e.pedidoCorreos) + '</span>' : '') + (e.seguimiento && e.idTemprano && e.idTemprano !== e.pedidoCorreos ? '<br><span class="muted">N° previo al pago ' + U.esc(e.idTemprano) + '</span>' : '') + (e.etiquetaUrl ? '<br><a href="' + U.esc(e.etiquetaUrl) + '" target="_blank" rel="noopener">Etiqueta PDF</a>' : '') + '</td><td>' + U.esc(ns.join(', ')) + '</td><td>' + U.fx(e.kilos, 2) + '</td><td>' + CorreosSat.estadoTxt(e) + '<br><span class="muted">' + U.esc(U.fechaCL(Seguimiento._ts(e.actualizado || e.creado).substr(0, 10))) + '</span></td><td>' + U.esc(e.usuario || '') + '</td></tr>';
       });
       h += '</table>';
     }
@@ -4456,7 +4457,7 @@ var Asistente = {
     var l = Seguimiento.indice(), ex = [], par = [];
     U.each(l, function (d) {
       var c = [d.orden, d.numeroDocumento].concat(d.ordenesCourier, U.map(d.ots, function (o) { return U.norm(o.numero); }), U.map(d.cub, function (x) { return U.norm(x.cubicacionId); }));
-      U.each(d.correos || [], function (e) { c.push(String(e.seguimiento || '')); c.push(String(e.numeroEnvio || '')); c.push(String(e.idTemprano || '')); });
+      U.each(CorreosSat.numeros(d.correos || []), function (n) { c.push(n); });
       var e = false, p = false;
       U.each(claves, function (k) { U.each(c, function (v) { v = String(v || ''); if (!v) return; if (v === k) e = true; else if (k.length >= 3 && v.indexOf(k) >= 0) p = true; }); });
       if (e) ex.push(d); else if (p) par.push(d);
