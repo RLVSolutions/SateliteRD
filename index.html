@@ -124,6 +124,13 @@ textarea.inp { height: auto; min-height: 90px; font-size: 14px; font-family: "Co
 .subtabs button { float: left; width: 33.333%; height: 40px; border: 2px solid #333; background: #fff; font-weight: bold; font-size: 13px; }
 .subtabs button.on { background: #111; color: #ffd400; }
 .prev { background: #9aa; padding: 10px; border-radius: 6px; overflow: auto; }
+.zimp { display: flex; align-items: center; gap: 6px; background: #f6f0f7; border: 1px solid #e2d3e5; border-radius: 10px; padding: 6px 8px; margin: 6px 0 8px; }
+.zimp .zi-ic { font-size: 18px; line-height: 1; }
+.zimp .zi-b { flex: 0 0 38px; width: 38px; min-width: 38px; height: 38px; padding: 0; margin: 0; font-size: 20px; font-weight: bold; }
+.zimp .zi-r { flex: 1 1 auto; width: auto; min-width: 60px; height: 30px; margin: 0; accent-color: #6b2a72; }
+.zimp .zi-v { flex: 0 0 auto; min-width: 50px; text-align: right; font-weight: bold; font-size: 15px; color: #4a1b52; }
+.zimp .zi-0 { flex: 0 0 42px; width: 42px; min-width: 42px; height: 32px; padding: 0; margin: 0; font-size: 12px; }
+.zprev { overflow: auto; }
 .prev .hoja { background: #fff; margin: 0 auto 8px; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 .ubi { display: inline-block; background: #ffd400; color: #000; border: 2px solid #111; border-radius: 5px; padding: 1px 8px; font-size: 16px; font-weight: bold; letter-spacing: .5px; }
 .ubi.nada { background: #fff; color: #888; border-color: #bbb; font-size: 12px; font-weight: normal; }
@@ -430,7 +437,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.16.2', build: '2026-10-19', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.16.3', build: '2026-10-19', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -2473,6 +2480,52 @@ var Impresion = {
   }
 };
 
+var ZoomImp = {
+  MIN: 50, MAX: 400,
+  html: function () {
+    var z = Impresion.zoom();
+    return '<div class="zimp" title="Tamaño de impresión"><span class="zi-ic">🔍</span><button type="button" class="btn btn-sec zi-b" data-zi="-" aria-label="Achicar">−</button>' +
+      '<input type="range" class="zi-r" min="' + ZoomImp.MIN + '" max="' + ZoomImp.MAX + '" step="5" value="' + Math.max(ZoomImp.MIN, Math.min(ZoomImp.MAX, z)) + '" aria-label="Tamaño de impresión">' +
+      '<button type="button" class="btn btn-sec zi-b" data-zi="+" aria-label="Agrandar">+</button><span class="zi-v">' + z + ' %</span>' +
+      '<button type="button" class="btn btn-sec zi-0" data-zi="0" title="Volver a 100 %">100</button></div>';
+  },
+  css: function () {
+    var st = U.$('zimpCss');
+    if (!st) { st = document.createElement('style'); st.id = 'zimpCss'; document.getElementsByTagName('head')[0].appendChild(st); }
+    var f = Impresion.zoom() / 100;
+    st.innerHTML = f === 1 ? '' : '.zprev>*{zoom:' + f + '}';
+  },
+  fijar: function (v) {
+    var z = Math.round(parseFloat(v) || 100);
+    if (z < 30) z = 30; if (z > 600) z = 600;
+    DB.cfg.zoomImpresion = z;
+    clearTimeout(ZoomImp._t); ZoomImp._t = setTimeout(function () { DB.guardarCfg(); }, 250);
+    ZoomImp.css();
+    U.each(U.qa(document, '.zimp'), function (b) {
+      var r = U.qa(b, '.zi-r')[0], t = U.qa(b, '.zi-v')[0];
+      if (r && String(r.value) !== String(Math.max(ZoomImp.MIN, Math.min(ZoomImp.MAX, z)))) r.value = Math.max(ZoomImp.MIN, Math.min(ZoomImp.MAX, z));
+      if (t) t.innerHTML = z + ' %';
+    });
+    if (U.$('cfZoomTxt')) U.$('cfZoomTxt').innerHTML = z + ' %';
+  },
+  activar: function (raiz) {
+    ZoomImp.css();
+    U.each(U.qa(raiz || document, '.zimp'), function (b) {
+      if (b.getAttribute('data-ok')) return;
+      b.setAttribute('data-ok', '1');
+      var r = U.qa(b, '.zi-r')[0];
+      if (r) { r.oninput = function () { ZoomImp.fijar(r.value); }; r.onchange = r.oninput; }
+      U.each(U.qa(b, '[data-zi]'), function (x) {
+        x.onclick = function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          var k = x.getAttribute('data-zi'), z = Impresion.zoom();
+          ZoomImp.fijar(k === '0' ? 100 : (k === '+' ? z + 5 : z - 5));
+        };
+      });
+    });
+  }
+};
+
 var Plantillas = {
   med: function (b) { return b.ancho + ' × ' + b.alto + ' × ' + b.largo + ' cm'; },
   _ptAjustado: function (txt, base, anchoMm, factor) {
@@ -2690,6 +2743,7 @@ var UI = {
     };
     host.addEventListener('click', UI._modalClick, true);
     host.onclick = null;
+    if (typeof ZoomImp !== 'undefined') ZoomImp.activar(host);
     if (op.alAbrir) op.alAbrir(host);
     return host;
   },
@@ -2774,6 +2828,7 @@ var App = {
     var m = U.$('main');
     m.onclick = null; m.onkeydown = null; m.oninput = null; m.onchange = null;
     Pantallas[p](m);
+    ZoomImp.activar(m);
     App.cabecera();
     window.scrollTo(0, 0);
   },
@@ -3460,7 +3515,7 @@ var PackingUI = {
     if(!d||!bs.length){UI.toast('El documento no tiene bultos asignados','warn');return;}
     var opts='', i;
     for(i=0;i<bs.length;i++) opts+='<label class="chk" style="display:block;padding:9px;border-bottom:1px solid #ddd"><input type="checkbox" data-et-b="'+U.esc(bs[i].id)+'" checked> BULTO '+Plantillas._posBulto(ot,bs[i]).pos+' DE '+Plantillas._posBulto(ot,bs[i]).tot+' · '+U.fx(bs[i].peso,2)+' kg</label>';
-    UI.modal({titulo:'Etiquetas · '+d.orden+' · '+OT.etiquetaDoc(d),html:'<div class="msg">Orden/Ticket: <b>'+U.esc(d.orden)+'</b><br>Documento: <b>'+U.esc(OT.etiquetaDoc(d))+'</b><br>'+bs.length+' bulto(s)</div><div class="btns"><button id="etTodos" class="btn btn-sec">TODOS</button><button id="etNinguno" class="btn btn-sec">NINGUNO</button></div>'+opts,botones:[
+    UI.modal({titulo:'Etiquetas · '+d.orden+' · '+OT.etiquetaDoc(d),html:'<div class="msg">Orden/Ticket: <b>'+U.esc(d.orden)+'</b><br>Documento: <b>'+U.esc(OT.etiquetaDoc(d))+'</b><br>'+bs.length+' bulto(s)</div>'+ZoomImp.html()+'<div class="btns"><button id="etTodos" class="btn btn-sec">TODOS</button><button id="etNinguno" class="btn btn-sec">NINGUNO</button></div>'+opts,botones:[
       {txt:'IMPRIMIR SELECCIÓN',cls:'btn-ok',fn:function(){var seleccion=[],checks=U.qa(U.$('modalHost'),'input[data-et-b]');U.each(checks,function(c){if(c.checked){var b=U.find(bs,function(x){return x.id===c.getAttribute('data-et-b');});if(b)seleccion.push(b);}});if(!seleccion.length){UI.toast('Seleccione al menos un bulto','warn');return false;}PackingUI.elegirFormatoBulto(ot,seleccion);return false;}},
       {txt:'IMPRIMIR TODAS',cls:'btn-sec',fn:function(){PackingUI.elegirFormatoBulto(ot,bs);return false;}},
       {txt:'CERRAR',cls:'btn-sec'}],alAbrir:function(){var h=U.$('modalHost');U.$('etTodos').onclick=function(){U.each(U.qa(h,'input[data-et-b]'),function(c){c.checked=true;});};U.$('etNinguno').onclick=function(){U.each(U.qa(h,'input[data-et-b]'),function(c){c.checked=false;});};}});
@@ -3476,7 +3531,7 @@ var PackingUI = {
     var prev = function (id) { var p = U.$('fmtPrev'); if (p) p.innerHTML = Plantillas.etiquetaBulto(ot, bultos[0], id); };
     UI.modal({
       titulo: 'Etiqueta de bulto · ' + bultos.length + ' bulto(s)',
-      html: ops + '<label class="lbl">VISTA PREVIA</label><div class="fmt-prev" id="fmtPrev"></div>',
+      html: ops + '<label class="lbl">VISTA PREVIA</label>' + ZoomImp.html() + '<div class="fmt-prev zprev" id="fmtPrev"></div>',
       botones: [
         { txt: 'IMPRIMIR ' + bultos.length, cls: 'btn-ok', fn: function () {
           var r = U.qa(U.$('modalHost'), 'input[name=fmtBul]'), id = sel;
@@ -3512,7 +3567,7 @@ var PackingUI = {
     var html = Plantillas.voucher(ot, key);
     UI.modal({
       titulo: 'Voucher · ' + doc.orden + ' · ' + OT.etiquetaDoc(doc),
-      html: '<div style="background:#f1f3f5;padding:10px;border-radius:8px"><div style="background:white;max-width:80mm;margin:auto;padding:8px;border:1px solid #bbb">' + html + '</div></div>',
+      html: ZoomImp.html() + '<div class="zprev" style="background:#f1f3f5;padding:10px;border-radius:8px"><div style="background:white;max-width:80mm;margin:auto;padding:8px;border:1px solid #bbb">' + html + '</div></div>',
       botones: [
         { txt: 'WHATSAPP', cls: 'btn-ok', fn: function () { PackingUI.compartirVoucher(ot,key); return false; } },
         { txt: 'IMPRIMIR 58 mm', cls: 'btn-sec', fn: function () { Impresion.imprimir(html, { tipo: 'rollo', ancho: 58, margen: 2 }); return false; } },
@@ -4104,7 +4159,7 @@ var DespachoGrupo = {
     bot.push({ txt: 'IMPRIMIR 80', cls: 'btn-sec', fn: function () { Impresion.imprimir(html, { tipo: 'rollo', ancho: 80, margen: 3 }); return false; } });
     bot.push({ txt: 'VOLVER', cls: 'btn-sec', fn: function () { DespachoGrupo.abrir(ot, key); return false; } });
     var wsp = '<div class="btns" style="margin:0"><button type="button" class="btn btn-ok" id="rvWa">WHATSAPP</button>' + (tel.length >= 11 ? '<button type="button" class="btn btn-ok" id="rvWaC">WHATSAPP CLIENTE</button>' : '') + '</div>';
-    UI.modal({ titulo: 'Voucher de entrega · ' + doc.orden, html: wsp + '<div style="background:#f1f3f5;padding:10px;border-radius:8px;margin-top:8px"><div style="background:white;max-width:80mm;margin:auto;padding:8px;border:1px solid #bbb">' + html + '</div></div>', botones: bot, alAbrir: function () {
+    UI.modal({ titulo: 'Voucher de entrega · ' + doc.orden, html: wsp + ZoomImp.html() + '<div class="zprev" style="background:#f1f3f5;padding:10px;border-radius:8px;margin-top:8px"><div style="background:white;max-width:80mm;margin:auto;padding:8px;border:1px solid #bbb">' + html + '</div></div>', botones: bot, alAbrir: function () {
       U.$('rvWa').onclick = function () { wa(''); };
       if (U.$('rvWaC')) U.$('rvWaC').onclick = function () { wa(tel); };
     } });
@@ -5039,7 +5094,7 @@ Pantallas.manifiesto = function (m) {
     h += '<button class="btn btn-ok btn-xl" data-a="generar"' + (t.bultos ? '' : ' disabled') + '>' + (mf.desactualizado ? 'REGENERAR MANIFIESTO' : 'GENERAR MANIFIESTO') + '</button>' +
       '<div class="muted" style="margin-top:4px">Al generar, la OT pasa a CERRADA.</div>';
   } else {
-    h += '<div class="btns"><button class="btn" data-a="imp58">IMPRIMIR 58 mm</button><button class="btn" data-a="impA4">IMPRIMIR A4</button></div>' +
+    h += ZoomImp.html() + '<div class="btns"><button class="btn" data-a="imp58">IMPRIMIR 58 mm</button><button class="btn" data-a="impA4">IMPRIMIR A4</button></div>' +
       '<button class="btn btn-warn" data-a="reabrir">REABRIR OT</button>';
   }
   h += '<button class="btn btn-sec" data-a="todas"' + (t.bultos ? '' : ' disabled') + '>IMPRIMIR TODAS LAS ETIQUETAS</button>' +
@@ -5170,7 +5225,8 @@ Rotulado.etiqueta = function (c, acc, m) {
     '<label class="lbl" for="rqFmt">FORMATO</label><select id="rqFmt" class="inp sm">' + Rotulado.opcionesFormato(DB.cfg.formatoRapida) + '</select>' +
     '<button class="btn btn-ok btn-xl" data-a="imprimir">IMPRIMIR ETIQUETA</button>' +
     '<label class="chk"><input type="checkbox" id="rqEsc"' + (DB.cfg.escaneoImprime ? ' checked' : '') + '> Imprimir directo al escanear</label></div>' +
-    '<div class="card"><h2>Vista previa</h2><div class="prev" id="rqPrev"></div></div>';
+    '<div class="card"><h2>Vista previa</h2>' + ZoomImp.html() + '<div class="prev zprev" id="rqPrev"></div></div>';
+  ZoomImp.activar(m);
   var codigo = U.$('rqCod');
   m.oninput = function (e) { if (e.target.id === 'rqCod') Rapida.buscar(false); else if (e.target.id === 'rqDesc' || e.target.id === 'rqCant') Rapida.preview(); };
   m.onchange = function (e) { if (e.target.id === 'rqFmt') { DB.cfg.formatoRapida = e.target.value; DB.guardarCfg(); Rapida.preview(); } else if (e.target.id === 'rqEsc') { DB.cfg.escaneoImprime = e.target.checked; DB.guardarCfg(); } };
@@ -5197,8 +5253,9 @@ Rotulado.libre = function (c, acc, m) {
   });
   h += '<div class="btns"><button class="btn btn-sec btn-sm" data-a="addLn">+ LÍNEA</button><button class="btn btn-sec btn-sm" data-a="delLn">− LÍNEA</button><button class="btn btn-sec btn-sm" data-a="resetLn">RESTAURAR</button></div></div>' +
     '<div class="card"><button class="btn btn-ok btn-xl" data-a="impLibre">IMPRIMIR</button></div>' +
-    '<div class="card"><h2>Vista previa (primero)</h2><div class="prev" id="rlPrev"></div><div id="rlAviso"></div></div>';
+    '<div class="card"><h2>Vista previa (primero)</h2>' + ZoomImp.html() + '<div class="prev zprev" id="rlPrev"></div><div id="rlAviso"></div></div>';
   c.innerHTML = h;
+  ZoomImp.activar(c);
   var leer = function () {
     conf.cantidad = Math.max(1, Math.min(500, parseInt(U.$('rlCant').value, 10) || 1));
     conf.prefijo = U.$('rlPre').value; conf.orden = U.$('rlOrd').value; conf.cliente = U.$('rlCli').value;
@@ -5708,6 +5765,13 @@ Pantallas.datos = function (m) {
       '<input id="cfEnl" class="inp sm" readonly value="' + U.esc(enl) + '" style="font-size:12px">' +
       '<div class="btns"><button class="btn btn-ok btn-sm" data-a="enlWsp">ENVIAR POR WHATSAPP</button><button class="btn btn-sec btn-sm" data-a="enlCopiar">COPIAR</button></div>'
       : '<div class="aviso amar">Este equipo aún no está conectado. Ingrese la clave de acceso en <b>Sincronización</b> (más abajo) para generar el enlace.</div>') + '</div>' +
+    '<div class="card"><h2>🔍 Tamaño de impresión (este equipo)</h2>' +
+    '<div class="muted">Mueva la barra: a la derecha agranda y a la izquierda achica todo lo que se imprime en este equipo (etiquetas, rótulos, vouchers). La misma barra aparece en cada vista previa. Úselo si la impresión sale chica, por ejemplo con el servicio ESC/POS.</div>' +
+    ZoomImp.html() +
+    '<label class="lbl" for="cfPag">TAMAÑO DE PÁGINA</label><select id="cfPag" class="inp sm"><option value="etiqueta"' + (!Impresion.paginaServicio() ? ' selected' : '') + '>El de la etiqueta (58/80 mm × alto)</option><option value="servicio"' + (Impresion.paginaServicio() ? ' selected' : '') + '>El que fije el servicio de impresión (ESC/POS, RawBT…)</option></select>' +
+    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="calib58">CALIBRAR 58 mm</button><button class="btn btn-sec btn-sm" data-a="calib80">CALIBRAR 80 mm</button></div>' +
+    '<label class="lbl" for="cfMedido">LA BARRA DE 40 mm MIDIÓ (mm)</label><div class="fila"><div class="c"><input id="cfMedido" class="inp sm" type="number" step="0.5" min="5" max="300" placeholder="ej. 14"></div><div class="c"><button class="btn btn-ok btn-sm" data-a="zoomCalc" style="margin:0">CALCULAR</button></div></div>' +
+    '<div id="cfZoomInfo" class="muted"></div></div>' +
     '<div class="card"><h2>Configuración</h2>' +
     '<label class="lbl">NOMBRE EMPRESA</label><input id="cfEmp" class="inp sm" value="' + U.esc(c.empresa) + '">' +
     '<label class="lbl">SUBTÍTULO VOUCHER</label><input id="cfSub" class="inp sm" value="' + U.esc(c.subtitulo) + '">' +
@@ -5717,13 +5781,6 @@ Pantallas.datos = function (m) {
     '<label class="chk"><input type="checkbox" id="cfAi"' + (c.autoImprimir ? ' checked' : '') + '> Imprimir etiqueta al agregar bulto</label>' +
     '<label class="lbl">MÉTODO DE IMPRESIÓN</label><select id="cfMi" class="inp sm"><option value="documento"' + (c.metodoImpresion !== 'pagina' ? ' selected' : '') + '>Documento dedicado con fondo blanco (recomendado)</option><option value="pagina"' + (c.metodoImpresion === 'pagina' ? ' selected' : '') + '>Página completa (método anterior)</option></select>' +
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="prueba58">PRUEBA 58 mm</button><button class="btn btn-sec btn-sm" data-a="prueba80">PRUEBA 80 mm</button></div>' +
-    '<div class="card" style="margin:10px 0;background:#faf7fb"><h2 style="margin-top:0">Zoom de impresión (este equipo)</h2>' +
-    '<div class="muted">Si la etiqueta sale chica o grande (por ejemplo con el servicio de impresión ESC/POS), ajuste aquí. Se guarda solo en este equipo, porque cada impresora escala distinto.</div>' +
-    '<div class="fila"><div class="c"><button class="btn btn-sec" data-a="zoomMenos" style="margin:0">−</button></div><div class="c num"><input id="cfZoom" class="inp" type="number" min="30" max="600" step="5" value="' + Impresion.zoom() + '" style="text-align:center"></div><div class="c" style="max-width:40px;align-self:center;font-weight:bold">%</div><div class="c"><button class="btn btn-sec" data-a="zoomMas" style="margin:0">+</button></div></div>' +
-    '<label class="lbl" for="cfPag">TAMAÑO DE PÁGINA</label><select id="cfPag" class="inp sm"><option value="etiqueta"' + (!Impresion.paginaServicio() ? ' selected' : '') + '>El de la etiqueta (58/80 mm × alto)</option><option value="servicio"' + (Impresion.paginaServicio() ? ' selected' : '') + '>El que fije el servicio de impresión (ESC/POS, RawBT…)</option></select>' +
-    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="calib58">CALIBRAR 58 mm</button><button class="btn btn-sec btn-sm" data-a="calib80">CALIBRAR 80 mm</button></div>' +
-    '<label class="lbl" for="cfMedido">LA BARRA DE 40 mm MIDIÓ (mm)</label><div class="fila"><div class="c"><input id="cfMedido" class="inp sm" type="number" step="0.5" min="5" max="300" placeholder="ej. 14"></div><div class="c"><button class="btn btn-ok btn-sm" data-a="zoomCalc" style="margin:0">CALCULAR ZOOM</button></div></div>' +
-    '<div id="cfZoomInfo" class="muted"></div></div>' +
     '<label class="lbl">COURIERS (uno por línea)</label><textarea id="cfCou" class="inp" style="min-height:120px;font-family:Arial,sans-serif;font-size:15px">' + U.esc(c.couriers.join('\n')) + '</textarea>' +
     '<label class="lbl">CLAVE ADMINISTRADOR (acciones forzosas)</label><input id="cfAdm" class="inp sm" type="password" value="' + U.esc(c.claveAdmin || '') + '">' +
     '<label class="lbl">NOMBRE DE QUIEN AUTORIZA (por defecto)</label><input id="cfAdmNom" class="inp sm" value="' + U.esc(c.nombreAdmin || '') + '">' +
@@ -5786,26 +5843,15 @@ Pantallas.datos = function (m) {
         return false;
       } }] });
   };
-  var Datos_zoom = function (v, silencio) {
-    var z = Math.round(parseFloat(v) || 100);
-    if (z < 30) z = 30; if (z > 600) z = 600;
-    DB.cfg.zoomImpresion = z;
-    if (U.$('cfPag')) DB.cfg.paginaImpresion = U.$('cfPag').value;
-    DB.guardarCfg();
-    if (U.$('cfZoom')) U.$('cfZoom').value = z;
-    if (!silencio) UI.toast('Zoom de impresión: ' + z + ' %', 'ok');
-  };
-  m.onchange = function (e) { if (e.target && (e.target.id === 'cfZoom' || e.target.id === 'cfPag')) Datos_zoom(U.$('cfZoom').value); };
+  m.onchange = function (e) { if (e.target && e.target.id === 'cfPag') { DB.cfg.paginaImpresion = e.target.value; DB.guardarCfg(); UI.toast('Tamaño de página guardado', 'ok'); } };
   UI.delegar(m, {
-    zoomMenos: function () { Datos_zoom(Impresion.zoom() - 5); },
-    zoomMas: function () { Datos_zoom(Impresion.zoom() + 5); },
-    calib58: function () { Datos_zoom(U.$('cfZoom').value, true); Impresion.calibrar(58); },
-    calib80: function () { Datos_zoom(U.$('cfZoom').value, true); Impresion.calibrar(80); },
+    calib58: function () { Impresion.calibrar(58); },
+    calib80: function () { Impresion.calibrar(80); },
     zoomCalc: function () {
       var med = parseFloat(String(U.$('cfMedido').value).replace(',', '.'));
       if (!(med >= 5 && med <= 300)) { UI.toast('Ingrese cuánto midió la barra, en mm', 'error'); return; }
       var nz = Math.round(Impresion.zoom() * 40 / med);
-      Datos_zoom(nz);
+      ZoomImp.fijar(nz); DB.guardarCfg();
       U.$('cfMedido').value = '';
       U.$('cfZoomInfo').innerHTML = 'Midió ' + med + ' mm → zoom nuevo <b>' + Impresion.zoom() + ' %</b>. Imprima la calibración otra vez para confirmar.';
     },
