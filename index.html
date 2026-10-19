@@ -430,7 +430,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.16.0', build: '2026-10-18', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.16.1', build: '2026-10-18', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -905,10 +905,11 @@ var Pedidos = {
 
 var REGIONES_CL = ['ARICA Y PARINACOTA', 'TARAPACÁ', 'ANTOFAGASTA', 'ATACAMA', 'COQUIMBO', 'VALPARAÍSO', 'METROPOLITANA', "LIBERTADOR B. O'HIGGINS", 'MAULE', 'ÑUBLE', 'BIOBÍO', 'LA ARAUCANÍA', 'LOS RÍOS', 'LOS LAGOS', 'AYSÉN', 'MAGALLANES'];
 var CAMPOS_DIRECCION = [
+  { k: 'rut', n: 'RUT', max: 12 },
   { k: 'nombre', n: 'NOMBRE', max: 80, req: true },
   { k: 'region', n: 'REGIÓN', max: 40, req: true },
-  { k: 'comuna', n: 'COMUNA', max: 40, req: true },
   { k: 'ciudad', n: 'CIUDAD', max: 40 },
+  { k: 'comuna', n: 'COMUNA', max: 40, req: true },
   { k: 'calle', n: 'CALLE', max: 80, req: true },
   { k: 'numero', n: 'NÚMERO', max: 12, req: true },
   { k: 'referencia', n: 'REFERENCIA (depto, oficina, indicaciones)', max: 80 },
@@ -923,6 +924,7 @@ var EnvioDatos = {
     U.each(CAMPOS_DIRECCION, function (c) {
       var v = U.trim(String(d[c.k] == null ? '' : d[c.k])).replace(/\s+/g, ' ');
       if (c.k === 'correo') v = v.toLowerCase().replace(/\s/g, '');
+      else if (c.k === 'rut') { v = v.replace(/[^0-9kK]/g, '').toUpperCase(); if (v.length >= 2) v = v.slice(0, -1) + '-' + v.slice(-1); }
       else if (c.k === 'telefono') v = v.replace(/[^0-9+]/g, '');
       else v = v.toUpperCase();
       o[c.k] = v.substr(0, c.max);
@@ -934,6 +936,7 @@ var EnvioDatos = {
     var e = [];
     if (!EnvioDatos.tieneDatos(d)) return e;
     U.each(CAMPOS_DIRECCION, function (c) { if (c.req && !U.trim(d[c.k])) e.push(titulo + ': falta ' + c.n.split(' (')[0]); });
+    if (d.rut && !DespachoGrupo.rutValido(d.rut)) e.push(titulo + ': RUT inválido (revise el dígito verificador)');
     if (d.correo && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(d.correo)) e.push(titulo + ': correo inválido');
     var dig = String(d.telefono || '').replace(/\D/g, '');
     if (d.telefono && (dig.length < 8 || dig.length > 12)) e.push(titulo + ': teléfono debe tener entre 8 y 12 dígitos');
@@ -964,6 +967,7 @@ var EnvioDatos = {
       var id = pref + c.k;
       if (c.k === 'region') return '<label class="lbl" for="' + id + '">' + c.n + '</label><select id="' + id + '" class="inp sm"><option value=""></option>' + U.map(REGIONES_CL, function (r) { return '<option' + (d.region === r ? ' selected' : '') + '>' + U.esc(r) + '</option>'; }).join('') + '</select>';
       var tipo = c.k === 'correo' ? 'email' : (c.k === 'telefono' ? 'tel' : 'text');
+      if (c.k === 'rut') return '<label class="lbl" for="' + id + '">' + c.n + ' <span class="unidad">opcional · con dígito verificador</span></label><input id="' + id + '" class="inp sm" type="text" maxlength="12" autocomplete="off" placeholder="12.345.678-9" value="' + U.esc(d.rut ? DespachoGrupo.rutFormato(d.rut) : '') + '">';
       return '<label class="lbl" for="' + id + '">' + c.n + '</label><input id="' + id + '" class="inp sm" type="' + tipo + '" maxlength="' + c.max + '" autocomplete="off"' + (c.k === 'telefono' ? ' inputmode="tel" placeholder="56912345678"' : '') + ' value="' + U.esc(d[c.k] || '') + '">';
     }).join('');
   },
