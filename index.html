@@ -297,6 +297,17 @@ textarea.inp{font-size:13px;border-radius:8px}
 .doc .dh .o{font-weight:600}
 .doc .db{border-top:1px solid #eee8ef;background:#faf8fb}
 .bl{border-bottom:1px solid #eee8ef}
+.frow{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;min-height:48px;padding:3px 0;border-bottom:1px solid #eee8ef}
+.frow>*{margin:0 6px 0 0}.frow>*:last-child{margin-right:0}
+.frow .fx{-webkit-box-flex:1;-webkit-flex:1;flex:1;min-width:0}
+.frow .inp.sm,.frow .mini,.frow .tg{height:40px;margin-top:0;margin-bottom:0}
+.frow .chk{padding:0;line-height:20px}
+.frow .ptIn{width:76px;-webkit-flex:none;flex:none;text-align:center;padding:2px 4px}
+.frow .tg{display:inline-block;line-height:38px;padding:0 8px;border:1px solid #8e8794;border-radius:6px;font-size:14px;font-weight:bold;white-space:nowrap;background:#fff}
+.frow .tg input{vertical-align:middle;margin:0 4px 0 0}
+.frow .mini{margin-left:0}
+.frow.cab{min-height:0;font-size:12px;color:#625b71;border-bottom:0;padding:0}
+.frow.cab .ptIn,.frow.cab .tg,.frow.cab .mini{height:auto;border:0;background:none;line-height:16px;font-weight:normal}
 .grp{border:1px solid #d6ced9;border-radius:10px}
 .grp.comp{border-color:#1b7a3d;background:#e3f4e8}
 .lista .it{border:1px solid #e7e0ea;border-radius:10px;padding:10px 12px;margin-bottom:6px}
@@ -438,7 +449,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.18.0', build: '2026-10-19', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.19.0', build: '2026-10-20', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -919,6 +930,12 @@ var Pedidos = {
 };
 
 var REGIONES_CL = ['ARICA Y PARINACOTA', 'TARAPACÁ', 'ANTOFAGASTA', 'ATACAMA', 'COQUIMBO', 'VALPARAÍSO', 'METROPOLITANA', "LIBERTADOR B. O'HIGGINS", 'MAULE', 'ÑUBLE', 'BIOBÍO', 'LA ARAUCANÍA', 'LOS RÍOS', 'LOS LAGOS', 'AYSÉN', 'MAGALLANES'];
+var PT_MIN = 6, PT_MAX = 120, PT_LISTA = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 96];
+var Pt = {
+  lista: function (id) { return '<datalist id="' + id + '">' + U.map(PT_LISTA, function (p) { return '<option value="' + p + '">'; }).join('') + '</datalist>'; },
+  input: function (cls, v, lista, extra) { return '<input class="inp sm ptIn ' + cls + '" type="number" min="' + PT_MIN + '" max="' + PT_MAX + '" step="1" inputmode="numeric" list="' + lista + '" value="' + (v || 10) + '"' + (extra || '') + '>'; },
+  leer: function (el, def) { var v = parseFloat(String(el && el.value || '').replace(',', '.')); if (!(v > 0)) v = def || 10; return Math.max(PT_MIN, Math.min(PT_MAX, Math.round(v * 2) / 2)); }
+};
 var CAMPOS_DIRECCION = [
   { k: 'rut', n: 'RUT', max: 12 },
   { k: 'nombre', n: 'NOMBRE', max: 80, req: true },
@@ -1998,7 +2015,7 @@ function entrarDatos(fn) {
 
 var Sync = {
   _t: null, _enCurso: false, _cola: [],
-  FUNCIONES: ['satInfo','satSubir','satBajar','satCatalogo','satMedidas','satUbicaciones','satUbicacionesImportar','satUbicacionesGuardar','satCatalogoImportar','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
+  FUNCIONES: ['satInfo','satFormatosLeer','satFormatosGuardar','satSubir','satBajar','satCatalogo','satMedidas','satUbicaciones','satUbicacionesImportar','satUbicacionesGuardar','satCatalogoImportar','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
   gas: function () { try { return typeof google !== 'undefined' && !!google.script && !!google.script.run; } catch (e) { return false; } },
   urlServidor: function () {
     var u = U.trim((DB.cfg && DB.cfg.sync && DB.cfg.sync.url) || '');
@@ -2151,7 +2168,7 @@ var Sync = {
   },
   bajarTodo: function(cb) {
     Sync._conf = 0;
-    var pasos=[Sync.bajar, Sync.subirPedidos, Sync.bajarPedidos, Sync.subirCubicaciones, Sync.bajarCubicaciones, function(sig){ if (typeof ProdSync==='undefined') { sig(true); return; } ProdSync.actualizar(function(){ sig(true); }, true); }], i=0;
+    var pasos=[Sync.bajar, Sync.subirPedidos, Sync.bajarPedidos, Sync.subirCubicaciones, Sync.bajarCubicaciones, function(sig){ if (typeof ProdSync==='undefined') { sig(true); return; } ProdSync.actualizar(function(){ sig(true); }, true); }, function(sig){ FormSync.sincronizar(function(){ sig(true); }); }], i=0;
     var sig=function(ok,msg){
       if(ok===false){cb(false,msg);return;}
       if(i>=pasos.length){
@@ -2601,7 +2618,7 @@ var Plantillas = {
     return String(b.orden || '');
   },
   etiquetaBulto: function (ot, b, fmtId) {
-    var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto), pb = Plantillas._posBulto(ot, b), util = f.ancho - 4, ls = [], i, total = 0;
+    var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto), pb = Plantillas._posBulto(ot, b), mg = Plantillas.margen(f), util = f.ancho - 4 - 2 * mg, ls = [], i, total = 0;
     for (i = 0; i < f.campos.length; i++) {
       var c = f.campos[i], v = Plantillas.valorBulto(ot, b, c.k, c, pb);
       if (!U.trim(v)) continue;
@@ -2611,13 +2628,13 @@ var Plantillas = {
     }
     var bar = f.barra ? Plantillas.codigoBulto(f, b) : '', altoBar = bar ? (f.altoBarra || 8) + (f.textoBarra ? 4 : 0) + 1 : 0;
     if (f.tipo === 'troquel') {
-      var disp = f.alto - 2.6 - altoBar - (ls.length ? 0.4 * (ls.length - 1) : 0);
+      var disp = f.alto - 2.6 - 2 * mg - altoBar - (ls.length ? 0.4 * (ls.length - 1) : 0);
       if (total > disp && total > 0) { var k2 = disp / total; U.each(ls, function (x) { x.pt = Math.max(6, Math.floor(x.pt * k2 * 2) / 2); }); }
     }
     var h = '';
     U.each(ls, function (x, j) { h += '<div class="ln" style="font-size:' + x.pt + 'pt;line-height:1.12;font-weight:' + (x.b ? 'bold' : 'normal') + ';white-space:nowrap;overflow:hidden' + (j && (x.k === 'orden' || x.k === 'seguimiento' || x.k === 'medidas') ? ';border-top:0.3mm solid #000' : '') + '">' + U.esc(x.v) + '</div>'; });
     if (bar) h += Code128.svg(bar, f.altoBarra || 8, !!f.textoBarra);
-    var st = f.tipo === 'troquel' ? 'width:' + f.ancho + 'mm;height:' + f.alto + 'mm;padding:1.2mm 2mm;box-sizing:border-box;overflow:hidden;' : 'width:' + util + 'mm;max-width:' + util + 'mm;padding:1mm 0 3mm;';
+    var st = f.tipo === 'troquel' ? 'width:' + f.ancho + 'mm;height:' + f.alto + 'mm;padding:' + (1.2 + mg) + 'mm ' + (2 + mg) + 'mm;box-sizing:border-box;overflow:hidden;' : 'width:' + (util + 2 * mg) + 'mm;max-width:' + (util + 2 * mg) + 'mm;padding:' + (1 + mg) + 'mm ' + mg + 'mm ' + (3 + mg) + 'mm;';
     return '<div class="hoja ep" style="' + st + 'text-align:center;font-family:Arial,Helvetica,sans-serif">' + (h || '&nbsp;') + '</div>';
   },
   etiquetasDe: function (ot, bultos, fmtId) { return U.map(bultos, function (b) { return Plantillas.etiquetaBulto(ot, b, fmtId); }).join(''); },
@@ -2717,10 +2734,12 @@ var Plantillas = {
         (Catalogo.esBarcodeValido(p.codigoBarra) ? p.codigoBarra : p.codigo));
       h += Code128.svg(vb, fmt.altoBarra || 10, fmt.textoBarra);
     }
-    if (fmt.tipo === 'troquel') st = 'width:' + fmt.ancho + 'mm;height:' + fmt.alto + 'mm;padding:1.5mm;';
-    else st = 'width:' + (fmt.ancho - 4) + 'mm;max-width:' + (fmt.ancho - 4) + 'mm;padding:1mm 0 3mm;';
+    var mg = Plantillas.margen(fmt);
+    if (fmt.tipo === 'troquel') st = 'width:' + fmt.ancho + 'mm;height:' + fmt.alto + 'mm;padding:' + (1.5 + mg) + 'mm;';
+    else st = 'width:' + (fmt.ancho - 4) + 'mm;max-width:' + (fmt.ancho - 4) + 'mm;padding:' + (1 + mg) + 'mm ' + mg + 'mm ' + (3 + mg) + 'mm;';
     return '<div class="hoja ep" style="' + st + '">' + h + '</div>';
   },
+  margen: function (f) { var m = f ? Number(f.margen) : 0; return m > 0 ? Math.min(15, Math.round(m * 2) / 2) : 0; },
   opcionesFormato: function (fmt) { return fmt.tipo === 'troquel' ? { tipo: 'troquel', ancho: fmt.ancho, alto: fmt.alto } : { tipo: 'rollo', ancho: fmt.ancho }; },
   marcadores: function (t, conf, i, n) {
     return String(t || '').replace(/\{bulto\}/g, i + '/' + n).replace(/\{prefijo\}/g, conf.prefijo || '').replace(/\{orden\}/g, conf.orden || '')
@@ -2733,8 +2752,9 @@ var Plantillas = {
       var v = Plantillas.marcadores(l.t, conf, i, n);
       if (U.trim(v)) h += '<div class="ln" style="font-size:' + (l.pt || 12) + 'pt;font-weight:' + (l.b ? 'bold' : 'normal') + '">' + U.esc(v) + '</div>';
     });
-    if (fmt && fmt.tipo === 'troquel') st = 'width:' + fmt.ancho + 'mm;height:' + fmt.alto + 'mm;padding:1.5mm;box-sizing:border-box;overflow:hidden;';
-    else { var an = (fmt && fmt.ancho ? fmt.ancho : 58) - 4; st = 'width:' + an + 'mm;max-width:' + an + 'mm;padding:2mm 0 4mm;'; }
+    var mg = Plantillas.margen(fmt);
+    if (fmt && fmt.tipo === 'troquel') st = 'width:' + fmt.ancho + 'mm;height:' + fmt.alto + 'mm;padding:' + (1.5 + mg) + 'mm;box-sizing:border-box;overflow:hidden;';
+    else { var an = (fmt && fmt.ancho ? fmt.ancho : 58) - 4; st = 'width:' + an + 'mm;max-width:' + an + 'mm;padding:' + (2 + mg) + 'mm ' + mg + 'mm ' + (4 + mg) + 'mm;'; }
     return '<div class="hoja ep" style="' + st + 'border-bottom:0">' + (h || '&nbsp;') + '</div>';
   }
 };
@@ -2906,7 +2926,7 @@ var App = {
     App.ir('inicio');
     Asistente.init();
     if (Activacion.pendiente()) setTimeout(function () { Activacion.mostrar(); }, 400);
-    else Compartida.bajar();
+    else Compartida.bajar(function () { FormSync.sincronizar(); });
     setTimeout(function () { if (Sync.modo() !== 'local') Sync.ejecutar(); }, 1200);
     setInterval(function () {
       if (Sync.modo() === 'local') return;
@@ -4466,6 +4486,53 @@ var Compartida = {
   }
 };
 
+var FormSync = {
+  _ult: '',
+  firma: function (l, e) { return JSON.stringify([U.map(l || [], function (f) { return f.id + '@' + (f.act || ''); }).sort(), U.map(Object.keys(e || {}), function (k) { return k + '@' + e[k]; }).sort()]); },
+  fusionar: function (a, b) {
+    var elim = {}, por = {}, orden = [], k, out = [];
+    U.each([a, b], function (x) { var e = (x && x.elim) || {}; for (k in e) if (!elim[k] || String(e[k]) > elim[k]) elim[k] = String(e[k]); });
+    U.each([a, b], function (x) {
+      U.each((x && x.formatos) || [], function (f) {
+        if (!f || !f.id) return;
+        var p = por[f.id];
+        if (!p) { por[f.id] = f; orden.push(f.id); } else if (String(f.act || '') > String(p.act || '')) por[f.id] = f;
+      });
+    });
+    U.each(orden, function (id) { var f = por[id]; if (elim[id] && elim[id] >= String(f.act || '')) return; out.push(f); });
+    return { formatos: out, elim: elim };
+  },
+  eliminar: function (id) { if (!id) return; if (!DB.cfg.formatosElim) DB.cfg.formatosElim = {}; DB.cfg.formatosElim[id] = new Date().toISOString(); DB.guardarCfg(); },
+  aplicar: function (m) {
+    var antes = FormSync.firma(DB.formatos, DB.cfg.formatosElim), l = U.clone(m.formatos);
+    if (!U.find(l, function (x) { return x.uso !== 'bulto'; })) l = U.clone(FORMATOS_DEFECTO).concat(l);
+    if (!U.find(l, function (x) { return x.uso === 'bulto'; })) l = l.concat(U.clone(FORMATOS_BULTO_DEFECTO));
+    DB.formatos = l; DB.cfg.formatosElim = m.elim || {};
+    if (DB.cfg.formatoBulto && !U.find(l, function (x) { return x.id === DB.cfg.formatoBulto; })) DB.cfg.formatoBulto = (U.find(l, function (x) { return x.uso === 'bulto'; }) || {}).id;
+    DB.guardarFormatos(); DB.guardarCfg();
+    return antes !== FormSync.firma(DB.formatos, DB.cfg.formatosElim);
+  },
+  sincronizar: function (cb) {
+    if (!Compartida.activo()) { if (cb) cb(false, 'sin conexión'); return; }
+    Sync.llamar('satFormatosLeer', {}, function (r) {
+      var nube = { formatos: (r && r.formatos) || [], elim: (r && r.elim) || {} };
+      var m = FormSync.fusionar(nube, { formatos: DB.formatos, elim: DB.cfg.formatosElim || {} });
+      var cambio = FormSync.aplicar(m);
+      var fin = function (ok, msg) { if (ok) { DB.cfg.formatosNube = new Date().toISOString(); DB.guardarCfg(); } if (cambio && App.pantalla === 'rotulado' && !UI.abierto()) App.ir('rotulado'); if (cb) cb(ok, ok ? cambio : msg); };
+      if (FormSync.firma(m.formatos, m.elim) === FormSync.firma(nube.formatos, nube.elim)) { fin(true); return; }
+      Sync.llamar('satFormatosGuardar', { formatos: m.formatos, elim: m.elim }, function (r2) { if (r2 && r2.formatos && FormSync.aplicar({ formatos: r2.formatos, elim: r2.elim })) cambio = true; fin(true); }, function (msg) { fin(false, msg); });
+    }, function (msg) { if (cb) cb(false, msg); });
+  },
+  publicar: function (txt) {
+    if (!Compartida.activo()) { UI.toast(txt + ' en este equipo (sin conexión a la nube)', 'warn', 3500); return; }
+    FormSync.sincronizar(function (ok, msg) { UI.toast(ok ? txt + ' y compartido con todos los equipos' : txt + ' en este equipo; no se pudo compartir: ' + (msg || ''), ok ? 'ok' : 'warn', 4000); var e = U.$('fsEst'); if (e) e.innerHTML = FormSync.estado(); });
+  },
+  estado: function () {
+    if (!Compartida.activo()) return 'Formatos guardados solo en este equipo (sin conexión a la nube).';
+    return 'Formatos compartidos en la nube con todos los equipos conectados' + (DB.cfg.formatosNube ? ' · última sincronización ' + U.fechaCL(DB.cfg.formatosNube.substr(0, 10)) + ' ' + DB.cfg.formatosNube.substr(11, 5) + ' UTC' : ' · aún sin sincronizar') + '.';
+  }
+};
+
 var Activacion = {
   avisado: false,
   pendiente: function () { return Sync.modo() === 'url' && !DB.cfg.sync.token; },
@@ -4496,6 +4563,7 @@ var Activacion = {
       s.token = t; s.sinConexion = false; s.ultimoError = ''; s.intentosFallidos = 0; DB.guardarCfg();
       Activacion.avisado = false;
       Compartida.bajar(function () {
+        FormSync.sincronizar();
         UI.cerrarModal();
         App.ir(App.pantalla === 'datos' ? 'inicio' : App.pantalla);
         UI.toast('Equipo activado' + (r && r.nombre ? ' · ' + r.nombre : ''), 'ok', 4000);
@@ -5441,12 +5509,12 @@ Rotulado.libre = function (c, acc, m) {
     '<label class="lbl">ORDEN</label><input id="rlOrd" class="inp sm" value="' + U.esc(conf.orden) + '">' +
     '<label class="lbl">CLIENTE</label><input id="rlCli" class="inp sm" value="' + U.esc(conf.cliente) + '">' +
     '<label class="lbl" for="rlFmt">FORMATO</label><select id="rlFmt" class="inp sm">' + Rotulado.opcionesFormato(DB.formato(DB.cfg.formatoRotulo).id) + '</select></div>' +
-    '<div class="card"><h2>Líneas del rótulo</h2>';
+    '<div class="card"><h2>Líneas del rótulo</h2><div class="frow cab"><span class="fx">Texto</span><span class="ptIn">Tamaño pt</span><span class="tg">Negrita</span></div>';
   U.each(conf.lineas, function (l, i) {
-    h += '<div class="fila" style="margin-bottom:4px"><div class="c2"><input class="inp sm rlT" data-i="' + i + '" value="' + U.esc(l.t) + '"></div>' +
-      '<div class="c"><select class="inp sm rlP" data-i="' + i + '">' + U.map([9, 10, 12, 14, 16, 20, 26, 32], function (p) { return '<option value="' + p + '"' + (p === l.pt ? ' selected' : '') + '>' + p + 'pt</option>'; }).join('') + '</select></div>' +
-      '<div style="padding:0 3px"><label class="chk" style="padding:10px 0"><input type="checkbox" class="rlB" data-i="' + i + '"' + (l.b ? ' checked' : '') + '>N</label></div></div>';
+    h += '<div class="frow"><input class="inp sm fx rlT" data-i="' + i + '" value="' + U.esc(l.t) + '">' + Pt.input('rlP', l.pt || 12, 'ptListaR', ' data-i="' + i + '"') +
+      '<label class="tg"><input type="checkbox" class="rlB" data-i="' + i + '"' + (l.b ? ' checked' : '') + '>N</label></div>';
   });
+  h += Pt.lista('ptListaR') + '<div class="muted">Tamaño en puntos: elija de la lista o escriba el valor (' + PT_MIN + ' a ' + PT_MAX + ', p. ej. 48 o 72). N = negrita.</div>';
   h += '<div class="btns"><button class="btn btn-sec btn-sm" data-a="addLn">+ LÍNEA</button><button class="btn btn-sec btn-sm" data-a="delLn">− LÍNEA</button><button class="btn btn-sec btn-sm" data-a="resetLn">RESTAURAR</button></div></div>' +
     '<div class="card"><button class="btn btn-ok btn-xl" data-a="impLibre">IMPRIMIR</button></div>' +
     '<div class="card"><h2>Vista previa (primero)</h2>' + ZoomImp.html() + '<div class="prev zprev" id="rlPrev"></div><div id="rlAviso"></div></div>';
@@ -5456,7 +5524,7 @@ Rotulado.libre = function (c, acc, m) {
     conf.cantidad = Math.max(1, Math.min(500, parseInt(U.$('rlCant').value, 10) || 1));
     conf.prefijo = U.$('rlPre').value; conf.orden = U.$('rlOrd').value; conf.cliente = U.$('rlCli').value;
     var t = U.qa(c, '.rlT'), p = U.qa(c, '.rlP'), b = U.qa(c, '.rlB');
-    for (var i = 0; i < t.length; i++) conf.lineas[i] = { t: t[i].value, pt: +p[i].value, b: b[i].checked };
+    for (var i = 0; i < t.length; i++) conf.lineas[i] = { t: t[i].value, pt: Pt.leer(p[i], 12), b: b[i].checked };
     if (U.$('rlFmt')) DB.cfg.formatoRotulo = U.$('rlFmt').value;
     DB.guardarCfg();
     var fmt = DB.formato(DB.cfg.formatoRotulo);
@@ -5537,13 +5605,21 @@ Rotulado.formatos = function (c, acc) {
   };
   c.innerHTML = '<div class="card"><h2>Etiquetas de bulto (Cubicación y Packing)</h2><div class="lista">' + lista('bulto') + '</div><button class="btn btn-ok" data-a="nuevoFB">+ NUEVO FORMATO DE BULTO</button></div>' +
     '<div class="card"><h2>Etiquetas de producto</h2><div class="lista">' + lista('producto') + '</div><button class="btn btn-ok" data-a="nuevoF">+ NUEVO FORMATO DE PRODUCTO</button></div>' +
-    '<div class="card"><button class="btn btn-sec btn-sm" data-a="resetF">RESTAURAR PREDETERMINADOS</button></div>';
+    '<div class="card"><div class="muted" id="fsEst">' + FormSync.estado() + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="syncF">ACTUALIZAR DESDE LA NUBE</button><button class="btn btn-sec btn-sm" data-a="resetF">RESTAURAR PREDETERMINADOS</button></div></div>';
+  acc.syncF = function () {
+    if (!Compartida.activo()) { UI.toast('Este equipo no está conectado a la nube: los formatos quedan solo aquí', 'warn', 4500); return; }
+    UI.toast('Sincronizando formatos…', '', 1500);
+    FormSync.sincronizar(function (ok, msg) { UI.toast(ok ? 'Formatos al día con la nube (' + DB.formatos.length + ')' : 'No se pudo sincronizar: ' + (msg || ''), ok ? 'ok' : 'error', 4000); if (App.pantalla === 'rotulado') App.ir('rotulado'); });
+  };
   acc.editF = function (i) { Rotulado.editarFormato(+i); };
   acc.nuevoF = function () { Rotulado.editarFormato(-1, 'producto'); };
   acc.nuevoFB = function () { Rotulado.editarFormato(-1, 'bulto'); };
   acc.resetF = function () {
     UI.confirmar('¿Restaurar los formatos predeterminados de producto y de bulto? Se perderán los formatos creados o modificados.', function () {
-      DB.formatos = U.clone(FORMATOS_DEFECTO).concat(U.clone(FORMATOS_BULTO_DEFECTO)); DB.guardarFormatos(); App.ir('rotulado'); UI.toast('Formatos restaurados', 'ok');
+      var ahora = new Date().toISOString(), base = {};
+      U.each(FORMATOS_DEFECTO.concat(FORMATOS_BULTO_DEFECTO), function (x) { base[x.id] = 1; });
+      U.each(DB.formatos, function (x) { if (!base[x.id]) FormSync.eliminar(x.id); });
+      DB.formatos = U.map(U.clone(FORMATOS_DEFECTO).concat(U.clone(FORMATOS_BULTO_DEFECTO)), function (x) { x.act = ahora; return x; }); DB.guardarFormatos(); App.ir('rotulado'); FormSync.publicar('Formatos restaurados');
     }, { peligro: true, si: 'RESTAURAR' });
   };
 };
@@ -5555,18 +5631,19 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
   for (var k in CAT) if (orden.indexOf(k) < 0) orden.push(k);
   var h = '<label class="lbl">NOMBRE</label><input id="efNom" class="inp sm" value="' + U.esc(f.nombre) + '">' +
     '<div class="fila"><div class="c2"><label class="lbl">TIPO</label><select id="efTipo" class="inp sm"><option value="rollo"' + (f.tipo === 'rollo' ? ' selected' : '') + '>Rollo continuo</option><option value="troquel"' + (f.tipo === 'troquel' ? ' selected' : '') + '>Troquelada (fija)</option></select></div>' +
-    '<div class="c"><label class="lbl">ANCHO mm</label><input id="efAn" class="inp sm" type="number" min="20" max="120" value="' + f.ancho + '"></div>' +
-    '<div class="c"><label class="lbl">ALTO mm</label><input id="efAl" class="inp sm" type="number" min="0" max="200" value="' + (f.alto || 0) + '"></div></div>' +
-    '<div class="muted">Alto solo aplica a troqueladas. Rollo: el alto se ajusta al contenido.</div>' +
-    '<h3 style="margin:10px 0 4px;font-size:15px">Campos (marcar, tamaño pt, negrita, orden)</h3>';
+    '<div class="c"><label class="lbl">ANCHO mm</label><input id="efAn" class="inp sm" type="number" min="20" max="120" value="' + f.ancho + '"></div></div>' +
+    '<div class="fila"><div class="c"><label class="lbl">ALTO mm</label><input id="efAl" class="inp sm" type="number" min="0" max="200" value="' + (f.alto || 0) + '"></div>' +
+    '<div class="c"><label class="lbl">MARGEN mm</label><input id="efMg" class="inp sm" type="number" min="0" max="15" step="0.5" inputmode="decimal" value="' + Plantillas.margen(f) + '"></div></div>' +
+    '<div class="muted">Alto solo aplica a troqueladas. Rollo: el alto se ajusta al contenido. Margen: espacio en blanco adicional en los cuatro bordes (0 = como hasta ahora).</div>' +
+    '<h3 style="margin:10px 0 4px;font-size:15px">Campos</h3>' + Pt.lista('ptListaE') +
+    '<div class="frow cab"><span class="fx">Campo (marcar para imprimir)</span><span class="ptIn">Tamaño pt</span><span class="tg">Negrita</span><span class="mini">Orden</span></div>';
   U.each(orden, function (k, i) {
     var cf = U.find(f.campos, function (x) { return x.k === k; }) || { k: k, pt: 10, b: false };
     var on = !!U.find(f.campos, function (x) { return x.k === k; });
-    h += '<div class="bl efRow" data-k="' + k + '"><div class="i"><label class="chk" style="padding:4px 0"><input type="checkbox" class="efOn"' + (on ? ' checked' : '') + '>' + U.esc(CAT[k] || k) + '</label>' +
-      (k === 'textoFijo' ? '<input class="inp sm efVal" style="width:150px" placeholder="texto" value="' + U.esc(cf.valor || '') + '">' : '') + '</div>' +
-      '<div class="a"><input class="inp sm efPt" type="number" min="9" max="40" value="' + cf.pt + '" style="width:62px;display:inline-block;text-align:center">' +
-      '<label style="font-size:13px"><input type="checkbox" class="efB"' + (cf.b ? ' checked' : '') + '>N</label>' +
-      '<button class="mini" data-ef="up">↑</button></div></div>';
+    h += '<div class="frow efRow" data-k="' + k + '"><label class="chk' + (k === 'textoFijo' ? '" style="white-space:nowrap' : ' fx') + '"><input type="checkbox" class="efOn"' + (on ? ' checked' : '') + '>' + U.esc(CAT[k] || k) + '</label>' +
+      (k === 'textoFijo' ? '<input class="inp sm fx efVal" placeholder="Texto a imprimir" value="' + U.esc(cf.valor || '') + '">' : '') +
+      Pt.input('efPt', cf.pt, 'ptListaE') + '<label class="tg"><input type="checkbox" class="efB"' + (cf.b ? ' checked' : '') + '>N</label>' +
+      '<button class="mini" data-ef="up" title="Subir">↑</button></div>';
   });
   h += '<label class="chk"><input type="checkbox" id="efBar"' + (f.barra ? ' checked' : '') + '> Código de barras (Code 128)</label>' +
     '<div class="fila"><div class="c2"><label class="lbl">VALOR DEL CÓDIGO</label><select id="efCB" class="inp sm">' +
@@ -5578,7 +5655,7 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
   var botones = [{ txt: 'CANCELAR', cls: 'btn-sec' }];
   if (idx >= 0) botones.push({ txt: 'ELIMINAR', cls: 'btn-dan', fn: function () {
     if (DB.formatosDe(esBulto ? 'bulto' : 'producto').length <= 1) { UI.toast('Debe existir al menos un formato de este tipo', 'error'); return false; }
-    UI.confirmar('¿Eliminar el formato "' + f.nombre + '"?', function () { DB.formatos.splice(idx, 1); DB.guardarFormatos(); App.ir('rotulado'); }, { peligro: true, si: 'ELIMINAR' });
+    UI.confirmar('¿Eliminar el formato "' + f.nombre + '"?', function () { FormSync.eliminar(f.id); DB.formatos.splice(idx, 1); DB.guardarFormatos(); App.ir('rotulado'); FormSync.publicar('Formato eliminado'); }, { peligro: true, si: 'ELIMINAR' });
     return false;
   } });
   botones.push({ txt: 'GUARDAR', cls: 'btn-ok', fn: function () {
@@ -5586,18 +5663,19 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       if (!r.querySelector('.efOn').checked) continue;
-      var pt = Math.max(9, Math.min(40, parseInt(r.querySelector('.efPt').value, 10) || 10)), cf = { k: r.getAttribute('data-k'), pt: pt, b: r.querySelector('.efB').checked };
+      var pt = Pt.leer(r.querySelector('.efPt'), 10), cf = { k: r.getAttribute('data-k'), pt: pt, b: r.querySelector('.efB').checked };
       if (cf.k === 'textoFijo') cf.valor = r.querySelector('.efVal').value;
       campos.push(cf);
     }
     var nf = { id: f.id || U.uid(esBulto ? 'bul-' : 'fmt-'), uso: esBulto ? 'bulto' : 'producto', nombre: U.trim(U.$('efNom').value) || 'Formato', tipo: U.$('efTipo').value,
       ancho: Math.max(20, Math.min(120, parseInt(U.$('efAn').value, 10) || 58)), alto: Math.max(0, parseInt(U.$('efAl').value, 10) || 0),
-      barra: U.$('efBar').checked, campoBarra: U.$('efCB').value, altoBarra: Math.max(5, Math.min(30, parseInt(U.$('efBA').value, 10) || 10)), textoBarra: U.$('efBT').checked, campos: campos };
+      margen: Plantillas.margen({ margen: parseFloat(String(U.$('efMg').value).replace(',', '.')) || 0 }),
+      barra: U.$('efBar').checked, campoBarra: U.$('efCB').value, altoBarra: Math.max(5, Math.min(30, parseInt(U.$('efBA').value, 10) || 10)), textoBarra: U.$('efBT').checked, campos: campos, act: new Date().toISOString() };
     if (nf.tipo === 'troquel' && nf.alto < 10) { UI.toast('Una troquelada necesita ALTO (mm)', 'error'); return false; }
     if (!campos.length && !nf.barra) { UI.toast('Marque al menos un campo o el código de barras', 'error'); return false; }
     if (idx >= 0) DB.formatos[idx] = nf; else DB.formatos.push(nf);
     if (esBulto && U.$('efDef') && U.$('efDef').checked) { DB.cfg.formatoBulto = nf.id; DB.guardarCfg(); }
-    DB.guardarFormatos(); UI.toast('Formato guardado', 'ok'); App.ir('rotulado');
+    DB.guardarFormatos(); App.ir('rotulado'); FormSync.publicar('Formato guardado');
   } });
   var host = UI.modal({ titulo: idx >= 0 ? 'Editar formato' : 'Nuevo formato', html: h, botones: botones });
   var prev = host.onclick;
