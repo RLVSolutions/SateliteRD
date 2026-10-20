@@ -228,8 +228,9 @@ textarea.inp { height: auto; min-height: 90px; font-size: 14px; font-family: "Co
 .fmt-prev .hoja { display: inline-block; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
 .ep .ln { line-height: 1.12; word-wrap: break-word; }
 @media print {
-  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-  #hdr, #nav, #main, #toast, #modalHost, #banner, #wsp { display: none !important; }
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; -webkit-text-size-adjust: 100% !important; text-size-adjust: 100% !important; }
+  body > *:not(#printArea):not(.pg) { display: none !important; }
+  #hdr, #nav, #main, #toast, #modalHost, #banner, #wsp, #wspGlobo, #wspPanel { display: none !important; }
   #printArea { display: block !important; position: static !important; }
   .prev { display: none !important; }
 }
@@ -437,7 +438,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.17.0', build: '2026-10-19', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.18.0', build: '2026-10-19', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -613,7 +614,7 @@ var FORMATOS_DEFECTO = [
     campos: [{ k: 'descripcion', pt: 9, b: false }, { k: 'precio', pt: 12, b: true }] }
 ];
 var CAMPOS_BULTO = { bulto: 'Bulto N/T', orden: 'Orden / Ticket', documento: 'Documento', seguimiento: 'Correos (seguimiento o ID)', courier: 'Courier y OT courier', ot: 'OT interna',
-  medidas: 'Medidas', peso: 'Peso', producto: 'Producto', fecha: 'Fecha', empresa: 'Empresa', textoFijo: 'Texto fijo' };
+  medidas: 'Medidas', peso: 'Peso', producto: 'Producto', fecha: 'Fecha', empresa: 'Empresa', canal: 'Canal de venta', idBulto: 'ID interno del bulto', textoFijo: 'Texto fijo' };
 var CODIGOS_BULTO = { orden: 'Orden / Ticket', seguimiento: 'Seguimiento Correos (si no, orden)', bulto: 'Código único del bulto' };
 var FORMATOS_BULTO_DEFECTO = [
   { id: 'bul-60x29', uso: 'bulto', nombre: 'Bulto troquelada 60×29', tipo: 'troquel', ancho: 60, alto: 29, barra: false, campoBarra: 'orden', altoBarra: 8, textoBarra: false,
@@ -1828,7 +1829,7 @@ var CorreosSat = {
     });
     return mejor ? mejor.e : null;
   },
-  estadoTxt: function (e) { return e.seguimiento || e.estado === 'ADMITIDO' ? 'PAGADO' : 'PREPARADO'; },
+  estadoTxt: function (e) { return e.seguimiento || e.estado === 'ADMITIDO' ? 'EN HISTORIAL · PAGO EN SUCURSAL SIN VERIFICAR' : 'PREPARADO (ANTES DE PAGAR)'; },
   actualizar: function (cb, forzar) {
     if (Sync.modo() === 'local' || !CorreosSat.disponible || CorreosSat._enCurso) { if (cb) cb(false); return; }
     var ahora = +new Date();
@@ -2373,7 +2374,8 @@ var Code128 = (function () {
 
 var Impresion = {
   FONDO: '<svg class="pgf" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 10 10"><rect x="0" y="0" width="10" height="10" fill="#ffffff"/></svg>',
-  CSS: 'html,body{margin:0!important;padding:0!important;background:#fff!important;color:#000!important;color-scheme:light only}' +
+  CSS: 'html,body{margin:0!important;padding:0!important;background:#fff!important;color:#000!important;color-scheme:light only;-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;overflow:visible!important;max-height:none!important;height:auto!important;font-size:16px}' +
+    '@media print{html,body{width:auto!important}body>*:not(.pg){display:none!important}}' +
     '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}' +
     '.pg{position:relative;z-index:0;box-sizing:border-box;overflow:hidden;background:#fff;page-break-after:always;break-after:page}' +
     '.pg:last-child{page-break-after:auto;break-after:auto}' +
@@ -2383,6 +2385,12 @@ var Impresion = {
   metodo: function () { return DB.cfg.metodoImpresion === 'pagina' ? 'pagina' : 'documento'; },
   zoom: function () { var z = parseInt(DB.cfg.zoomImpresion, 10); if (!(z >= 30 && z <= 600)) z = 100; return z; },
   paginaServicio: function () { return DB.cfg.paginaImpresion === 'servicio'; },
+  PERFILES: [
+    { id: 'exacta', n: 'Tamaño exacto de la etiqueta (SUNMI, troqueladas, la mayoría)' },
+    { id: 'b62', n: 'Brother QL · papel continuo 62 mm' },
+    { id: 'b62r', n: 'Brother QL · papel continuo 62 mm, etiqueta girada 90°' }
+  ],
+  perfil: function () { var p = DB.cfg.perfilImpresora; return p === 'b62' || p === 'b62r' ? p : 'exacta'; },
   estilos: function () {
     var t = '', st = document.getElementsByTagName('style');
     for (var i = 0; i < st.length; i++) if (st[i].id !== 'pageRule' && st[i].id !== 'rdmPrintCss') t += st[i].innerHTML + '\n';
@@ -2422,8 +2430,15 @@ var Impresion = {
   imprimir: function (html, op) {
     op = op || {};
     var tipo = op.tipo || 'rollo', ancho = op.ancho || 58, margen = op.margen == null ? 2 : op.margen, css, paginas;
-    var z = tipo === 'a4' ? 100 : Impresion.zoom(), f = z / 100, serv = tipo !== 'a4' && Impresion.paginaServicio();
-    var tam = function (a, h) { return serv ? '@page{margin:0}' : '@page{size:' + Math.round(a * f * 10) / 10 + 'mm ' + Math.round(h * f * 10) / 10 + 'mm;margin:0}'; };
+    var z = tipo === 'a4' ? 100 : Impresion.zoom(), f = z / 100, serv = tipo !== 'a4' && Impresion.paginaServicio(), perfil = tipo === 'a4' ? 'exacta' : Impresion.perfil();
+    var red = function (x) { return Math.round(x * 10) / 10; };
+    var tam = function (a, h) {
+      if (serv) return '@page{margin:0}';
+      var w = a * f, hh = h * f;
+      if (perfil === 'b62') { if (w > 60) { f = f * 60 / w; w = 60; hh = h * f; } return '@page{size:62mm ' + red(hh + 0.5) + 'mm;margin:0}.pg{margin:0 auto!important}'; }
+      if (perfil === 'b62r') { if (hh > 60) { f = f * 60 / hh; hh = 60; w = a * f; } return '@page{size:62mm ' + red(w + 0.5) + 'mm;margin:0}.pg{transform-origin:top left;transform:translate(' + red((62 + hh) / 2 / f) + 'mm,0) rotate(90deg);margin:0!important}'; }
+      return '@page{size:' + red(w) + 'mm ' + red(hh) + 'mm;margin:0}';
+    };
     if (tipo === 'a4') { paginas = Impresion.paginas(html, 'a4'); css = '@page{size:A4 portrait;margin:12mm}'; }
     else if (tipo === 'troquel') { paginas = Impresion.paginas(html, 'troquel', ancho, op.alto); css = tam(ancho, op.alto); }
     else {
@@ -2432,7 +2447,7 @@ var Impresion = {
       paginas = paginas.replace(/class="pg" style="/g, 'class="pg" style="height:' + altoMm + 'mm;');
       css = tam(ancho, altoMm);
     }
-    if (z !== 100) css += '.pg{zoom:' + f + '}#printArea .pg{zoom:' + f + '}';
+    if (f !== 1) css += '.pg{zoom:' + Math.round(f * 1000) / 1000 + '}#printArea .pg{zoom:' + Math.round(f * 1000) / 1000 + '}';
     var doc = Impresion.documento(paginas, css), area = U.$('printArea');
     Impresion.ultimoDoc = doc;
     area.className = 'pa-' + tipo;
@@ -2482,7 +2497,7 @@ var Impresion = {
     var h = '<div class="hoja" style="font-family:Arial,sans-serif;text-align:center;width:' + (ancho - 4) + 'mm">' +
       '<div style="font-size:14pt;font-weight:bold;border-bottom:2px solid #000;padding-bottom:1mm">PRUEBA DE IMPRESIÓN</div>' +
       '<div style="font-size:10pt;margin-top:1mm">' + U.esc(APP.nombre + ' ' + APP.version) + '<br>' + U.fechaCL(U.fechaISO()) + ' ' + U.hora() + '<br>Método: ' + (Impresion.metodo() === 'pagina' ? 'página completa' : 'documento dedicado') + '</div>' +
-      '<div style="font-size:9pt;margin-top:2mm;text-align:left">El fondo de esta tira debe salir BLANCO, sin marco ni franjas negras. Las barras van de negro a gris claro. Zoom: ' + Impresion.zoom() + ' %' + (Impresion.paginaServicio() ? ' · página del servicio' : '') + '</div>' + g +
+      '<div style="font-size:9pt;margin-top:2mm;text-align:left">El fondo de esta tira debe salir BLANCO, sin marco ni franjas negras. Las barras van de negro a gris claro. Zoom: ' + Impresion.zoom() + ' %' + (Impresion.paginaServicio() ? ' · página del servicio' : '') + ' · ' + U.esc((U.find(Impresion.PERFILES, function (x) { return x.id === Impresion.perfil(); }) || {}).n || '') + '</div>' + g +
       Code128.svg('PRUEBA-123', 11, true) + '</div>';
     Impresion.imprimir(h, { tipo: 'rollo', ancho: ancho, margen: 2 });
   }
@@ -2575,6 +2590,8 @@ var Plantillas = {
     if (k === 'producto') return b.productoDesc || '';
     if (k === 'fecha') return U.trim(U.fechaCL(b.fecha) + ' ' + (b.hora || ''));
     if (k === 'empresa') return DB.cfg.empresa || '';
+    if (k === 'canal') { var pd = typeof CubPool !== 'undefined' && CubPool.pedidoDe ? CubPool.pedidoDe(b) : null; return pd && pd.origen ? 'CANAL ' + pd.origen : ''; }
+    if (k === 'idBulto') return 'ID ' + String(b.origenCubicacionId || b.id || '').replace(/^cub-/, '').toUpperCase();
     if (k === 'textoFijo') return c && c.valor ? c.valor : '';
     return '';
   },
@@ -3012,7 +3029,58 @@ var CubPool = {
 };
 
 var CubUI = {
-  pedidoId: null, cubId: '', tipo: 'FACTURA', ultimoClick: 0, vista: 'pendientes' };
+  pedidoId: null, cubId: '', tipo: 'FACTURA', ultimoClick: 0, vista: 'pendientes', selDocs: {} };
+
+CubUI.keyDe = function (b) { return OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento); };
+CubUI.bultosDoc = function (key) {
+  var l = U.filter(CubPool.lista, function (b) { return b.estado !== 'ELIMINADO' && CubUI.keyDe(b) === key; });
+  l.sort(function (a, b) { return (a.numero || 0) - (b.numero || 0) || ((a.act || '') < (b.act || '') ? -1 : 1); });
+  return l;
+};
+CubUI.docsDe = function (lista) {
+  var out = [], vis = {};
+  U.each(lista, function (b) {
+    var k = CubUI.keyDe(b);
+    if (vis[k]) return;
+    vis[k] = 1;
+    var bs = CubUI.bultosDoc(k);
+    out.push({ key: k, orden: b.orden, tipo: b.tipoDocumento, num: b.numeroDocumento, bultos: bs, fecha: b.fecha });
+  });
+  return out;
+};
+CubUI.etDoc = function (d) { return U.esc(d.orden) + ' · ' + (U.trim(d.num) ? U.esc(d.tipo + ' ' + d.num) : '<span style="color:#b02a37">sin documento</span>'); };
+CubUI.imprimirDocs = function (keys) {
+  var bs = [];
+  U.each(keys, function (k) { bs = bs.concat(CubUI.bultosDoc(k)); });
+  if (!bs.length) { UI.toast('Los documentos elegidos no tienen bultos', 'warn'); return; }
+  PackingUI.elegirFormatoBulto(null, bs);
+};
+CubUI.elegirDocs = function (lista) {
+  var docs = CubUI.docsDe(lista);
+  if (!docs.length) { UI.toast('No hay bultos en la lista. Use el buscador para elegir la orden.', 'warn'); return; }
+  var h = '<div class="muted">Marque los pedidos o documentos: se imprime una etiqueta por cada uno de sus bultos.</div>' +
+    '<input id="edQ" class="inp sm" placeholder="Filtrar por orden o documento…" style="margin:6px 0">' +
+    '<div class="btns" style="margin:0 0 6px"><button type="button" class="btn btn-sec btn-sm" id="edTodos">MARCAR VISIBLES</button><button type="button" class="btn btn-sec btn-sm" id="edNada">NINGUNO</button></div><div id="edLista" style="max-height:52vh;overflow:auto">' +
+    U.map(docs, function (d, i) { return '<label class="chk" data-ed="' + i + '" style="display:block;padding:10px 6px;border-bottom:1px solid #eee;font-size:16px"><input type="checkbox" data-edk="' + U.esc(d.key) + '"' + (CubUI.selDocs[d.key] || docs.length === 1 ? ' checked' : '') + '> <b>' + CubUI.etDoc(d) + '</b><br><span class="muted" style="margin-left:28px">' + d.bultos.length + ' bulto(s) · ' + U.esc(U.fechaCL(d.fecha)) + '</span></label>'; }).join('') +
+    '</div><div id="edRes" class="msg" style="margin-top:6px"></div>';
+  var marcados = function () { return U.filter(U.qa(U.$('modalHost'), 'input[data-edk]'), function (c) { return c.checked; }); };
+  var resumen = function () { var n = 0, ks = marcados(); U.each(ks, function (c) { n += CubUI.bultosDoc(c.getAttribute('data-edk')).length; }); U.$('edRes').innerHTML = ks.length + ' documento(s) · <b>' + n + ' etiqueta(s)</b>'; };
+  UI.modal({ titulo: 'Etiquetas por documento', html: h, botones: [
+    { txt: 'CANCELAR', cls: 'btn-sec' },
+    { txt: 'CONTINUAR', cls: 'btn-ok', fn: function () {
+      var ks = U.map(marcados(), function (c) { return c.getAttribute('data-edk'); });
+      if (!ks.length) { UI.toast('Marque al menos un documento', 'error'); return false; }
+      CubUI.selDocs = {}; U.each(ks, function (k) { CubUI.selDocs[k] = true; });
+      UI.cerrarModal(); CubUI.imprimirDocs(ks); return false;
+    } }
+  ], alAbrir: function (host) {
+    resumen();
+    host.onchange = function (e) { if (e.target && e.target.getAttribute('data-edk') != null) resumen(); };
+    U.$('edQ').oninput = function () { var q = U.norm(this.value); U.each(U.qa(host, 'label[data-ed]'), function (l) { l.style.display = !q || U.norm(l.textContent).indexOf(q) >= 0 ? 'block' : 'none'; }); };
+    U.$('edTodos').onclick = function () { U.each(U.qa(host, 'label[data-ed]'), function (l) { if (l.style.display !== 'none') U.qa(l, 'input')[0].checked = true; }); resumen(); };
+    U.$('edNada').onclick = function () { U.each(U.qa(host, 'input[data-edk]'), function (c) { c.checked = false; }); resumen(); };
+  } });
+};
 
 CubUI.tipos = function (sel) { var a = ['TICKET', 'ORDEN', 'COTIZACIÓN', 'NOTA DE VENTA', 'FACTURA', 'BOLETA', 'GUÍA DE DESPACHO', 'TRASPASO', 'OTRO'], h = ''; U.each(a, function (x) { h += '<option' + (x === sel ? ' selected' : '') + '>' + x + '</option>'; }); return h; };
 
@@ -3310,7 +3378,7 @@ Pantallas.cubicacion = function (m) {
     '<button class="btn btn-ok btn-xl" data-a="agregar">+ AGREGAR BULTO</button>' +
     '<div class="btns"><button class="btn btn-sec" data-a="repetir">REPETIR MEDIDAS</button><button class="btn btn-sec" data-a="igual">OTRO IGUAL</button></div>' +
     '<div class="btns"><button class="btn btn-warn" data-a="limpiarDoc">LIMPIAR DOCUMENTO</button><button class="btn btn-sec" data-a="nuevo">NUEVO ID CUBICACIÓN</button></div></div>' +
-    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuLista"></div><div class="btns"><button class="btn btn-ok" data-a="etiqCub">ETIQUETAS</button><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button><button class="btn" data-a="packing">PACKING →</button></div></div>';
+    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuLista"></div><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS</button><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button><button class="btn" data-a="packing">PACKING →</button></div></div>';
   m.innerHTML = h;
   var calc = function () { var a = U.num(U.$('cuAncho').value), al = U.num(U.$('cuAlto').value), l = U.num(U.$('cuLargo').value); if (a && al && l) { var c = OT.calcular(a, al, l); U.$('cuCalc').innerHTML = 'Volumen <b>' + U.fx(c.volumen, 3) + ' m³</b> · Peso vol. <b>' + U.fx(c.pesoVol, 2) + ' kg</b>'; } else U.$('cuCalc').innerHTML = ''; };
   var pintar = function () {
@@ -3324,10 +3392,24 @@ Pantallas.cubicacion = function (m) {
     CubUI.visibles = l;
     if (U.$('cuTitulo')) U.$('cuTitulo').innerHTML = CubUI.vista === 'pendientes' ? 'BULTOS PENDIENTES DE PACKING' : 'HISTÓRICO DE BULTOS';
     if (!l.length) hh = '<div class="muted" style="padding:12px">Sin bultos.</div>';
-    U.each(l, function (b) {
-      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + b.numero + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + (b.productoDesc ? '<br>' + U.esc(b.productoDesc) : '') + (CorreosSat.deBulto(b) ? '<br><span class="est COMPLETO">CORREOS ' + U.esc(CorreosSat.deBulto(b).seguimiento || CorreosSat.deBulto(b).numeroEnvio) + '</span>' : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
+    var grupos = {}, ordenG = [];
+    U.each(l, function (b) { var k = CubUI.keyDe(b); if (!grupos[k]) { grupos[k] = []; ordenG.push(k); } grupos[k].push(b); });
+    var nSel = 0;
+    for (var ks in CubUI.selDocs) if (CubUI.selDocs[ks]) { if (grupos[ks]) nSel++; else delete CubUI.selDocs[ks]; }
+    if (U.$('cuEtq')) U.$('cuEtq').innerHTML = nSel ? 'ETIQUETAS (' + nSel + ')' : 'ETIQUETAS';
+    U.each(ordenG, function (k) {
+      var g = grupos[k], b0 = g[0], tot = CubUI.bultosDoc(k).length;
+      hh += '<label class="chk" style="display:flex;align-items:center;gap:8px;margin:12px 0 4px;padding:8px;background:#f6f0f7;border-radius:8px;font-size:16px"><input type="checkbox" data-a="selDoc" data-x="' + U.esc(k) + '"' + (CubUI.selDocs[k] ? ' checked' : '') + ' style="width:22px;height:22px"><span><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s) <span class="muted">· marcar para etiquetas</span></span></label>';
+      U.each(g, function (b) { hh += CubUI.filaBulto(b); });
     });
     U.$('cuLista').innerHTML = hh;
+  };
+  CubUI.filaBulto = function (b) {
+    var hh = '';
+
+      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + b.numero + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + (b.productoDesc ? '<br>' + U.esc(b.productoDesc) : '') + (CorreosSat.deBulto(b) ? '<br><span class="est COMPLETO">CORREOS ' + U.esc(CorreosSat.deBulto(b).seguimiento || CorreosSat.deBulto(b).numeroEnvio) + '</span>' : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
+
+    return hh;
   };
   var prodRes = [], tp = null;
   var prodPintarSel = function () {
@@ -3472,11 +3554,13 @@ Pantallas.cubicacion = function (m) {
     },
     packing: function () { App.ir('packing'); },
     etiqCub: function () {
-      var l = (CubUI.visibles || []).slice(0);
-      if (!l.length) { UI.toast('No hay bultos en la lista. Use el buscador para elegir la orden.', 'warn'); return; }
-      l.sort(function (a, b) { var ka = OT.docKey(a.orden, a.tipoDocumento, a.numeroDocumento), kb = OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento); return ka === kb ? (a.numero || 0) - (b.numero || 0) : (ka < kb ? -1 : 1); });
-      PackingUI.elegirFormatoBulto(null, l);
+      var ks = []; for (var k in CubUI.selDocs) if (CubUI.selDocs[k]) ks.push(k);
+      if (ks.length) { CubUI.imprimirDocs(ks); return; }
+      var vis = (CubUI.visibles || []).slice(0), dd = CubUI.docsDe(vis);
+      if (dd.length === 1) { CubUI.imprimirDocs([dd[0].key]); return; }
+      CubUI.elegirDocs(vis);
     },
+    selDoc: function (k, el, e) { if (e && e.stopPropagation) e.stopPropagation(); if (el.checked) CubUI.selDocs[k] = true; else delete CubUI.selDocs[k]; var n = 0; for (var x in CubUI.selDocs) if (CubUI.selDocs[x]) n++; U.$('cuEtq').innerHTML = n ? 'ETIQUETAS (' + n + ')' : 'ETIQUETAS'; },
     pdfA4: function () { CubicacionPDF.generar('A4'); },
     pdf80: function () { CubicacionPDF.generar('80'); },
     pdf58: function () { CubicacionPDF.generar('58'); },
@@ -4622,7 +4706,7 @@ var Seguimiento = {
     });
     U.each(d.correos || [], function (e) {
       if (e.idTemprano || !e.seguimiento) ev.push({ ts: Seguimiento._ts(e.creado), t: 'Envío preparado en Correos', s: 'ID ' + (e.idTemprano || e.numeroEnvio || '—') + ' · ' + (e.bultos || (e.bultoIds || []).length) + ' bulto(s)' });
-      if (e.seguimiento) ev.push({ ts: Seguimiento._ts(e.actualizado), t: 'Pagado en Correos de Chile', s: 'Seguimiento ' + e.seguimiento + (e.usuario ? ' · ' + e.usuario : '') });
+      if (e.seguimiento) ev.push({ ts: Seguimiento._ts(e.actualizado), t: 'En historial de Correos (etiqueta emitida; pago en sucursal sin verificar)', s: 'Seguimiento ' + e.seguimiento + (e.usuario ? ' · ' + e.usuario : '') });
     });
     ev.sort(function (a, b) { return a.ts < b.ts ? -1 : (a.ts > b.ts ? 1 : 0); });
     return ev;
@@ -4821,7 +4905,7 @@ var Asistente = {
     return l;
   },
   etqCourier: function (x) {
-    if (x.cor) return x.cor.seguimiento ? 'Correos · seguimiento <b>' + U.esc(x.cor.seguimiento) + '</b> (pagado)' : 'Correos · ID <b>' + U.esc(x.cor.numeroEnvio) + '</b> (preparado, sin pagar: la etiqueta sale al pagar)';
+    if (x.cor) return x.cor.seguimiento ? 'Correos · seguimiento <b>' + U.esc(x.cor.seguimiento) + '</b> (en historial con etiqueta; el pago en sucursal no se verifica aquí)' : 'Correos · ID <b>' + U.esc(x.cor.numeroEnvio) + '</b> (preparado, antes de enviar a pago: la etiqueta sale después)';
     if (x.ordenCourier) return U.esc(x.courier || 'Courier') + ' · orden <b>' + U.esc(x.ordenCourier) + '</b>' + (x.verif ? ' ✓ verificada' : ' (sin verificar)');
     if (x.courier) return U.esc(x.courier) + ' · <i>sin orden del courier</i>';
     return '<i>sin courier asignado</i>';
@@ -4947,7 +5031,7 @@ var Asistente = {
     U.each(CubPool.lista, function (c) { if (c.estado === 'DISPONIBLE' && !c.otId) cp++; });
     U.each(OT.lista, function (o) { if (o.estado !== 'CERRADA') { oa++; U.each(o.bultos || [], function (b) { bs++; if (b.verificadoCourier || b.despachoId) bv++; else if (!CorreosSat.deBulto(b) && !U.trim(b.ordenCourierEscaneada || b.ordenCourier)) sinEtq++; }); } });
     U.each(CorreosSat.lista, function (e) { if (!CorreosSat.ACTIVOS[e.estado]) return; if (e.seguimiento) cg++; else cs++; });
-    return '📊 <b>Resumen de este equipo</b><table class="tb"><tr><td>Pedidos activos</td><td><b>' + pa + '</b></td></tr><tr><td>Bultos cubicados sin OT</td><td><b>' + cp + '</b></td></tr><tr><td>OT abiertas</td><td><b>' + oa + '</b></td></tr><tr><td>Bultos en OT abiertas</td><td><b>' + bs + '</b> (' + bv + ' verificados)</td></tr><tr><td>Bultos sin etiqueta del courier</td><td><b>' + sinEtq + '</b></td></tr><tr><td>Envíos Correos preparados / pagados</td><td><b>' + cs + '</b> / <b>' + cg + '</b></td></tr></table>';
+    return '📊 <b>Resumen de este equipo</b><table class="tb"><tr><td>Pedidos activos</td><td><b>' + pa + '</b></td></tr><tr><td>Bultos cubicados sin OT</td><td><b>' + cp + '</b></td></tr><tr><td>OT abiertas</td><td><b>' + oa + '</b></td></tr><tr><td>Bultos en OT abiertas</td><td><b>' + bs + '</b> (' + bv + ' verificados)</td></tr><tr><td>Bultos sin etiqueta del courier</td><td><b>' + sinEtq + '</b></td></tr><tr><td>Envíos Correos preparados / en historial</td><td><b>' + cs + '</b> / <b>' + cg + '</b></td></tr></table>';
   },
   inicio: function () {
     U.$('wspChat').innerHTML = ''; Asistente.modo = ''; Asistente.intento = ''; Asistente.ult = null;
@@ -5910,8 +5994,11 @@ Pantallas.datos = function (m) {
     '<div class="card"><h2>🔍 Tamaño de impresión (este equipo)</h2>' +
     '<div class="muted">Mueva la barra: a la derecha agranda y a la izquierda achica todo lo que se imprime en este equipo (etiquetas, rótulos, vouchers). La misma barra aparece en cada vista previa. Úselo si la impresión sale chica, por ejemplo con el servicio ESC/POS.</div>' +
     ZoomImp.html() +
+    '<label class="lbl" for="cfPerf">IMPRESORA / PAPEL (este equipo)</label><select id="cfPerf" class="inp sm">' + U.map(Impresion.PERFILES, function (x) { return '<option value="' + x.id + '"' + (Impresion.perfil() === x.id ? ' selected' : '') + '>' + U.esc(x.n) + '</option>'; }).join('') + '</select>' +
+    '<div class="muted">En el cuadro de impresión de Chrome use: <b>Márgenes: Ninguno</b> · <b>Escala: Predeterminada (100)</b> · <b>Encabezados y pies de página: desactivado</b> · <b>Gráficos de fondo: activado</b>. Si la etiqueta sale girada con Brother, pruebe la opción «girada 90°».</div>' +
     '<label class="lbl" for="cfPag">TAMAÑO DE PÁGINA</label><select id="cfPag" class="inp sm"><option value="etiqueta"' + (!Impresion.paginaServicio() ? ' selected' : '') + '>El de la etiqueta (58/80 mm × alto)</option><option value="servicio"' + (Impresion.paginaServicio() ? ' selected' : '') + '>El que fije el servicio de impresión (ESC/POS, RawBT…)</option></select>' +
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="calib58">CALIBRAR 58 mm</button><button class="btn btn-sec btn-sm" data-a="calib80">CALIBRAR 80 mm</button></div>' +
+    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="pruebaT29">PRUEBA 60×29</button><button class="btn btn-sec btn-sm" data-a="pruebaT40">PRUEBA 60×40</button></div>' +
     '<label class="lbl" for="cfMedido">LA BARRA DE 40 mm MIDIÓ (mm)</label><div class="fila"><div class="c"><input id="cfMedido" class="inp sm" type="number" step="0.5" min="5" max="300" placeholder="ej. 14"></div><div class="c"><button class="btn btn-ok btn-sm" data-a="zoomCalc" style="margin:0">CALCULAR</button></div></div>' +
     '<div id="cfZoomInfo" class="muted"></div></div>' +
     '<div class="card"><h2>Configuración</h2>' +
@@ -5985,9 +6072,14 @@ Pantallas.datos = function (m) {
         return false;
       } }] });
   };
-  m.onchange = function (e) { if (e.target && e.target.id === 'cfPag') { DB.cfg.paginaImpresion = e.target.value; DB.guardarCfg(); UI.toast('Tamaño de página guardado', 'ok'); } };
+  m.onchange = function (e) {
+    if (e.target && e.target.id === 'cfPag') { DB.cfg.paginaImpresion = e.target.value; DB.guardarCfg(); UI.toast('Tamaño de página guardado', 'ok'); }
+    if (e.target && e.target.id === 'cfPerf') { DB.cfg.perfilImpresora = e.target.value; DB.guardarCfg(); UI.toast('Impresora de este equipo: ' + e.target.options[e.target.selectedIndex].text, 'ok', 3500); }
+  };
   UI.delegar(m, {
     calib58: function () { Impresion.calibrar(58); },
+    pruebaT29: function () { Plantillas.imprimirBultos(null, [{ id: 'prueba', numero: 1, orden: 'PRUEBA-60X29', tipoDocumento: 'FACTURA', numeroDocumento: '12345', factura: '12345', ancho: 30, alto: 20, largo: 10, peso: 1.5, fecha: U.fechaISO(), hora: U.hora() }], 'bul-60x29'); },
+    pruebaT40: function () { Plantillas.imprimirBultos(null, [{ id: 'prueba', numero: 1, orden: 'PRUEBA-60X40', tipoDocumento: 'FACTURA', numeroDocumento: '12345', factura: '12345', ancho: 30, alto: 20, largo: 10, peso: 1.5, fecha: U.fechaISO(), hora: U.hora() }], 'bul-60x40'); },
     calib80: function () { Impresion.calibrar(80); },
     zoomCalc: function () {
       var med = parseFloat(String(U.$('cfMedido').value).replace(',', '.'));
