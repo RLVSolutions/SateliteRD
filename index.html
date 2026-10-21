@@ -297,6 +297,16 @@ textarea.inp{font-size:13px;border-radius:8px}
 .doc .dh .o{font-weight:600}
 .doc .db{border-top:1px solid #eee8ef;background:#faf8fb}
 .bl{border-bottom:1px solid #eee8ef}
+.lista-int{max-height:52vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid #e7e0ea;border-radius:10px;padding:4px 6px 72px;background:#fff}
+.accbar{position:-webkit-sticky;position:sticky;bottom:-8px;z-index:6;background:#fff;padding:6px 0 8px;border-top:1px solid #e7e0ea;box-shadow:0 -6px 10px rgba(0,0,0,.06)}
+.pagbar{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;-webkit-box-align:center;-webkit-align-items:center;align-items:center;font-size:14px;color:#49454f;margin:6px 0}
+.pagbar>*{margin:2px 6px 2px 0}
+.pagbar select.inp{width:auto;display:inline-block;height:36px;padding:2px 6px;font-size:15px}
+.pagbar .mini{height:36px;margin-left:0}
+.dochead{margin:12px 0 4px;padding:8px;background:#f6f0f7;border-radius:8px}
+.dochead .chk{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;padding:0;font-size:16px}
+.dochead .chk input{width:22px;height:22px;margin-right:8px}
+.dochead .btns{margin-top:6px}
 .frow{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;min-height:48px;padding:3px 0;border-bottom:1px solid #eee8ef}
 .frow>*{margin:0 6px 0 0}.frow>*:last-child{margin-right:0}
 .frow .fx{-webkit-box-flex:1;-webkit-flex:1;flex:1;min-width:0}
@@ -449,7 +459,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.20.0', build: '2026-10-21', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.21.0', build: '2026-10-21', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -969,6 +979,42 @@ var TiposDoc = {
     U.each(CubPool.lista || [], function (b) { add(b.tipoDocumento); });
     U.each(OT.lista || [], function (o) { U.each(o.bultos || [], function (b) { add(b.tipoDocumento); }); });
     return u;
+  }
+};
+var Pag = {
+  OPC: [10, 20, 50, 100, 0], pag: {}, fn: {},
+  tam: function (k, def) { var t = DB.cfg.porPagina && DB.cfg.porPagina[k]; return t === 0 ? 0 : (t || def || 20); },
+  cortar: function (k, arr, def) {
+    var t = Pag.tam(k, def), total = arr.length;
+    if (!t) { Pag.pag[k] = 0; return { items: arr, ini: 0, fin: total, total: total, p: 0, np: 1 }; }
+    var np = Math.max(1, Math.ceil(total / t)), p = Math.max(0, Math.min(Pag.pag[k] || 0, np - 1));
+    Pag.pag[k] = p;
+    return { items: arr.slice(p * t, (p + 1) * t), ini: p * t, fin: Math.min(total, (p + 1) * t), total: total, p: p, np: np };
+  },
+  html: function (k, c, unidad, def) {
+    if (!c.total) return '';
+    var t = Pag.tam(k, def);
+    return '<div class="pagbar"><span>Mostrar</span><select class="inp sm pgSel" data-pg="' + k + '">' + U.map(Pag.OPC, function (n) { return '<option value="' + n + '"' + (n === t ? ' selected' : '') + '>' + (n ? n : 'Todos') + '</option>'; }).join('') + '</select>' +
+      '<span>' + (c.ini + 1) + '–' + c.fin + ' de ' + c.total + ' ' + (unidad || '') + '</span>' +
+      (c.np > 1 ? '<button type="button" class="mini" data-pgk="' + k + '" data-pgd="-1"' + (c.p ? '' : ' disabled') + '>‹</button><span>Pág. ' + (c.p + 1) + '/' + c.np + '</span><button type="button" class="mini" data-pgk="' + k + '" data-pgd="1"' + (c.p < c.np - 1 ? '' : ' disabled') + '>›</button>' : '') + '</div>';
+  },
+  reiniciar: function (k) { Pag.pag[k] = 0; },
+  registrar: function (k, fn) { Pag.fn[k] = fn; },
+  iniciar: function () {
+    if (Pag._ok) return; Pag._ok = true;
+    document.addEventListener('change', function (e) {
+      var t = e.target; if (!t || !t.getAttribute || t.className.indexOf('pgSel') < 0) return;
+      var k = t.getAttribute('data-pg'); if (!DB.cfg.porPagina) DB.cfg.porPagina = {};
+      DB.cfg.porPagina[k] = parseInt(t.value, 10) || 0; DB.guardarCfg(); Pag.pag[k] = 0;
+      if (Pag.fn[k]) Pag.fn[k]();
+    }, true);
+    document.addEventListener('click', function (e) {
+      var t = e.target; while (t && t !== document && !(t.getAttribute && t.getAttribute('data-pgd'))) t = t.parentNode;
+      if (!t || t === document) return;
+      var k = t.getAttribute('data-pgk'); Pag.pag[k] = (Pag.pag[k] || 0) + parseInt(t.getAttribute('data-pgd'), 10);
+      if (Pag.fn[k]) Pag.fn[k]();
+      e.stopPropagation();
+    }, true);
   }
 };
 var CAMPOS_DIRECCION = [
@@ -1627,9 +1673,13 @@ var ProdSync = {
       var n = 0;
       U.each((r && r.cambios) || [], function (c) { if (ProdSync.aplicar(c)) n++; });
       var pasos = [];
-      if (r && r.recargarMedidas && desde) pasos.push(function (sig) { ProdSync.bajarMedidas(function (ok) { if (ok) n++; U.each(r.cambios || [], function (c) { if (c.hoja === 'MEDIDAS') ProdSync.aplicar(c); }); sig(); }); });
+      var nb = DB.cfg.nube || {};
+      if (r && r.catalogoTotal != null) { DB.cfg.nube = { cat: r.catalogoTotal, med: r.medidasTotal, fecha: r.servidor, catBajado: nb.catBajado, medBajado: nb.medBajado, catAct: nb.catAct, medAct: nb.medAct }; nb = DB.cfg.nube; DB.guardarCfg(); }
+      var cambioMed = r && r.medidasTotal != null && (r.medidasTotal !== nb.medBajado || String(r.medidasActualizado || '') !== String(nb.medAct || ''));
+      var cambioCat = r && r.catalogoTotal != null && (r.catalogoTotal !== nb.catBajado || String(r.catalogoActualizado || '') !== String(nb.catAct || ''));
+      if (r && ((r.recargarMedidas && desde) || cambioMed)) pasos.push(function (sig) { ProdSync.bajarMedidas(function (ok) { if (ok) { n++; DB.cfg.nube.medBajado = r.medidasTotal; DB.cfg.nube.medAct = r.medidasActualizado || ''; DB.guardarCfg(); } U.each(r.cambios || [], function (c) { if (c.hoja === 'MEDIDAS') ProdSync.aplicar(c); }); sig(); }); });
       if (r && ((r.recargarUbicaciones && desde) || (r.ubicacionesActualizado && r.ubicacionesActualizado !== Ubicaciones.actualizado))) pasos.push(function (sig) { ProdSync.bajarUbicaciones(function (ok) { if (ok) n++; sig(); }); });
-      if (r && ((r.recargarCatalogo && desde) || !Catalogo.lista.length)) pasos.push(function (sig) { ProdSync.bajarCatalogo(function (ok) { if (ok) n++; sig(); }, Catalogo.lista.length ? 'reemplazar' : 'fusionar'); });
+      if (r && ((r.recargarCatalogo && desde) || !Catalogo.lista.length || cambioCat)) pasos.push(function (sig) { ProdSync.bajarCatalogo(function (ok) { if (ok) { n++; if (DB.cfg.nube) { DB.cfg.nube.catBajado = r.catalogoTotal; DB.cfg.nube.catAct = r.catalogoActualizado || ''; DB.guardarCfg(); } } sig(); }, Catalogo.lista.length ? 'reemplazar' : 'fusionar'); });
       var fin = function () { if (n) { Catalogo.reindex(); Catalogo.guardar(); Medidas.reindex(); Medidas.guardar(); } if (r && r.servidor) { DB.cfg.prodDesde = r.servidor; DB.guardarCfg(); } cb(n > 0); };
       var correr = function (i) { if (i >= pasos.length) { fin(); return; } pasos[i](function () { correr(i + 1); }); };
       correr(0);
@@ -2482,10 +2532,17 @@ var Impresion = {
     return Math.max(20, Math.ceil(h / MM_PX) + 1);
   },
   documento: function (paginas, css) {
-    return '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="color-scheme" content="light only"><title>Impresión</title><style>' + Impresion.estilos() + '</style><style>' + Impresion.CSS + '</style><style>' + css + '</style></head><body>' + paginas + '</body></html>';
+    return '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="color-scheme" content="light only"><title> </title><style>' + Impresion.estilos() + '</style><style>' + Impresion.CSS + '</style><style>' + css + '</style></head><body>' + paginas + '</body></html>';
+  },
+  escritorio: function () { return typeof window.RDM_PRINT_BRIDGE !== 'function' && !/Android|iPhone|iPad/i.test(navigator.userAgent || ''); },
+  consejo: function (seguir) {
+    UI.modal({ titulo: 'Antes de imprimir (una sola vez)', html: '<div class="msg">La fecha, la palabra «Impresión», la dirección del sitio y «1/1» en los bordes <b>no vienen de Satélite</b>: los agrega Chrome con su opción «Encabezados y pies de página», y una página web no puede desactivarla.</div>' +
+      '<div class="muted" style="line-height:1.5">En el cuadro de impresión de Chrome:<br>1. Destino: la impresora de etiquetas (o «Guardar como PDF»).<br>2. <b>Más opciones</b> → Márgenes: <b>Ninguno</b>.<br>3. Desmarque <b>Encabezados y pies de página</b>.<br>4. Tamaño del papel: el de la etiqueta (no A4 ni Carta).<br>Chrome recuerda estos ajustes para las próximas impresiones.</div>',
+      botones: [{ txt: 'ENTENDIDO, IMPRIMIR', cls: 'btn-ok', fn: function () { DB.cfg.consejoImpresion = true; DB.guardarCfg(); UI.cerrarModal(); seguir(); return false; } }] });
   },
   imprimir: function (html, op) {
     op = op || {};
+    if (!op._ok && !DB.cfg.consejoImpresion && Impresion.escritorio() && !/HeadlessChrome/.test(navigator.userAgent || '')) { var o2 = U.assign({}, op); o2._ok = true; Impresion.consejo(function () { Impresion.imprimir(html, o2); }); return; }
     var tipo = op.tipo || 'rollo', ancho = op.ancho || 58, margen = op.margen == null ? 2 : op.margen, css, paginas, aj = { x: Number(op.desX) || 0, y: Number(op.desY) || 0, e: Number(op.escala) || 100 };
     var z = tipo === 'a4' ? 100 : Impresion.zoom(), f = z / 100, serv = tipo !== 'a4' && Impresion.paginaServicio(), perfil = tipo === 'a4' ? 'exacta' : Impresion.perfil();
     var red = function (x) { return Math.round(x * 10) / 10; };
@@ -2993,6 +3050,7 @@ var App = {
     if (escribiendo) return;
   },
   init: function () {
+    Pag.iniciar();
     window.onerror = function (msg, src, lin) {
       RDM_ERRORES.push(U.hora() + ' ' + msg + ' (línea ' + lin + ')');
       if (RDM_ERRORES.length > 20) RDM_ERRORES.shift();
@@ -3143,6 +3201,7 @@ var CubPool = {
 var CubUI = {
   pedidoId: null, cubId: '', tipo: 'FACTURA', ultimoClick: 0, vista: 'pendientes', selDocs: {} };
 
+CubUI.contarSel = function (n) { if (U.$('cuEtq')) U.$('cuEtq').innerHTML = n ? 'ETIQUETAS (' + n + ')' : 'ETIQUETAS'; if (U.$('cuVou')) U.$('cuVou').innerHTML = n ? 'VOUCHER (' + n + ')' : 'VOUCHER'; };
 CubUI.keyDe = function (b) { return OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento); };
 CubUI.bultosDoc = function (key) {
   var l = U.filter(CubPool.lista, function (b) { return b.estado !== 'ELIMINADO' && CubUI.keyDe(b) === key; });
@@ -3400,20 +3459,23 @@ Pantallas.pedidos = function (m) {
       var cls = p.estado === 'ENTREGADO' ? 'COMPLETO' : (p.estado === 'CANCELADO' ? 'ANULADO' : (p.estado === 'ENVIADO' ? 'COMPLETO' : (p.estado === 'CUBICADO' || p.estado === 'EN PREPARACIÓN' ? 'PARCIAL' : 'PENDIENTE')));
       var cubYa = p.estado==='CUBICADO'||p.estado==='EN PREPARACIÓN'||p.estado==='ENVIADO'||p.estado==='ENTREGADO';
       if (p.estado === 'ELIMINADO') {
-        hh += '<div class="doc" style="border-left:7px solid #6c757d;background:#f4f4f4"><div class="dh"><div class="cnt"><span class="est ANULADO">ELIMINADO</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):'')+'</div></div><div class="db"><div class="muted">'+U.esc(p.observacion||'')+'</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedRestaurar" data-x="'+p.id+'">RESTAURAR</button></div></div></div>';
+        hh += '<!--pe--><div class="doc" style="border-left:7px solid #6c757d;background:#f4f4f4"><div class="dh"><div class="cnt"><span class="est ANULADO">ELIMINADO</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):'')+'</div></div><div class="db"><div class="muted">'+U.esc(p.observacion||'')+'</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedRestaurar" data-x="'+p.id+'">RESTAURAR</button></div></div></div>';
         return;
       }
-      hh +='<div class="doc" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(p.estado)+'</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(p.monto?' · $'+U.esc(p.monto):'')+'</div></div>'+
+      hh +='<!--pe--><div class="doc" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(p.estado)+'</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(p.monto?' · $'+U.esc(p.monto):'')+'</div></div>'+
         '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO')+'</button><button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
     });
-    U.$('peLista').innerHTML = hh || '<div class="muted" style="padding:12px">Sin pedidos en este filtro.</div>';
-    U.$('peConteo').innerHTML = n+' registro(s)';
+    var bloques = hh ? hh.split('<!--pe-->') : [];
+    if (bloques.length && !bloques[0]) bloques.shift();
+    var pp = Pag.cortar('ped', bloques);
+    U.$('peLista').innerHTML = pp.items.join('') || '<div class="muted" style="padding:12px">Sin pedidos en este filtro.</div>';
+    U.$('peConteo').innerHTML = n+' registro(s)' + Pag.html('ped', pp, 'pedido(s)');
   };
   m.innerHTML = '<div class="otbar"><div class="n">PEDIDOS / ÓRDENES DE COMPRA</div><div class="muted">Registro previo a Cubicación. El documento de venta puede agregarse después.</div></div>'+
     '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="pedNuevo">+ NUEVO</button><button class="btn btn-sec" data-a="pedPegar">PEGAR DESDE EXCEL</button></div>'+
     '<label class="lbl">BUSCAR</label><input id="peBuscar" class="inp sm" placeholder="Pedido, O.C., documento, origen…">'+
     '<div class="fila"><div class="c"><label class="lbl">ETAPA / ESTADO</label><select id="peFiltro" class="inp sm">'+U.map(['VIGENTES','ACTIVOS','HISTÓRICO','TODOS'].concat(Pedidos.estados).concat(['ELIMINADOS']),function(e){return '<option'+(e===estadoFiltro?' selected':'')+'>'+U.esc(e)+'</option>';}).join('')+'</select></div><div class="c"><label class="lbl">CANAL</label><select id="peCanal" class="inp sm"><option>TODOS</option>'+U.map(['WEB','M.P.','MERCADOLIBRE','ERP','MANUAL','EXCEL','OTRO'],function(c){return '<option>'+c+'</option>';}).join('')+'</select></div></div>'+
-    '<div id="peConteo" class="muted" style="margin:8px 0"></div><div id="peLista"></div></div>';
+    '<div id="peConteo" class="muted" style="margin:8px 0"></div><div id="peLista" class="lista-int"></div></div>';
   var editar=function(p){
     p=p||{origen:'MANUAL',tipo:'PEDIDO',numero:'',fecha:U.fechaISO(),tipoDocumento:'',numeroDocumento:'',estado:'RECIBIDO',observacion:''};
     var tipos=['PEDIDO','ORDEN DE COMPRA'], origenes=['WEB','MERCADOLIBRE','ERP','MANUAL','OTRO'];
@@ -3492,8 +3554,9 @@ Pantallas.pedidos = function (m) {
         }}]});
     }
   });
-  m.oninput=function(e){if(e.target.id==='peBuscar')render();};
-  m.onchange=function(e){if(e.target.id==='peFiltro'){estadoFiltro=e.target.value;render();} if(e.target.id==='peCanal'){canalFiltro=U.norm(e.target.value);render();}};
+  Pag.registrar('ped', function () { if (U.$('peLista')) render(); });
+  m.oninput=function(e){if(e.target.id==='peBuscar'){Pag.reiniciar('ped');render();}};
+  m.onchange=function(e){if(e.target.id==='peFiltro'){estadoFiltro=e.target.value;Pag.reiniciar('ped');render();} if(e.target.id==='peCanal'){canalFiltro=U.norm(e.target.value);Pag.reiniciar('ped');render();}};
   render();
 };
 
@@ -3516,7 +3579,7 @@ Pantallas.cubicacion = function (m) {
     '<button class="btn btn-ok btn-xl" data-a="agregar">+ AGREGAR BULTO</button>' +
     '<div class="btns"><button class="btn btn-sec" data-a="repetir">REPETIR MEDIDAS</button><button class="btn btn-sec" data-a="igual">OTRO IGUAL</button></div>' +
     '<div class="btns"><button class="btn btn-warn" data-a="limpiarDoc">LIMPIAR DOCUMENTO</button><button class="btn btn-sec" data-a="nuevo">NUEVO ID CUBICACIÓN</button></div></div>' +
-    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuLista"></div><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS</button><button class="btn btn-sec" data-a="vouCub" id="cuVou">VOUCHER</button><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button><button class="btn" data-a="packing">PACKING →</button></div></div>';
+    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuPag"></div><div id="cuLista" class="lista-int"></div><div class="accbar"><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS</button><button class="btn btn-sec" data-a="vouCub" id="cuVou">VOUCHER</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button></div><div class="btns"><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn" data-a="packing">PACKING →</button></div></div></div>';
   m.innerHTML = h;
   var calc = function () { var a = U.num(U.$('cuAncho').value), al = U.num(U.$('cuAlto').value), l = U.num(U.$('cuLargo').value); if (a && al && l) { var c = OT.calcular(a, al, l); U.$('cuCalc').innerHTML = 'Volumen <b>' + U.fx(c.volumen, 3) + ' m³</b> · Peso vol. <b>' + U.fx(c.pesoVol, 2) + ' kg</b>'; } else U.$('cuCalc').innerHTML = ''; };
   var pintar = function () {
@@ -3534,14 +3597,18 @@ Pantallas.cubicacion = function (m) {
     U.each(l, function (b) { var k = CubUI.keyDe(b); if (!grupos[k]) { grupos[k] = []; ordenG.push(k); } grupos[k].push(b); });
     var nSel = 0;
     for (var ks in CubUI.selDocs) if (CubUI.selDocs[ks]) { if (grupos[ks]) nSel++; else delete CubUI.selDocs[ks]; }
-    if (U.$('cuEtq')) U.$('cuEtq').innerHTML = nSel ? 'ETIQUETAS (' + nSel + ')' : 'ETIQUETAS';
-    U.each(ordenG, function (k) {
+    CubUI.contarSel(nSel);
+    var pc = Pag.cortar('cub', ordenG);
+    U.each(pc.items, function (k) {
       var g = grupos[k], b0 = g[0], tot = CubUI.bultosDoc(k).length;
-      hh += '<label class="chk" style="display:flex;align-items:center;gap:8px;margin:12px 0 4px;padding:8px;background:#f6f0f7;border-radius:8px;font-size:16px"><input type="checkbox" data-a="selDoc" data-x="' + U.esc(k) + '"' + (CubUI.selDocs[k] ? ' checked' : '') + ' style="width:22px;height:22px"><span><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s) <span class="muted">· marcar para etiquetas</span></span></label>';
+      hh += '<div class="dochead"><label class="chk"><input type="checkbox" data-a="selDoc" data-x="' + U.esc(k) + '"' + (CubUI.selDocs[k] ? ' checked' : '') + '><span><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s)</span></label>' +
+        '<div class="btns"><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button></div></div>';
       U.each(g, function (b) { hh += CubUI.filaBulto(b); });
     });
     U.$('cuLista').innerHTML = hh;
+    U.$('cuPag').innerHTML = Pag.html('cub', pc, 'documento(s)');
   };
+  Pag.registrar('cub', function () { if (U.$('cuLista')) pintar(); });
   CubUI.filaBulto = function (b) {
     var hh = '';
 
@@ -3604,7 +3671,7 @@ Pantallas.cubicacion = function (m) {
       } }
     ] });
   };
-  m.oninput = function (e) { if (e.target.id === 'cuOrden' || e.target.id === 'cuDoc') envioRes(); if (e.target.id === 'cuAncho' || e.target.id === 'cuAlto' || e.target.id === 'cuLargo') calc(); if (e.target.id === 'cuBuscar') pintar(); if (e.target.id === 'cuProd') { clearTimeout(tp); tp = setTimeout(prodBuscar, 120); } };
+  m.oninput = function (e) { if (e.target.id === 'cuOrden' || e.target.id === 'cuDoc') envioRes(); if (e.target.id === 'cuAncho' || e.target.id === 'cuAlto' || e.target.id === 'cuLargo') calc(); if (e.target.id === 'cuBuscar') { Pag.reiniciar('cub'); pintar(); } if (e.target.id === 'cuProd') { clearTimeout(tp); tp = setTimeout(prodBuscar, 120); } };
   m.onchange = function (e) {
     if (e.target.id === 'cuTipo') { CubUI.tipo = e.target.value; envioRes(); }
     if (e.target.id === 'cuPedido') { CubUI.pedidoId = e.target.value || null; App.ir('cubicacion'); }
@@ -3659,8 +3726,8 @@ Pantallas.cubicacion = function (m) {
       U.each(['cuAncho', 'cuAlto', 'cuLargo', 'cuPeso'], function (id) { U.$(id).value = ''; });
       App.ir('cubicacion');
     },
-    cuPend: function () { CubUI.vista = 'pendientes'; pintar(); },
-    cuHist: function () { CubUI.vista = 'historico'; pintar(); },
+    cuPend: function () { CubUI.vista = 'pendientes'; Pag.reiniciar('cub'); pintar(); },
+    cuHist: function () { CubUI.vista = 'historico'; Pag.reiniciar('cub'); pintar(); },
     editarCub: function (id) { CubUI.editarBulto(id); },
     del: function (id, el, e) {
       if (e && e.stopPropagation) e.stopPropagation();
@@ -3705,7 +3772,9 @@ Pantallas.cubicacion = function (m) {
       if (dd.length === 1) { CubUI.voucherDocs([dd[0].key]); return; }
       CubUI.elegirDocs(vis, 'voucher');
     },
-    selDoc: function (k, el, e) { if (e && e.stopPropagation) e.stopPropagation(); if (el.checked) CubUI.selDocs[k] = true; else delete CubUI.selDocs[k]; var n = 0; for (var x in CubUI.selDocs) if (CubUI.selDocs[x]) n++; U.$('cuEtq').innerHTML = n ? 'ETIQUETAS (' + n + ')' : 'ETIQUETAS'; },
+    selDoc: function (k, el, e) { if (e && e.stopPropagation) e.stopPropagation(); if (el.checked) CubUI.selDocs[k] = true; else delete CubUI.selDocs[k]; var n = 0; for (var x in CubUI.selDocs) if (CubUI.selDocs[x]) n++; CubUI.contarSel(n); },
+    vouDoc: function (k) { CubUI.voucherDocs([k]); },
+    etqDoc: function (k) { CubUI.imprimirDocs([k]); },
     pdfA4: function () { CubicacionPDF.generar('A4'); },
     pdf80: function () { CubicacionPDF.generar('80'); },
     pdf58: function () { CubicacionPDF.generar('58'); },
@@ -3723,9 +3792,32 @@ Pantallas.cubicacion = function (m) {
 };
 
 var CubicacionPDF = {
+  lista: null,
+  ordenar: function (l) { l = l.slice(0); l.sort(function (a, b) { var ka = CubUI.keyDe(a), kb = CubUI.keyDe(b); return ka < kb ? -1 : ka > kb ? 1 : (a.numero || 0) - (b.numero || 0); }); return l; },
   seleccion: function () {
-    var q = U.$('cuBuscar') ? U.norm(U.$('cuBuscar').value) : '';
-    return U.filter(CubPool.lista, function (b) { return b.estado !== 'ELIMINADO' && (!q || U.norm(b.orden).indexOf(q) >= 0 || U.norm(b.numeroDocumento).indexOf(q) >= 0 || U.norm(b.cubicacionId).indexOf(q) >= 0); });
+    if (CubicacionPDF.lista) return CubicacionPDF.lista;
+    return CubicacionPDF.ordenar(U.filter(CubUI.visibles || [], function (b) { return b.estado !== 'ELIMINADO'; }));
+  },
+  elegir: function (cb) {
+    var marc = []; for (var k in CubUI.selDocs) if (CubUI.selDocs[k]) marc.push(k);
+    var vis = U.filter(CubUI.visibles || [], function (b) { return b.estado !== 'ELIMINADO'; }), hoy = U.fechaISO();
+    var bMarc = []; U.each(marc, function (k) { bMarc = bMarc.concat(CubUI.bultosDoc(k)); });
+    var h = '<div class="muted">Elija qué bultos van en el documento. Los históricos solo se incluyen si los pide por fecha.</div>' +
+      (marc.length ? '<label class="chk"><input type="radio" name="cpdM" value="marc" checked> Documentos marcados (' + marc.length + ' doc. · ' + bMarc.length + ' bultos)</label>' : '') +
+      '<label class="chk"><input type="radio" name="cpdM" value="vis"' + (marc.length ? '' : ' checked') + '> Lo que está en pantalla: ' + (CubUI.vista === 'historico' ? 'histórico' : 'pendientes') + ' (' + vis.length + ' bultos)</label>' +
+      '<label class="chk"><input type="radio" name="cpdM" value="rango"> Por rango de fechas de cubicación (pendientes e históricos)</label>' +
+      '<div class="fila"><div class="c"><label class="lbl">DESDE</label><input id="cpdD" class="inp sm" type="date" value="' + hoy + '"></div><div class="c"><label class="lbl">HASTA</label><input id="cpdH" class="inp sm" type="date" value="' + hoy + '"></div></div><div id="cpdN" class="muted"></div>';
+    var leer = function () {
+      var m = 'vis', rs = document.getElementsByName('cpdM'); for (var i = 0; i < rs.length; i++) if (rs[i].checked) m = rs[i].value;
+      if (m === 'marc') return bMarc;
+      if (m === 'vis') return vis;
+      var d = U.$('cpdD').value, ha = U.$('cpdH').value; if (d && ha && d > ha) { var t = d; d = ha; ha = t; }
+      return U.filter(CubPool.lista, function (b) { return b.estado !== 'ELIMINADO' && (!d || String(b.fecha || '') >= d) && (!ha || String(b.fecha || '') <= ha); });
+    };
+    UI.modal({ titulo: 'Contenido del documento', html: h, botones: [{ txt: 'CANCELAR', cls: 'btn-sec' }, { txt: 'CONTINUAR', cls: 'btn-ok', fn: function () {
+      var l = leer(); if (!l.length) { UI.toast('No hay bultos con esa selección', 'error'); return false; }
+      CubicacionPDF.lista = CubicacionPDF.ordenar(l); UI.cerrarModal(); cb(); return false;
+    } }], alAbrir: function (host) { var n = function () { U.$('cpdN').innerHTML = leer().length + ' bulto(s) seleccionados'; }; host.onchange = n; host.oninput = n; n(); } });
   },
   titulo: function (l) { if (!l.length) return 'Cubicación'; var b = l[0]; return 'Cubicación · ' + b.orden + ' · ' + b.tipoDocumento + ' ' + b.numeroDocumento; },
   html: function (l, formato) {
@@ -3751,8 +3843,9 @@ var CubicacionPDF = {
       setTimeout(function () { document.body.removeChild(x); URL.revokeObjectURL(url); }, 1500);
     } catch (e) { UI.toast('No se pudo descargar PDF', 'error'); }
   },
-  generar: function (f) { CubicacionPDF.pedir(f, function (r) { CubicacionPDF.descargar(r); UI.toast('PDF generado', 'ok'); }); },
-  compartir: function () {
+  generar: function (f) { CubicacionPDF.elegir(function () { CubicacionPDF.pedir(f, function (r) { CubicacionPDF.descargar(r); UI.toast('PDF generado', 'ok'); }); }); },
+  compartir: function () { CubicacionPDF.elegir(CubicacionPDF._compartir); },
+  _compartir: function () {
     var l = CubicacionPDF.seleccion();
     if (!l.length) { UI.toast('No hay bultos', 'error'); return; }
     var as = CubicacionPDF.titulo(l), txt = as + '\n' + l.length + ' bulto(s).';
@@ -3783,7 +3876,7 @@ var CubicacionPDF = {
   }
 };
 
-var PackUI = { orden: '', tipoDocumento: '', numeroDocumento: '', seleccion: {} };
+var PackUI = { orden: '', tipoDocumento: '', numeroDocumento: '', seleccion: {}, selDocs: {} };
 
 PackUI.disponibles = function () {
   var qo = U.norm(PackUI.orden), qt = U.norm(PackUI.tipoDocumento), qd = U.norm(PackUI.numeroDocumento);
@@ -3911,6 +4004,13 @@ var PackingUI = {
         { txt: 'CERRAR', cls: 'btn-sec' }
       ]
     });
+  },
+  marcados: function (ot) {
+    var ks = []; for (var k in PackUI.selDocs) if (PackUI.selDocs[k] && OT.bultosDoc(ot, k).length) ks.push(k);
+    if (ks.length) return ks;
+    var docs = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
+    if (docs.length === 1) return [docs[0].key];
+    UI.toast('Marque uno o más documentos de la OT', 'warn'); return null;
   },
   voucherVarios: function (ot) {
     var docs = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
@@ -4098,15 +4198,20 @@ Pantallas.packing = function (m) {
     '<label class="lbl">COURIER</label><select id="paCourier" class="inp sm">' + opcionesCourier(DB.cfg.courierActual) + '</select>' +
     '<div class="btns"><button class="btn btn-ok" data-a="courierSel">ASIGNAR AL DOCUMENTO</button><button class="btn btn-sec" data-a="courierTodaHead">APLICAR A TODA LA OT</button></div>' +
     '<div class="btns"><button class="btn btn-ok" data-a="nueva">+ NUEVA OT</button><button class="btn btn-sec" data-a="ots">OT PENDIENTES</button><button class="btn btn-sec" data-a="historico">HISTÓRICO</button></div></div>' +
-    '<div class="card"><h2>ASIGNACIÓN MASIVA</h2><div class="muted">Seleccione varios documentos; se incorporan todos sus bultos disponibles a la OT seleccionada.</div><div id="paDocsMasivos"></div><button class="btn btn-ok" data-a="paMasivo">INCORPORAR DOCUMENTOS SELECCIONADOS</button></div><div id="paBody"></div>';
+    '<div class="card"><h2>ASIGNACIÓN MASIVA</h2><div class="muted">Seleccione varios documentos; se incorporan todos sus bultos disponibles a la OT seleccionada.</div><div id="paDocsMasivos"></div><div class="accbar"><button class="btn btn-ok" data-a="paMasivo">INCORPORAR DOCUMENTOS SELECCIONADOS</button></div></div><div id="paBody"></div>';
   m.innerHTML = h;
 
   var masivo = function () {
     var z='', todos={}, orden=[];
     U.each(CubPool.lista,function(b){if(b.estado!=='DISPONIBLE')return;var k=OT.docKey(b.orden,b.tipoDocumento,b.numeroDocumento);if(!todos[k]){todos[k]=[];orden.push(k);}todos[k].push(b);});
-    U.each(orden,function(k){var bs=todos[k],b=bs[0];z+='<label style="display:block;padding:9px;border-bottom:1px solid #ccc"><input type="checkbox" data-pdoc="'+U.esc(k)+'" checked> '+U.esc(b.orden)+' · '+(U.trim(b.numeroDocumento)?U.esc(b.tipoDocumento)+' '+U.esc(b.numeroDocumento):'<b style="color:#b02a37">SIN DOCUMENTO</b>')+' · '+bs.length+' bultos</label>';});
-    U.$('paDocsMasivos').innerHTML=z||'<div class="muted">Sin documentos disponibles</div>';
+    if(!PackUI.masSel)PackUI.masSel={};
+    PackUI.masOrden=orden;
+    var pm=Pag.cortar('packMas',orden);
+    U.each(pm.items,function(k){var bs=todos[k],b=bs[0];z+='<label style="display:block;padding:9px;border-bottom:1px solid #ccc"><input type="checkbox" data-pdoc="'+U.esc(k)+'"'+(PackUI.masSel[k]===false?'':' checked')+'> '+U.esc(b.orden)+' · '+(U.trim(b.numeroDocumento)?U.esc(b.tipoDocumento)+' '+U.esc(b.numeroDocumento):'<b style="color:#b02a37">SIN DOCUMENTO</b>')+' · '+bs.length+' bultos</label>';});
+    U.$('paDocsMasivos').innerHTML=z?Pag.html('packMas',pm,'documento(s)')+'<div class="lista-int">'+z+'</div>':'<div class="muted">Sin documentos disponibles</div>';
   };
+  Pag.registrar('packMas', function () { if (U.$('paDocsMasivos')) masivo(); });
+  Pag.registrar('packOT', function () { if (App.pantalla === 'packing') App.ir('packing'); });
   masivo();
   var pintar = function () {
     var box = U.$('paBody'), bs = PackUI.disponibles(), hh = '';
@@ -4145,6 +4250,7 @@ Pantallas.packing = function (m) {
       if (d) { PackUI.orden = d.orden; PackUI.tipoDocumento = d.tipo; PackUI.numeroDocumento = d.num; }
       else { PackUI.orden = ''; PackUI.tipoDocumento = ''; PackUI.numeroDocumento = ''; }
       pintar();
+    } else if (e.target.getAttribute('data-pdoc')) { if (!PackUI.masSel) PackUI.masSel = {}; PackUI.masSel[e.target.getAttribute('data-pdoc')] = !!e.target.checked;
     } else if (e.target.getAttribute('data-bid')) { PackUI.seleccion[e.target.getAttribute('data-bid')] = !!e.target.checked; PackingUI.actualizarSeleccion(); }
   };
 
@@ -4152,8 +4258,8 @@ Pantallas.packing = function (m) {
     paMasivo: function(){
       var o=OT.porId(U.$('paOTDestino')&&U.$('paOTDestino').value);
       if(!o||o.estado!=='ABIERTA'){UI.toast('Seleccione una OT abierta','error');return;}
-      var checks=U.qa(m,'input[data-pdoc]'), claves={}, ids=[];
-      U.each(checks,function(c){if(c.checked)claves[c.getAttribute('data-pdoc')]=true;});
+      var claves={}, ids=[];
+      U.each(PackUI.masOrden||[],function(k){if(PackUI.masSel[k]!==false)claves[k]=true;});
       U.each(CubPool.lista,function(b){if(b.estado==='DISPONIBLE'&&claves[OT.docKey(b.orden,b.tipoDocumento,b.numeroDocumento)])ids.push(b.id);});
       if(!ids.length){UI.toast('Seleccione documentos disponibles','warn');return;}
       PackingUI.exigirDocumento(ids,function(){var n=CubPool.asignar(ids,o);OT.setActiva(o.id);PackUI.seleccion={};UI.toast(n+' bultos incorporados a '+o.numero,'ok');App.ir('packing');});
@@ -4204,9 +4310,13 @@ Pantallas.packing = function (m) {
     var sh = '<div class="card"><div class="dh"><div><h2 style="font-size:22px;margin:0">' + U.esc(ot.numero) + '</h2>' +
       '<div class="muted">' + U.esc(ot.estado) + ' · Despacho: ' + U.esc(r.despachoEstado) + ' · ' + ot.documentos.length + ' doc. · ' + ot.bultos.length + ' bulto(s) · ' + r.pendientes + ' pendiente(s)</div></div></div>';
     if (!ot.bultos.length) sh += '<div class="muted" style="padding:10px 0">Esta OT aún no tiene bultos.</div>';
-    U.each(ot.documentos, function (d) {
+    var docsOT = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
+    for (var sk in PackUI.selDocs) if (!U.find(docsOT, function (d) { return d.key === sk; })) delete PackUI.selDocs[sk];
+    var pk = Pag.cortar('packOT', docsOT);
+    sh += '<div id="pkPag">' + Pag.html('packOT', pk, 'documento(s)') + '</div><div class="lista-int">';
+    U.each(pk.items, function (d) {
       var bs2 = OT.bultosDoc(ot, d.key); if (!bs2.length) return;
-      sh += '<div class="doc"><div class="dh"><div><div style="font-size:20px;font-weight:900">' + U.esc(d.orden) + '</div>' +
+      sh += '<div class="doc"><div class="dh"><div><label class="chk" style="display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;padding:0"><input type="checkbox" data-a="pkSel" data-x="' + U.esc(d.key) + '"' + (PackUI.selDocs[d.key] ? ' checked' : '') + ' style="width:22px;height:22px;margin-right:8px"><span style="font-size:20px;font-weight:900">' + U.esc(d.orden) + '</span></label>' +
         '<div style="font-size:18px;font-weight:800">' + U.esc(OT.etiquetaDoc(d)) + '</div></div></div>' +
         '<div class="s" style="font-size:15px">' + bs2.length + ' bulto(s) · ' + Packing.lineaCourier(OT.couriersDoc(ot, d.key)) + '</div>' +
         '<div class="btns">' +
@@ -4216,17 +4326,22 @@ Pantallas.packing = function (m) {
         '<button class="btn btn-sec btn-sm" data-a="etiquetasRapidas" data-x="' + U.esc(d.key) + '">IMPRIMIR TODAS</button>' +
         '<button class="btn btn-ok btn-sm" data-a="courierRapido" data-x="' + U.esc(d.key) + '">COURIER</button></div></div>';
     });
+    sh += '</div>';
+    var nPk = 0; for (var pkx in PackUI.selDocs) if (PackUI.selDocs[pkx]) nPk++;
+    sh += '<div class="accbar"><div class="btns"><button class="btn btn-ok" data-a="pkEtq" id="pkEtq">' + (nPk ? 'ETIQUETAS (' + nPk + ')' : 'ETIQUETAS') + '</button><button class="btn btn-sec" data-a="pkVou" id="pkVou">' + (nPk ? 'VOUCHER (' + nPk + ')' : 'VOUCHER') + '</button></div>';
     sh += '<div class="btns">';
     sh += '<button class="btn btn-ok" data-a="courierToda">COURIER TODA LA OT</button>';
-    if (ot.documentos.length > 1) sh += '<button class="btn btn-sec" data-a="vouVarios">VOUCHER DE VARIOS DOCUMENTOS</button>';
     if (ot.estado !== 'ABIERTA') sh += '<button class="btn btn-warn" data-a="reabrir">REABRIR / EDITAR OT</button>';
     sh += '<button class="btn btn-sec" data-a="editarOT">EDITAR OT</button><button class="btn btn-sec" data-a="ots">OTs</button>';
     if (ot.bultos.length) sh += '<button class="btn btn-ok" data-a="manif">GENERAR MANIFIESTO →</button>';
-    sh += '</div></div>';
+    sh += '</div></div></div>';
     sec.innerHTML = sh; m.appendChild(sec);
     UI.delegar(sec, {
       voucher: function (k) { PackingUI.voucherPreview(ot, k); },
       vouVarios: function () { PackingUI.voucherVarios(ot); },
+      pkSel: function (k, el, e) { if (e && e.stopPropagation) e.stopPropagation(); if (el.checked) PackUI.selDocs[k] = true; else delete PackUI.selDocs[k]; var n = 0; for (var x in PackUI.selDocs) if (PackUI.selDocs[x]) n++; U.$('pkEtq').innerHTML = n ? 'ETIQUETAS (' + n + ')' : 'ETIQUETAS'; U.$('pkVou').innerHTML = n ? 'VOUCHER (' + n + ')' : 'VOUCHER'; },
+      pkEtq: function () { var ks = PackingUI.marcados(ot); if (!ks) return; var bs = []; U.each(ks, function (k) { bs = bs.concat(OT.bultosDoc(ot, k)); }); PackingUI.elegirFormatoBulto(ot, bs); },
+      pkVou: function () { var ks = PackingUI.marcados(ot); if (!ks) return; var gs = U.map(ks, function (k) { var d = OT.documento(ot, k); return { key: k, orden: d.orden, tipo: OT.tipoDoc(d), num: OT.numeroDoc(d), bultos: OT.bultosDoc(ot, k), total: OT.totalEtiqueta(ot, k) }; }); VoucherUI.mostrar(Plantillas.voucherDocs(gs, 'OT ' + ot.numero), gs); },
       etiquetas: function(k){PackingUI.etiquetasDocumento(ot,k);},
       etiquetasRapidas: function(k){PackingUI.elegirFormatoBulto(ot,OT.bultosDoc(ot,k));},
       reabrir: function () { Seguridad.admin('Reabrir ' + ot.numero, function (aut) { OT.reabrir(ot, aut); OT.setActiva(ot.id); App.ir('packing'); }); },
@@ -4582,18 +4697,19 @@ var DespachoGrupo = {
       var box = U.$('dgGrupos'), o = OT.porId(DespachoGrupo.otId), hh = '';
       if (!box) return;
       if (!o || o.estado!=='ABIERTA') { box.innerHTML = ''; return; }
-      var gs = DespachoGrupo.grupos(o);
-      hh = '<div class="card"><h2>DOCUMENTOS MANDANTES · ' + U.esc(o.numero) + '</h2><div class="lista">';
-      U.each(gs, function (g) {
+      var gs = DespachoGrupo.grupos(o), pd = Pag.cortar('desp', gs);
+      hh = '<div class="card"><h2>DOCUMENTOS MANDANTES · ' + U.esc(o.numero) + '</h2>' + Pag.html('desp', pd, 'documento(s)') + '<div class="lista lista-int">';
+      U.each(pd.items, function (g) {
         var n = DespachoGrupo.hechos(g), pend = 0;
         U.each(g.bultos, function (b) { if (!(b.verificadoCourier || b.despachoId || b.despachado)) pend++; });
         var ordsTxt = g.ordenes.length ? g.ordenes.join(', ') : 'POR ESCANEAR';
         hh += '<button class="it" data-a="dgAbrir" data-x="' + U.esc(g.key) + '" style="text-align:left;padding:13px 10px;border-left:7px solid ' + (pend===0?'#198754':(n?'#e09a00':'#c00000')) + ';background:' + (pend===0?'#e9f7ec':(n?'#fff7e8':'#fff2f2')) + '"><div class="c1" style="font-size:20px;font-weight:900">' + U.esc(g.orden) + ' <span class="est ABIERTA">' + n + '/' + g.bultos.length + '</span></div><div class="c2" style="font-size:16px"><b>' + U.esc(g.tipoDocumento) + ' ' + U.esc(g.numeroDocumento) + '</b></div><div class="c2">' + U.esc(g.courier || 'SIN COURIER') + ' · OT courier: <b style="word-break:break-all">' + U.esc(ordsTxt) + '</b></div></button>';
       });
-      hh += '</div></div><div class="card"><button class="btn btn-ok btn-xl" data-a="dgAsignar">ASIGNAR / CAMBIAR COURIER</button></div>';
+      hh += '</div><div class="accbar"><button class="btn btn-ok btn-xl" data-a="dgAsignar">ASIGNAR / CAMBIAR COURIER</button></div></div>';
       box.innerHTML = hh;
     }
-    m.onchange = function (e) { if (e.target.id === 'dgOT') { DespachoGrupo.otId = e.target.value; pintar(); } };
+    Pag.registrar('desp', function () { if (U.$('dgGrupos')) pintar(); });
+    m.onchange = function (e) { if (e.target.id === 'dgOT') { DespachoGrupo.otId = e.target.value; Pag.reiniciar('desp'); pintar(); } };
     UI.delegar(m, {
       dgAct: function () { pintar(); },
       dgHist: DespachoUI.historico,
@@ -5670,7 +5786,7 @@ Rotulado.etiqueta = function (c, acc, m) {
 
 Rotulado.libre = function (c, acc, m) {
   var conf = DB.cfg.rotuloLibre, h = '<div class="card"><div class="muted">Rótulos numerados 1/N … N/N sin registrar bultos. Marcadores: {bulto} {orden} {prefijo} {cliente} {fecha} {empresa}</div>' +
-    '<div class="fila"><div class="c num"><label class="lbl">CANTIDAD</label><input id="rlCant" class="inp" type="number" min="1" step="1" inputmode="numeric" value="' + conf.cantidad + '"></div>' +
+    '<div class="fila"><div class="c num"><label class="lbl">CANTIDAD</label><input id="rlCant" class="inp sm" type="number" min="1" step="1" inputmode="numeric" value="' + conf.cantidad + '"></div>' +
     '<div class="c2"><label class="lbl">PREFIJO / N° DOC.</label><input id="rlPre" class="inp sm" value="' + U.esc(conf.prefijo) + '"></div></div>' +
     '<label class="lbl">ORDEN</label><input id="rlOrd" class="inp sm" value="' + U.esc(conf.orden) + '">' +
     '<label class="lbl">CLIENTE</label><input id="rlCli" class="inp sm" value="' + U.esc(conf.cliente) + '">' +
@@ -5875,27 +5991,30 @@ Pantallas.catalogo = function (m) {
     '<div class="btns"><button class="btn btn-ok btn-sm" data-a="nuevo">+ AGREGAR</button><button class="btn btn-sec btn-sm" data-a="imp">IMPORTAR</button><button class="btn btn-sec btn-sm" data-a="impMed">MEDIDAS</button><button class="btn btn-sec btn-sm" data-a="exp">EXPORTAR</button></div>' +
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="impUbi">IMPORTAR UBICACIONES POR INGRESO (ERP)</button></div>' +
     (Sync.modo() !== 'local' ? '<div class="btns"><button class="btn btn-sm" data-a="bajarCat">DESCARGAR CATÁLOGO</button><button class="btn btn-sm" data-a="bajarMed">ACTUALIZAR MEDIDAS Y UBICACIONES</button><button class="btn btn-sm btn-sec" data-a="subirCat">SUBIR CATÁLOGO DE ESTE EQUIPO A LA NUBE</button></div>' : '') + '</div>' +
-    '<div id="ctRes" class="lista"></div>';
+    '<div id="ctPag"></div><div id="ctRes" class="lista lista-int"></div>';
   U.$('ctF').value = CatUI.filtro || '';
   var pintar = function () {
     var r = Productos.buscar(CatUI.q, CatUI.filtro), h = '', nUbi = 0, nMed = 0;
     U.each(Catalogo.lista, function (p) { if (U.trim(p.ubicacion) || Ubicaciones.distintas(p.codigo).length) nUbi++; });
     U.each(Medidas.lista, function (x) { if (Medidas.tiene(x)) nMed++; });
-    U.$('ctCnt').innerHTML = Catalogo.lista.length + ' en catálogo · ' + nUbi + ' con ubicación · ' + nMed + ' con medidas' + (Ubicaciones.lista.length ? ' · ' + Ubicaciones.lista.length + ' líneas de ingreso' : '') + (U.trim(CatUI.q) || CatUI.filtro ? ' · <b>' + r.length + ' coinciden</b>' : '');
-    U.each(r.slice(0, CatUI.max), function (f) {
+    var nub = DB.cfg.nube, difNube = nub && nub.cat != null && (nub.cat > Catalogo.lista.length || (nub.med || 0) > Medidas.lista.length);
+    U.$('ctCnt').innerHTML = (nub && nub.cat != null ? '<div class="' + (difNube ? 'aviso amar' : 'muted') + '" style="margin:0 0 4px">Nube: ' + nub.cat + ' productos · ' + (nub.med || 0) + ' fichas de medidas' + (difNube ? ' — este equipo tiene menos: pulse <b>ACTUALIZAR MEDIDAS Y UBICACIONES</b> o <b>DESCARGAR CATÁLOGO</b>' : '') + '</div>' : '') + Catalogo.lista.length + ' en catálogo · ' + nUbi + ' con ubicación · ' + nMed + ' con medidas' + (Ubicaciones.lista.length ? ' · ' + Ubicaciones.lista.length + ' líneas de ingreso' : '') + (U.trim(CatUI.q) || CatUI.filtro ? ' · <b>' + r.length + ' coinciden</b>' : '');
+    var pcat = Pag.cortar('cat', r, 50);
+    U.each(pcat.items, function (f) {
       h += '<div class="it" data-a="ficha" data-x="' + U.esc(f.codigo) + '" style="cursor:pointer"><div class="c1">' + U.esc(f.codigo) + (f.precio ? ' · ' + U.clp(f.precio) : '') + (!f.cat ? ' <span class="tag rev">NO ESTÁ EN CATÁLOGO</span>' : '') + '</div>' +
         '<div class="c2" style="font-size:14px;color:#000">' + U.esc(f.descripcion) + '</div>' +
         '<div class="c2">' + U.esc([f.marca, f.familia, f.codigoBarra].join(' · ').replace(/^( · )+|( · )+$/g, '').replace(/( · )+/g, ' · ')) + '</div>' +
         '<div style="margin-top:4px">' + Productos.linea(f) + '</div></div>';
     });
-    if (r.length > CatUI.max) h += '<button class="btn btn-sec" data-a="mas">VER MÁS (' + (r.length - CatUI.max) + ' restantes)</button>';
     if (!Catalogo.lista.length && !Medidas.lista.length) h = '<div class="card muted">Catálogo vacío. Use IMPORTAR, MEDIDAS o AGREGAR.</div>';
     else if (!r.length) h = '<div class="card muted">Sin coincidencias.</div>';
+    U.$('ctPag').innerHTML = Pag.html('cat', pcat, 'producto(s)', 50);
     U.$('ctRes').innerHTML = h;
   };
   var tq = null;
-  m.oninput = function (e) { if (e.target.id === 'ctQ') { CatUI.q = e.target.value; CatUI.max = 50; clearTimeout(tq); tq = setTimeout(pintar, 120); } };
-  m.onchange = function (e) { if (e.target.id === 'ctF') { CatUI.filtro = e.target.value; CatUI.max = 50; pintar(); } };
+  Pag.registrar('cat', function () { if (U.$('ctRes')) pintar(); });
+  m.oninput = function (e) { if (e.target.id === 'ctQ') { CatUI.q = e.target.value; Pag.reiniciar('cat'); clearTimeout(tq); tq = setTimeout(pintar, 120); } };
+  m.onchange = function (e) { if (e.target.id === 'ctF') { CatUI.filtro = e.target.value; Pag.reiniciar('cat'); pintar(); } };
   UI.delegar(m, {
     nuevo: function () { CatUI.editar(null, pintar); },
     ficha: function (cod) { CatUI.ficha(cod, pintar); },
@@ -5927,11 +6046,17 @@ Pantallas.catalogo = function (m) {
         var campos = r && r.campos, filas = (r && r.filas) || [];
         if (!filas.length) { UI.toast('La hoja no devolvió productos. Se conserva el catálogo local.', 'error', 5000); return; }
         var prods = U.map(filas, function (f) { var p = {}; U.each(campos, function (k, i) { p[k] = f[i]; }); return p; });
-        UI.confirmar('La hoja tiene ' + prods.length + ' productos' + (r.actualizado ? ' (actualizado ' + r.actualizado + ')' : '') + '.\nSe REEMPLAZARÁ el catálogo de este equipo (' + Catalogo.lista.length + ').', function () {
-          var res = Catalogo.importar(prods, 'reemplazar');
-          UI.toast(res.ok ? 'Catálogo actualizado: ' + prods.length + ' productos' : 'Sin espacio de almacenamiento', res.ok ? 'ok' : 'error', 4000);
+        var enNube = {}; U.each(prods, function (x) { enNube[Medidas.sinCeros(x.codigo)] = 1; });
+        var soloLocal = U.filter(Catalogo.lista, function (x) { return !enNube[Medidas.sinCeros(x.codigo)]; });
+        var aplicar = function (modo) {
+          var res = Catalogo.importar(prods, modo);
+          if (res.ok) { Catalogo.guardar(); if (DB.cfg.nube) { DB.cfg.nube.catBajado = DB.cfg.nube.cat; DB.cfg.nube.catAct = r.actualizado || ''; } DB.cfg.catalogoNube = r.actualizado || ''; DB.guardarCfg(); }
+          UI.toast(res.ok ? 'Catálogo de este equipo: ' + Catalogo.lista.length + ' productos' : 'Sin espacio de almacenamiento', res.ok ? 'ok' : 'error', 4000);
           pintar();
-        }, { si: 'REEMPLAZAR' });
+        };
+        UI.modal({ titulo: 'Descargar catálogo', html: '<div class="msg">La nube tiene <b>' + prods.length + '</b> productos' + (r.actualizado ? ' (actualizado ' + U.esc(r.actualizado) + ')' : '') + '. Este equipo tiene <b>' + Catalogo.lista.length + '</b>' + (soloLocal.length ? ', de los cuales <b>' + soloLocal.length + '</b> no están en la nube' : '') + '.</div>' +
+          '<div class="muted">FUSIONAR agrega y actualiza sin borrar nada (recomendado). REEMPLAZAR deja este equipo exactamente igual a la nube.' + (soloLocal.length ? ' Si los productos que faltan en la nube son válidos, súbalos con SUBIR CATÁLOGO para que todos los equipos los vean.' : '') + '</div>',
+          botones: [{ txt: 'CANCELAR', cls: 'btn-sec' }, { txt: 'REEMPLAZAR', cls: 'btn-warn', fn: function () { UI.cerrarModal(); aplicar('reemplazar'); return false; } }, { txt: 'FUSIONAR', cls: 'btn-ok', fn: function () { UI.cerrarModal(); aplicar('fusionar'); return false; } }] });
       }, function (msg) { UI.toast('Error: ' + msg, 'error', 5000); });
     }
   });
