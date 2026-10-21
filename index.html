@@ -459,7 +459,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.21.0', build: '2026-10-21', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.21.2', build: '2026-10-21', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -522,13 +522,71 @@ var StorageManager = (function () {
   var disponible = (function () {
     try { localStorage.setItem('rdm__t', '1'); localStorage.removeItem('rdm__t'); return true; } catch (e) { return false; }
   })();
-  function _setTxt(clave, txt) { if (disponible) localStorage.setItem(clave, txt); else memoria[clave] = txt; }
-  function _getTxt(clave) { try { return disponible ? localStorage.getItem(clave) : (memoria.hasOwnProperty(clave) ? memoria[clave] : null); } catch (e) { return null; } }
+  var GRANDES = { rdm_catalogo: 1, rdm_medidas: 1, rdm_ubicaciones: 1, rdm_correos: 1, rdm_archivados: 1 };
+  var big = {}, pend = {}, idb = null, idbOk = null, esperas = [];
+  function idbPut(k, v) { try { var tx = idb.transaction('kv', 'readwrite'); if (v == null) tx.objectStore('kv')['delete'](k); else tx.objectStore('kv').put(v, k); } catch (e) {} }
+  function quitarLS(k) { try { if (disponible) localStorage.removeItem(k); } catch (e) {} }
+  function _setTxt(clave, txt) {
+    if (GRANDES[clave] && idbOk !== false) {
+      big[clave] = txt;
+      if (idb) idbPut(clave, txt); else pend[clave] = 1;
+      quitarLS(clave);
+      return;
+    }
+    if (disponible) localStorage.setItem(clave, txt); else memoria[clave] = txt;
+  }
+  function _getTxt(clave) {
+    if (GRANDES[clave] && big.hasOwnProperty(clave)) return big[clave];
+    try { return disponible ? localStorage.getItem(clave) : (memoria.hasOwnProperty(clave) ? memoria[clave] : null); } catch (e) { return null; }
+  }
+  function terminar(ok) {
+    if (idbOk !== null) return;
+    idbOk = ok;
+    if (!ok) { for (var k in pend) { try { if (disponible && big[k] != null) localStorage.setItem(k, big[k]); } catch (e) {} } pend = {}; }
+    var l = esperas; esperas = [];
+    for (var i = 0; i < l.length; i++) { try { l[i](ok); } catch (e) {} }
+  }
+  function iniciarGrande(cb) {
+    if (cb) esperas.push(cb);
+    var w = typeof window !== 'undefined' ? window : {};
+    if (!w.indexedDB) { terminar(false); return; }
+    setTimeout(function () { terminar(false); }, 4000);
+    try {
+      var rq = w.indexedDB.open('rdm_satelite', 1);
+      rq.onupgradeneeded = function () { try { rq.result.createObjectStore('kv'); } catch (e) {} };
+      rq.onerror = function () { terminar(false); };
+      rq.onsuccess = function () {
+        var db = rq.result, tx, st, ks = [], k, n = 0, leidos = {};
+        for (k in GRANDES) ks.push(k);
+        try { tx = db.transaction('kv', 'readonly'); st = tx.objectStore('kv'); } catch (e) { terminar(false); return; }
+        var fin = function () {
+          idb = db;
+          for (var i = 0; i < ks.length; i++) {
+            var c = ks[i];
+            if (!big.hasOwnProperty(c)) {
+              if (leidos[c] != null) big[c] = leidos[c];
+              else { var ls = null; try { ls = disponible ? localStorage.getItem(c) : null; } catch (e) {} if (ls != null) { big[c] = ls; pend[c] = 1; } }
+            }
+            if (pend[c] && big[c] != null) idbPut(c, big[c]);
+            if (big.hasOwnProperty(c)) quitarLS(c);
+          }
+          pend = {};
+          terminar(true);
+        };
+        ks.forEach(function (c) {
+          var g = st.get(c);
+          g.onsuccess = function () { leidos[c] = g.result == null ? null : g.result; if (++n === ks.length) fin(); };
+          g.onerror = function () { if (++n === ks.length) fin(); };
+        });
+      };
+    } catch (e) { terminar(false); }
+  }
+  function cuando(cb) { if (idbOk !== null) cb(idbOk); else esperas.push(cb); }
 
   function guardar(clave, valor) {
     try { _setTxt(clave, JSON.stringify(valor)); return true; }
     catch (e) {
-      if (typeof UI !== 'undefined') UI.toast('ERROR: sin espacio de almacenamiento. Exporte un respaldo y libere datos.', 'error', 6000);
+      if (typeof UI !== 'undefined') UI.toast('ERROR: sin espacio de almacenamiento para «' + clave + '». Exporte un respaldo y libere datos.', 'error', 6000);
       return false;
     }
   }
@@ -537,7 +595,10 @@ var StorageManager = (function () {
     if (txt == null) return porDefecto;
     try { return JSON.parse(txt); } catch (e) { return porDefecto; }
   }
-  function eliminar(clave) { try { if (disponible) localStorage.removeItem(clave); else delete memoria[clave]; } catch (e) {} }
+  function eliminar(clave) {
+    if (GRANDES[clave]) { delete big[clave]; if (idb) idbPut(clave, null); }
+    try { if (disponible) localStorage.removeItem(clave); else delete memoria[clave]; } catch (e) {}
+  }
 
   function exportar() {
     var datos = {};
@@ -590,6 +651,12 @@ var StorageManager = (function () {
     for (var k in CLAVES) { var s = _getTxt(CLAVES[k]); if (s) t += s.length; }
     return t * 2;
   }
+  function detalle() {
+    var ls = 0, bg = 0, k;
+    try { for (var i = 0; disponible && i < localStorage.length; i++) { k = localStorage.key(i); ls += k.length + (localStorage.getItem(k) || '').length; } } catch (e) {}
+    for (k in big) if (big[k]) bg += big[k].length;
+    return { local: ls * 2, grande: bg * 2, idb: idbOk === true };
+  }
   function _backupLegacy() {
     try {
       var legacy = _getTxt(CLAVE_LEGACY_DESPACHOS);
@@ -606,7 +673,8 @@ var StorageManager = (function () {
     } catch (e) {}
   }
   return { disponible: disponible, guardar: guardar, leer: leer, eliminar: eliminar, exportar: exportar, validar: validar,
-    importar: importar, backup: backup, uso: uso, backupLegacy: _backupLegacy };
+    importar: importar, backup: backup, uso: uso, backupLegacy: _backupLegacy, iniciarGrande: iniciarGrande, cuando: cuando, detalle: detalle,
+    listo: function () { return idbOk !== null; } };
 })();
 
 var CONFIG_DEFECTO = {
@@ -669,6 +737,7 @@ var DB = {
     Catalogo.cargar();
     Medidas.cargar();
     CorreosSat.cargar();
+    CubPool.reconciliar();
   },
   guardarCfg: function () { return StorageManager.guardar(CLAVES.config, DB.cfg); },
   guardarFormatos: function () { return StorageManager.guardar(CLAVES.formatos, DB.formatos); },
@@ -920,9 +989,9 @@ var Pedidos = {
       if(b.pedidoId===p.id || OT.docKey(b.orden,b.tipoDocumento,b.numeroDocumento)===key)tieneCub=true;
     });
     U.each(OT.lista,function(ot){
-      var bs=OT.bultosDoc(ot,key);
+      var bs=OT.bultosDoc(ot,key), man=OT.conManifiesto(ot);
       if(bs.length)tieneOT=true;
-      U.each(bs,function(b){total++;if(b.verificadoCourier||b.despachoId||b.despachado||b.etapa==='DESPACHADO')desp++;if(b.retiro)ret++;});
+      U.each(bs,function(b){total++;if(man||b.verificadoCourier||b.despachoId||b.despachado||b.etapa==='DESPACHADO')desp++;if(b.retiro)ret++;});
     });
     if(total>0 && desp===total)return ret===total?'ENTREGADO':'ENVIADO';
     if(tieneOT)return 'EN PREPARACIÓN';
@@ -1208,6 +1277,7 @@ var OT = {
   etiquetaDoc: function (x) { return OT.tipoDoc(x) + ' ' + OT.numeroDoc(x); },
   porId: function (id) { return U.find(OT.lista, function (o) { return o.id === id; }); },
   activa: function () { return DB.cfg.otActivaId ? OT.porId(DB.cfg.otActivaId) : null; },
+  conManifiesto: function (o) { return !!(o && o.estado === 'CERRADA' && o.manifiesto && o.manifiesto.generado && !o.manifiesto.desactualizado); },
   setActiva: function (id) { DB.cfg.otActivaId = id; DB.guardarCfg(); },
   ordenadas: function () {
     var l = OT.lista.slice(0);
@@ -1391,6 +1461,8 @@ var OT = {
     ot.estado = 'CERRADA';
     OT.recalcular(ot); ot.actualizado = d.toISOString();
     OT.guardar(ot);
+    if (DB.cfg.otActivaId === ot.id) OT.setActiva('');
+    if (typeof Pedidos !== 'undefined') Pedidos.reconciliarEstados();
     return '';
   },
   reabrir: function (ot, aut) {
@@ -1637,6 +1709,7 @@ var ProdSync = {
   activo: function () { return Sync.modo() !== 'local'; },
   operador: function () { return U.trim(DB.cfg.operador || ''); },
   actualizar: function (cb, forzar) {
+    if (!StorageManager.listo()) { StorageManager.cuando(function () { ProdSync.actualizar(cb, forzar); }); return; }
     if (!ProdSync.activo() || ProdSync._enCurso) { if (cb) cb(false); return; }
     var ahora = +new Date();
     if (!forzar && ahora - ProdSync._ult < 60000) { if (cb) cb(false); return; }
@@ -2258,7 +2331,7 @@ var Sync = {
     var sig=function(ok,msg){
       if(ok===false){cb(false,msg);return;}
       if(i>=pasos.length){
-        Pedidos.reconciliarEstados(); App.refrescarDatos();
+        CubPool.reconciliar(); Pedidos.reconciliarEstados(); App.refrescarDatos();
         if(Sync._conf) UI.toast(Sync._conf+' registro(s) habían cambiado en la nube: se conservó la versión de la nube','warn',6000);
         cb(true,0); return;
       }
@@ -3058,6 +3131,10 @@ var App = {
     };
     StorageManager.backupLegacy();
     DB.cargar();
+    StorageManager.iniciarGrande(function () {
+      Ubicaciones.cargar(); Medidas.cargar(); Catalogo.cargar(); CorreosSat.cargar();
+      if (App.pantalla && App.pantalla !== 'inicio' && !UI.abierto()) App.ir(App.pantalla, true);
+    });
     Alta.aplicar();
     U.$('nav').onclick = function (e) { var b = U.cerca(e.target, 'data-p', this); if (b) App.ir(b.getAttribute('data-p')); };
     var integ = Integridad.verificar();
@@ -3136,6 +3213,17 @@ var CubPool = {
     CubPool.lista.push(b); CubPool.ultimo = { ancho: b.ancho, alto: b.alto, largo: b.largo, peso: b.peso }; CubPool.guardar(); return b;
   },
   disponibles: function (orden) { return U.filter(CubPool.lista, function (b) { return b.estado === 'DISPONIBLE' && (!orden || U.norm(b.orden) === U.norm(orden)); }); },
+  reconciliar: function () {
+    var ref = {}, n = 0;
+    U.each(OT.lista, function (o) { if (o.eliminado) return; U.each(o.bultos || [], function (b) { if (b.origenCubicacionId) ref[b.origenCubicacionId] = o; }); });
+    U.each(CubPool.lista, function (b) {
+      var o = ref[b.id];
+      if (!o || b.estado !== 'DISPONIBLE') return;
+      b.estado = 'ASIGNADO'; b.otId = o.id; b.otNumero = o.numero; b.act = new Date().toISOString(); SyncReg.marcar(b); n++;
+    });
+    if (n) { StorageManager.guardar(CLAVES.cubicacion, CubPool.lista); if (typeof Sync !== 'undefined') Sync.programar(1500); }
+    return n;
+  },
   asignar: function (ids, ot) {
     if (!OT.editable(ot)) return 0;
     var n = 0;
@@ -3201,7 +3289,6 @@ var CubPool = {
 var CubUI = {
   pedidoId: null, cubId: '', tipo: 'FACTURA', ultimoClick: 0, vista: 'pendientes', selDocs: {} };
 
-CubUI.contarSel = function (n) { if (U.$('cuEtq')) U.$('cuEtq').innerHTML = n ? 'ETIQUETAS (' + n + ')' : 'ETIQUETAS'; if (U.$('cuVou')) U.$('cuVou').innerHTML = n ? 'VOUCHER (' + n + ')' : 'VOUCHER'; };
 CubUI.keyDe = function (b) { return OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento); };
 CubUI.bultosDoc = function (key) {
   var l = U.filter(CubPool.lista, function (b) { return b.estado !== 'ELIMINADO' && CubUI.keyDe(b) === key; });
@@ -3390,7 +3477,7 @@ Pantallas.inicio = function (m) {
     if(o.despacho && o.despacho.estado && o.despacho.estado!=='PENDIENTE') otDesp++;
   });
   try {
-    U.each(CubPool.lista||[],function(c){ if(!c.usado && !c.otId) cubPend++; });
+    U.each(CubPool.lista||[],function(c){ if(c.estado==='DISPONIBLE' && !c.otId) cubPend++; });
   } catch(e) {}
 
   var k=function(n,t,s,c,dest){return '<div class="kpi '+(c||'')+'" role="button" tabindex="0" data-a="iniKpi" data-x="'+dest+'"><div class="v">'+n+'</div><div class="t">'+U.esc(t)+'</div><div class="s">'+U.esc(s||'')+'</div></div>';};
@@ -3579,7 +3666,7 @@ Pantallas.cubicacion = function (m) {
     '<button class="btn btn-ok btn-xl" data-a="agregar">+ AGREGAR BULTO</button>' +
     '<div class="btns"><button class="btn btn-sec" data-a="repetir">REPETIR MEDIDAS</button><button class="btn btn-sec" data-a="igual">OTRO IGUAL</button></div>' +
     '<div class="btns"><button class="btn btn-warn" data-a="limpiarDoc">LIMPIAR DOCUMENTO</button><button class="btn btn-sec" data-a="nuevo">NUEVO ID CUBICACIÓN</button></div></div>' +
-    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuPag"></div><div id="cuLista" class="lista-int"></div><div class="accbar"><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS</button><button class="btn btn-sec" data-a="vouCub" id="cuVou">VOUCHER</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button></div><div class="btns"><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn" data-a="packing">PACKING →</button></div></div></div>';
+    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuPag"></div><div id="cuLista" class="lista-int"></div><div class="accbar"><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS DE VARIOS</button><button class="btn btn-sec" data-a="vouCub" id="cuVou">VOUCHER DE VARIOS</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button></div><div class="btns"><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn" data-a="packing">PACKING →</button></div></div></div>';
   m.innerHTML = h;
   var calc = function () { var a = U.num(U.$('cuAncho').value), al = U.num(U.$('cuAlto').value), l = U.num(U.$('cuLargo').value); if (a && al && l) { var c = OT.calcular(a, al, l); U.$('cuCalc').innerHTML = 'Volumen <b>' + U.fx(c.volumen, 3) + ' m³</b> · Peso vol. <b>' + U.fx(c.pesoVol, 2) + ' kg</b>'; } else U.$('cuCalc').innerHTML = ''; };
   var pintar = function () {
@@ -3595,13 +3682,11 @@ Pantallas.cubicacion = function (m) {
     if (!l.length) hh = '<div class="muted" style="padding:12px">Sin bultos.</div>';
     var grupos = {}, ordenG = [];
     U.each(l, function (b) { var k = CubUI.keyDe(b); if (!grupos[k]) { grupos[k] = []; ordenG.push(k); } grupos[k].push(b); });
-    var nSel = 0;
-    for (var ks in CubUI.selDocs) if (CubUI.selDocs[ks]) { if (grupos[ks]) nSel++; else delete CubUI.selDocs[ks]; }
-    CubUI.contarSel(nSel);
+    CubUI.selDocs = {};
     var pc = Pag.cortar('cub', ordenG);
     U.each(pc.items, function (k) {
       var g = grupos[k], b0 = g[0], tot = CubUI.bultosDoc(k).length;
-      hh += '<div class="dochead"><label class="chk"><input type="checkbox" data-a="selDoc" data-x="' + U.esc(k) + '"' + (CubUI.selDocs[k] ? ' checked' : '') + '><span><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s)</span></label>' +
+      hh += '<div class="dochead"><div style="font-size:16px"><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s)</div>' +
         '<div class="btns"><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button></div></div>';
       U.each(g, function (b) { hh += CubUI.filaBulto(b); });
     });
@@ -3759,20 +3844,15 @@ Pantallas.cubicacion = function (m) {
     },
     packing: function () { App.ir('packing'); },
     etiqCub: function () {
-      var ks = []; for (var k in CubUI.selDocs) if (CubUI.selDocs[k]) ks.push(k);
-      if (ks.length) { CubUI.imprimirDocs(ks); return; }
       var vis = (CubUI.visibles || []).slice(0), dd = CubUI.docsDe(vis);
       if (dd.length === 1) { CubUI.imprimirDocs([dd[0].key]); return; }
       CubUI.elegirDocs(vis);
     },
     vouCub: function () {
-      var ks = []; for (var k in CubUI.selDocs) if (CubUI.selDocs[k]) ks.push(k);
-      if (ks.length) { CubUI.voucherDocs(ks); return; }
       var vis = (CubUI.visibles || []).slice(0), dd = CubUI.docsDe(vis);
       if (dd.length === 1) { CubUI.voucherDocs([dd[0].key]); return; }
       CubUI.elegirDocs(vis, 'voucher');
     },
-    selDoc: function (k, el, e) { if (e && e.stopPropagation) e.stopPropagation(); if (el.checked) CubUI.selDocs[k] = true; else delete CubUI.selDocs[k]; var n = 0; for (var x in CubUI.selDocs) if (CubUI.selDocs[x]) n++; CubUI.contarSel(n); },
     vouDoc: function (k) { CubUI.voucherDocs([k]); },
     etqDoc: function (k) { CubUI.imprimirDocs([k]); },
     pdfA4: function () { CubicacionPDF.generar('A4'); },
@@ -3876,7 +3956,7 @@ var CubicacionPDF = {
   }
 };
 
-var PackUI = { orden: '', tipoDocumento: '', numeroDocumento: '', seleccion: {}, selDocs: {} };
+var PackUI = { orden: '', tipoDocumento: '', numeroDocumento: '', seleccion: {} };
 
 PackUI.disponibles = function () {
   var qo = U.norm(PackUI.orden), qt = U.norm(PackUI.tipoDocumento), qd = U.norm(PackUI.numeroDocumento);
@@ -3892,6 +3972,7 @@ PackUI.disponibles = function () {
 PackUI.resumenOT = function (o) {
   var desp = 0;
   U.each(o.bultos || [], function (b) { if (b.verificadoCourier || b.despachoId || b.despachado) desp++; });
+  if (OT.conManifiesto(o)) return { estado: o.estado, despachados: (o.bultos || []).length, pendientes: 0, despachoEstado: 'ENTREGADA AL TRANSPORTE (MANIFIESTO v' + (o.manifiesto.version || 1) + ')', cerrada: true };
   return { estado: o.estado || 'ABIERTA', despachados: desp, pendientes: Math.max(0, (o.bultos || []).length - desp), despachoEstado: (o.despacho && o.despacho.estado) || 'PENDIENTE' };
 };
 
@@ -4005,22 +4086,16 @@ var PackingUI = {
       ]
     });
   },
-  marcados: function (ot) {
-    var ks = []; for (var k in PackUI.selDocs) if (PackUI.selDocs[k] && OT.bultosDoc(ot, k).length) ks.push(k);
-    if (ks.length) return ks;
-    var docs = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
-    if (docs.length === 1) return [docs[0].key];
-    UI.toast('Marque uno o más documentos de la OT', 'warn'); return null;
-  },
-  voucherVarios: function (ot) {
-    var docs = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
-    var h = '<div class="muted">Marque los documentos de ' + U.esc(ot.numero) + ' que van en un solo voucher.</div>' +
+  voucherVarios: function (ot, modo) {
+    var esE = modo === 'etiquetas', docs = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
+    var h = '<div class="muted">' + (esE ? 'Marque los documentos de ' + U.esc(ot.numero) + ': se imprime una etiqueta por cada uno de sus bultos.' : 'Marque los documentos de ' + U.esc(ot.numero) + ' que van en un solo voucher.') + '</div>' +
       U.map(docs, function (d) { return '<label class="chk" style="padding:10px 4px;border-bottom:1px solid #eee"><input type="checkbox" class="vvDoc" value="' + U.esc(d.key) + '" checked> <b>' + U.esc(d.orden + ' · ' + OT.etiquetaDoc(d)) + '</b> <span class="muted">(' + OT.bultosDoc(ot, d.key).length + ' bulto/s)</span></label>'; }).join('');
-    UI.modal({ titulo: 'Voucher de varios documentos', html: h, botones: [
+    UI.modal({ titulo: esE ? 'Etiquetas de varios documentos' : 'Voucher de varios documentos', html: h, botones: [
       { txt: 'CANCELAR', cls: 'btn-sec' },
       { txt: 'GENERAR', cls: 'btn-ok', fn: function () {
         var ks = U.map(U.filter(U.qa(U.$('modalHost'), '.vvDoc'), function (c) { return c.checked; }), function (c) { return c.value; });
         if (!ks.length) { UI.toast('Marque al menos un documento', 'error'); return false; }
+        if (esE) { var bs = []; U.each(ks, function (k) { bs = bs.concat(OT.bultosDoc(ot, k)); }); UI.cerrarModal(); setTimeout(function () { PackingUI.elegirFormatoBulto(ot, bs); }, 60); return false; }
         var gs = U.map(ks, function (k) { var d = OT.documento(ot, k); return { key: k, orden: d.orden, tipo: OT.tipoDoc(d), num: OT.numeroDoc(d), bultos: OT.bultosDoc(ot, k), total: OT.totalEtiqueta(ot, k) }; });
         UI.cerrarModal();
         setTimeout(function () { VoucherUI.mostrar(Plantillas.voucherDocs(gs, 'OT ' + ot.numero), gs); }, 60);
@@ -4182,7 +4257,8 @@ var PackingUI = {
 };
 
 Pantallas.packing = function (m) {
-  var ot = OT.activa(), docs = [], vistos = {};
+  var ot = OT.activa(), docs = [], vistos = {}, otCerrada = null;
+  if (ot && OT.conManifiesto(ot)) { otCerrada = ot; ot = null; OT.setActiva(''); }
   U.each(CubPool.lista, function (b) {
     if (b.estado !== 'DISPONIBLE') return;
     var k = OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento);
@@ -4305,18 +4381,27 @@ Pantallas.packing = function (m) {
 
   pintar();
 
+  if (otCerrada) {
+    var avc = document.createElement('div');
+    avc.innerHTML = '<div class="card"><div class="aviso verde">' + U.esc(otCerrada.numero) + ' quedó CERRADA con el manifiesto v' + (otCerrada.manifiesto.version || 1) + ' (' + otCerrada.bultos.length + ' bultos entregados al transporte). Ya no figura como pendiente; Packing queda libre para una OT nueva.</div>' +
+      '<div class="btns"><button class="btn btn-ok" data-a="pkNueva">+ NUEVA OT</button><button class="btn btn-sec" data-a="pkVerManif" data-x="' + otCerrada.id + '">VER MANIFIESTO</button></div></div>';
+    m.appendChild(avc);
+    UI.delegar(avc, {
+      pkNueva: function () { var o = OT.nueva(); OT.setActiva(o.id); App.ir('packing'); },
+      pkVerManif: function (id) { Manif.vista = 'historico'; Manif.otId = id; App.ir('manifiesto'); }
+    });
+  }
   if (ot) {
     var sec = document.createElement('div'), r = PackUI.resumenOT(ot);
     var sh = '<div class="card"><div class="dh"><div><h2 style="font-size:22px;margin:0">' + U.esc(ot.numero) + '</h2>' +
       '<div class="muted">' + U.esc(ot.estado) + ' · Despacho: ' + U.esc(r.despachoEstado) + ' · ' + ot.documentos.length + ' doc. · ' + ot.bultos.length + ' bulto(s) · ' + r.pendientes + ' pendiente(s)</div></div></div>';
     if (!ot.bultos.length) sh += '<div class="muted" style="padding:10px 0">Esta OT aún no tiene bultos.</div>';
     var docsOT = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
-    for (var sk in PackUI.selDocs) if (!U.find(docsOT, function (d) { return d.key === sk; })) delete PackUI.selDocs[sk];
     var pk = Pag.cortar('packOT', docsOT);
     sh += '<div id="pkPag">' + Pag.html('packOT', pk, 'documento(s)') + '</div><div class="lista-int">';
     U.each(pk.items, function (d) {
       var bs2 = OT.bultosDoc(ot, d.key); if (!bs2.length) return;
-      sh += '<div class="doc"><div class="dh"><div><label class="chk" style="display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;padding:0"><input type="checkbox" data-a="pkSel" data-x="' + U.esc(d.key) + '"' + (PackUI.selDocs[d.key] ? ' checked' : '') + ' style="width:22px;height:22px;margin-right:8px"><span style="font-size:20px;font-weight:900">' + U.esc(d.orden) + '</span></label>' +
+      sh += '<div class="doc"><div class="dh"><div><div style="font-size:20px;font-weight:900">' + U.esc(d.orden) + '</div>' +
         '<div style="font-size:18px;font-weight:800">' + U.esc(OT.etiquetaDoc(d)) + '</div></div></div>' +
         '<div class="s" style="font-size:15px">' + bs2.length + ' bulto(s) · ' + Packing.lineaCourier(OT.couriersDoc(ot, d.key)) + '</div>' +
         '<div class="btns">' +
@@ -4327,8 +4412,7 @@ Pantallas.packing = function (m) {
         '<button class="btn btn-ok btn-sm" data-a="courierRapido" data-x="' + U.esc(d.key) + '">COURIER</button></div></div>';
     });
     sh += '</div>';
-    var nPk = 0; for (var pkx in PackUI.selDocs) if (PackUI.selDocs[pkx]) nPk++;
-    sh += '<div class="accbar"><div class="btns"><button class="btn btn-ok" data-a="pkEtq" id="pkEtq">' + (nPk ? 'ETIQUETAS (' + nPk + ')' : 'ETIQUETAS') + '</button><button class="btn btn-sec" data-a="pkVou" id="pkVou">' + (nPk ? 'VOUCHER (' + nPk + ')' : 'VOUCHER') + '</button></div>';
+    sh += '<div class="accbar">' + (docsOT.length > 1 ? '<div class="btns"><button class="btn btn-ok" data-a="pkEtq">ETIQUETAS DE VARIOS</button><button class="btn btn-sec" data-a="vouVarios">VOUCHER DE VARIOS</button></div>' : '');
     sh += '<div class="btns">';
     sh += '<button class="btn btn-ok" data-a="courierToda">COURIER TODA LA OT</button>';
     if (ot.estado !== 'ABIERTA') sh += '<button class="btn btn-warn" data-a="reabrir">REABRIR / EDITAR OT</button>';
@@ -4339,9 +4423,7 @@ Pantallas.packing = function (m) {
     UI.delegar(sec, {
       voucher: function (k) { PackingUI.voucherPreview(ot, k); },
       vouVarios: function () { PackingUI.voucherVarios(ot); },
-      pkSel: function (k, el, e) { if (e && e.stopPropagation) e.stopPropagation(); if (el.checked) PackUI.selDocs[k] = true; else delete PackUI.selDocs[k]; var n = 0; for (var x in PackUI.selDocs) if (PackUI.selDocs[x]) n++; U.$('pkEtq').innerHTML = n ? 'ETIQUETAS (' + n + ')' : 'ETIQUETAS'; U.$('pkVou').innerHTML = n ? 'VOUCHER (' + n + ')' : 'VOUCHER'; },
-      pkEtq: function () { var ks = PackingUI.marcados(ot); if (!ks) return; var bs = []; U.each(ks, function (k) { bs = bs.concat(OT.bultosDoc(ot, k)); }); PackingUI.elegirFormatoBulto(ot, bs); },
-      pkVou: function () { var ks = PackingUI.marcados(ot); if (!ks) return; var gs = U.map(ks, function (k) { var d = OT.documento(ot, k); return { key: k, orden: d.orden, tipo: OT.tipoDoc(d), num: OT.numeroDoc(d), bultos: OT.bultosDoc(ot, k), total: OT.totalEtiqueta(ot, k) }; }); VoucherUI.mostrar(Plantillas.voucherDocs(gs, 'OT ' + ot.numero), gs); },
+      pkEtq: function () { PackingUI.voucherVarios(ot, 'etiquetas'); },
       etiquetas: function(k){PackingUI.etiquetasDocumento(ot,k);},
       etiquetasRapidas: function(k){PackingUI.elegirFormatoBulto(ot,OT.bultosDoc(ot,k));},
       reabrir: function () { Seguridad.admin('Reabrir ' + ot.numero, function (aut) { OT.reabrir(ot, aut); OT.setActiva(ot.id); App.ir('packing'); }); },
@@ -6422,7 +6504,7 @@ Pantallas.datos = function (m) {
     '<div class="muted">Equipo: ' + U.esc(sy.dispositivo) + '</div></div>';
   h += '<div class="card"><h2>Respaldo</h2>' +
     '<div class="tot">OT: <b>' + OT.lista.length + '</b> · Bultos: <b>' + nb + '</b> · Productos: <b>' + Catalogo.lista.length + '</b> · Formatos: <b>' + DB.formatos.length + '</b><br>' +
-    '<span class="muted">Uso almacenamiento: ' + U.fx(StorageManager.uso() / 1024, 0) + ' KB (límite ≈ 5000 KB)</span></div>' +
+    (function () { var d = StorageManager.detalle(); return '<span class="muted">Almacenamiento: ' + U.fx(d.local / 1024, 0) + ' KB en el espacio rápido (límite ≈ 5000 KB)' + (d.idb ? ' · ' + U.fx(d.grande / 1024, 0) + ' KB de catálogo, medidas, ubicaciones y Correos en la base ampliada del navegador' : ' · base ampliada no disponible en este navegador') + '</span>'; })() + '</div>' +
     '<button class="btn" data-a="exportar">EXPORTAR RESPALDO</button>' +
     (function () { var a = StorageManager.leer(CLAVES.archivados, []); return U.esArray(a) && a.length ? '<button class="btn btn-sec" data-a="verArchivados">DESCARGAR ARCHIVADOS (' + a.length + ')</button><div class="muted">Registros antiguos de este equipo que no estaban en la nube y no se subieron. Se guardan aquí por seguridad.</div>' : ''; })() +
     '<button class="btn btn-sec" data-a="verRespaldo">VER RESPALDO</button>' +
