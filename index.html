@@ -449,7 +449,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.19.0', build: '2026-10-20', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.20.0', build: '2026-10-21', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -936,6 +936,41 @@ var Pt = {
   input: function (cls, v, lista, extra) { return '<input class="inp sm ptIn ' + cls + '" type="number" min="' + PT_MIN + '" max="' + PT_MAX + '" step="1" inputmode="numeric" list="' + lista + '" value="' + (v || 10) + '"' + (extra || '') + '>'; },
   leer: function (el, def) { var v = parseFloat(String(el && el.value || '').replace(',', '.')); if (!(v > 0)) v = def || 10; return Math.max(PT_MIN, Math.min(PT_MAX, Math.round(v * 2) / 2)); }
 };
+var TIPOS_DOC_DEFECTO = [['TICKET', 'TIC'], ['ORDEN', 'ORD'], ['COTIZACIÓN', 'COT'], ['NOTA DE VENTA', 'NOT'], ['FACTURA', 'FAC'], ['BOLETA', 'BOL'], ['GUÍA DE DESPACHO', 'GUI'], ['TRASPASO', 'TRA'], ['OTRO', 'OTR']];
+var TiposDoc = {
+  defecto: function () { var l = []; for (var i = 0; i < TIPOS_DOC_DEFECTO.length; i++) l.push({ n: TIPOS_DOC_DEFECTO[i][0], ab: TIPOS_DOC_DEFECTO[i][1], on: true }); return l; },
+  lista: function () { var l = DB.cfg && DB.cfg.tiposDoc; return U.esArray(l) && l.length ? l : TiposDoc.defecto(); },
+  nombres: function (sel) {
+    var out = [], k = U.norm(sel || '');
+    U.each(TiposDoc.lista(), function (t) { if (t.on) out.push(t.n); });
+    if (k && !U.find(out, function (x) { return U.norm(x) === k; })) out.push(String(sel).toUpperCase());
+    return out;
+  },
+  abrev: function (tipo) {
+    var k = U.norm(tipo || ''), t = U.find(TiposDoc.lista(), function (x) { return U.norm(x.n) === k; });
+    if (t && t.ab) return t.ab;
+    return { FACTURA: 'FAC', BOLETA: 'BOL', GUIA: 'GUI', 'GUÍA': 'GUI', 'NOTA DE CREDITO': 'NCR' }[k] || (U.sinAcentos(k).replace(/[^A-Z]/g, '').substr(0, 3) || 'DOC');
+  },
+  validar: function (l) {
+    var vistos = {}, abs = {}, act = 0;
+    for (var i = 0; i < l.length; i++) {
+      var t = l[i], k = U.sinAcentos(U.norm(t.n));
+      if (!k) return 'Fila ' + (i + 1) + ': falta el nombre.';
+      if (vistos[k]) return 'El tipo «' + t.n + '» está repetido.';
+      if (!/^[A-Z0-9]{2,4}$/.test(t.ab)) return 'Abreviatura de «' + t.n + '»: use 2 a 4 letras o números.';
+      if (abs[t.ab]) return 'La abreviatura ' + t.ab + ' se repite (' + abs[t.ab] + ' y ' + t.n + ').';
+      vistos[k] = 1; abs[t.ab] = t.n; if (t.on) act++;
+    }
+    return act ? '' : 'Debe quedar al menos un tipo activo.';
+  },
+  usados: function () {
+    var u = {}, add = function (t) { var k = U.norm(t || ''); if (k) u[k] = (u[k] || 0) + 1; };
+    U.each(Pedidos.lista || [], function (p) { add(p.tipoDocumento); });
+    U.each(CubPool.lista || [], function (b) { add(b.tipoDocumento); });
+    U.each(OT.lista || [], function (o) { U.each(o.bultos || [], function (b) { add(b.tipoDocumento); }); });
+    return u;
+  }
+};
 var CAMPOS_DIRECCION = [
   { k: 'rut', n: 'RUT', max: 12 },
   { k: 'nombre', n: 'NOMBRE', max: 80, req: true },
@@ -989,7 +1024,7 @@ var EnvioDatos = {
     return cands.length === 1 && !n ? cands[0] : null;
   },
   marcaPrevia: function (p) {
-    var ab = { FACTURA: 'FAC', BOLETA: 'BOL', GUIA: 'GUI', 'GUÍA': 'GUI', 'NOTA DE CREDITO': 'NCR' }[U.norm(p.tipoDocumento)] || (U.sinAcentos(U.norm(p.tipoDocumento)).replace(/[^A-Z]/g, '').substr(0, 3) || 'DOC');
+    var ab = TiposDoc.abrev(p.tipoDocumento);
     var l = function (v) { return U.norm(v).replace(/\s+/g, '').replace(/[^A-Z0-9\-\/\.]/g, ''); };
     return l(p.numero) + ' ' + ab + ' ' + (l(p.numeroDocumento) || 'SN') + ' B1/N';
   },
@@ -1372,6 +1407,7 @@ var Catalogo = {
     if (i == null) i = Catalogo.idx['Z:' + Medidas.sinCeros(c)];
     return i == null ? null : Catalogo.lista[i];
   },
+  porCeros: function (c, p) { var k = U.norm(c); return !!p && k !== U.norm(p.codigo) && k !== U.norm(p.codigoBarra) && Medidas.sinCeros(c) === Medidas.sinCeros(p.codigo); },
   buscar: function (q, max) {
     q = U.sinAcentos(U.norm(q));
     if (!q) return Catalogo.lista.slice(0, max || 50);
@@ -2413,14 +2449,18 @@ var Impresion = {
     for (var i = 0; i < st.length; i++) if (st[i].id !== 'pageRule' && st[i].id !== 'rdmPrintCss') t += st[i].innerHTML + '\n';
     return t;
   },
-  paginas: function (html, tipo, ancho, alto, margen) {
+  paginas: function (html, tipo, ancho, alto, margen, aj) {
+    var envolver = function (h) {
+      if (!aj || (!aj.x && !aj.y && (!aj.e || aj.e === 100))) return h;
+      return '<div class="pgd" style="position:relative;left:' + (aj.x || 0) + 'mm;top:' + (aj.y || 0) + 'mm"><div class="pge" style="zoom:' + ((aj.e || 100) / 100) + '">' + h + '</div></div>';
+    };
     var tmp = document.createElement('div'), out = '', hojas, i;
     tmp.innerHTML = html;
     hojas = U.qa(tmp, '.hoja');
     if (!hojas.length) { tmp.innerHTML = '<div class="hoja">' + html + '</div>'; hojas = U.qa(tmp, '.hoja'); }
     for (i = 0; i < hojas.length; i++) {
       var st = tipo === 'troquel' ? 'width:' + ancho + 'mm;height:' + alto + 'mm' : (tipo === 'a4' ? 'width:100%' : 'width:' + ancho + 'mm;padding:' + margen + 'mm');
-      out += '<div class="pg" style="' + st + '">' + (tipo === 'a4' ? '' : Impresion.FONDO) + hojas[i].outerHTML + '</div>';
+      out += '<div class="pg" style="' + st + '">' + (tipo === 'a4' ? '' : Impresion.FONDO) + envolver(hojas[i].outerHTML) + '</div>';
     }
     return out;
   },
@@ -2446,7 +2486,7 @@ var Impresion = {
   },
   imprimir: function (html, op) {
     op = op || {};
-    var tipo = op.tipo || 'rollo', ancho = op.ancho || 58, margen = op.margen == null ? 2 : op.margen, css, paginas;
+    var tipo = op.tipo || 'rollo', ancho = op.ancho || 58, margen = op.margen == null ? 2 : op.margen, css, paginas, aj = { x: Number(op.desX) || 0, y: Number(op.desY) || 0, e: Number(op.escala) || 100 };
     var z = tipo === 'a4' ? 100 : Impresion.zoom(), f = z / 100, serv = tipo !== 'a4' && Impresion.paginaServicio(), perfil = tipo === 'a4' ? 'exacta' : Impresion.perfil();
     var red = function (x) { return Math.round(x * 10) / 10; };
     var tam = function (a, h) {
@@ -2457,9 +2497,9 @@ var Impresion = {
       return '@page{size:' + red(w) + 'mm ' + red(hh) + 'mm;margin:0}';
     };
     if (tipo === 'a4') { paginas = Impresion.paginas(html, 'a4'); css = '@page{size:A4 portrait;margin:12mm}'; }
-    else if (tipo === 'troquel') { paginas = Impresion.paginas(html, 'troquel', ancho, op.alto); css = tam(ancho, op.alto); }
+    else if (tipo === 'troquel') { paginas = Impresion.paginas(html, 'troquel', ancho, op.alto, 0, aj); css = tam(ancho, op.alto); }
     else {
-      paginas = Impresion.paginas(html, 'rollo', ancho, 0, margen);
+      paginas = Impresion.paginas(html, 'rollo', ancho, 0, margen, aj);
       var altoMm = Impresion.medirAlto(paginas, ancho);
       paginas = paginas.replace(/class="pg" style="/g, 'class="pg" style="height:' + altoMm + 'mm;');
       css = tam(ancho, altoMm);
@@ -2640,7 +2680,7 @@ var Plantillas = {
   etiquetasDe: function (ot, bultos, fmtId) { return U.map(bultos, function (b) { return Plantillas.etiquetaBulto(ot, b, fmtId); }).join(''); },
   imprimirBultos: function (ot, bultos, fmtId) {
     var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto);
-    Impresion.imprimir(Plantillas.etiquetasDe(ot, bultos, f.id), f.tipo === 'troquel' ? { tipo: 'troquel', ancho: f.ancho, alto: f.alto } : { tipo: 'rollo', ancho: f.ancho, margen: 2 });
+    Impresion.imprimir(Plantillas.etiquetasDe(ot, bultos, f.id), Plantillas.opcionesFormato(f));
   },
   voucher: function (ot, key, extra) {
     var doc = OT.documento(ot, key), bs = OT.bultosDoc(ot, key), t = OT.totalesDoc(ot, key), d = new Date(), h = '';
@@ -2665,22 +2705,57 @@ var Plantillas = {
     h += '</div>';
     return h;
   },
-  _porDoc: function (ot) {
-    return U.map(ot.documentos, function (d) { return { doc: d, bultos: OT.bultosDoc(ot, d.key), total: OT.totalEtiqueta(ot, d.key) }; });
+  voucherDocs: function (grupos, origen) {
+    var d = new Date(), h = '<div class="hoja vo">', T = { docs: 0, bultos: 0, peso: 0, volumen: 0, pesoVol: 0 }, vistos = {};
+    h += '<div class="sep"></div><div class="c h1">' + U.esc(DB.cfg.empresa) + '</div><div class="c">' + U.esc(DB.cfg.subtitulo) + '</div><div class="sep"></div>';
+    if (grupos.length > 1) h += '<div class="c"><b>VOUCHER CONSOLIDADO · ' + grupos.length + ' DOCUMENTOS</b></div>';
+    if (origen) h += '<div>' + U.esc(origen) + '</div>';
+    U.each(grupos, function (g) {
+      var bs = U.filter(g.bultos, function (b) { var k = b.id || (g.key + '#' + b.numero); if (vistos[k]) return false; vistos[k] = 1; return true; });
+      var st = { peso: 0, volumen: 0, pesoVol: 0 };
+      h += '<div class="sep"></div><div>ORDEN:</div><div class="dest">' + U.esc(g.orden || '-') + '</div><div>DOCUMENTO: <b>' + U.esc(U.trim((g.tipo || '') + ' ' + (g.num || '')) || 'SIN DOCUMENTO') + '</b></div>';
+      U.each(bs, function (b, i) {
+        var c = OT.calcular(b.ancho, b.alto, b.largo), vol = b.volumen != null && b.volumen !== '' ? Number(b.volumen) : c.volumen, pv = b.pesoVol != null && b.pesoVol !== '' ? Number(b.pesoVol) : c.pesoVol;
+        st.peso += Number(b.peso) || 0; st.volumen += vol || 0; st.pesoVol += pv || 0;
+        h += '<div class="b"><div class="t">BULTO ' + (b.numero || i + 1) + '/' + (g.total || bs.length) + '</div><div>' + U.esc(Plantillas.med(b)) + ' · ' + U.fx(b.peso, 2) + ' kg</div><div>Vol: ' + U.fx(vol, 3) + ' m3 · P.Vol: ' + U.fx(pv, 2) + ' kg</div>' +
+          (b.courier || b.ordenCourier ? '<div>' + U.esc((b.courier || '') + ' ' + (b.ordenCourier || '')) + '</div>' : '') + '</div>';
+      });
+      if (grupos.length > 1) h += '<div class="r"><span class="l">Subtotal ' + bs.length + ' bulto(s):</span><span class="rr">' + U.fx(st.peso, 2) + ' kg</span></div>';
+      T.docs++; T.bultos += bs.length; T.peso += st.peso; T.volumen += st.volumen; T.pesoVol += st.pesoVol;
+    });
+    h += '<div class="sep"></div>';
+    if (grupos.length > 1) h += '<div class="r"><span class="l">DOCUMENTOS:</span><span class="rr">' + T.docs + '</span></div>';
+    h += '<div class="r"><span class="l">TOTAL BULTOS:</span><span class="rr">' + T.bultos + '</span></div>';
+    h += '<div class="r"><span class="l">PESO TOTAL:</span><span class="rr">' + U.fx(T.peso, 2) + ' kg</span></div>';
+    h += '<div class="r"><span class="l">VOLUMEN:</span><span class="rr">' + U.fx(T.volumen, 3) + ' m3</span></div>';
+    h += '<div class="r"><span class="l">PESO VOL.:</span><span class="rr">' + U.fx(T.pesoVol, 2) + ' kg</span></div>';
+    h += '<div class="sep"></div><div class="c">' + U.fechaCL(U.fechaISO(d)) + '  ' + U.hora(d) + '</div><div class="sep"></div></div>';
+    return h;
   },
+  _porDoc: function (ot, keys) {
+    var l = U.map(ot.documentos, function (d) { return { doc: d, bultos: OT.bultosDoc(ot, d.key), total: OT.totalEtiqueta(ot, d.key) }; });
+    return keys ? U.filter(l, function (g) { return keys.indexOf(g.doc.key) >= 0; }) : l;
+  },
+  _totSel: function (ot, keys) {
+    if (!keys) return ot.totales;
+    var t = { documentos: 0, bultos: 0, peso: 0, volumen: 0, pesoVol: 0 };
+    U.each(Plantillas._porDoc(ot, keys), function (g) { var x = OT.totalesDoc(ot, g.doc.key); t.documentos++; t.bultos += x.bultos; t.peso += x.peso; t.volumen += x.volumen; t.pesoVol += x.pesoVol; });
+    return t;
+  },
+  _selTxt: function (ot, keys) { return keys && keys.length < ot.documentos.length ? 'SELECCIÓN: ' + keys.length + ' de ' + ot.documentos.length + ' documentos' : ''; },
   _firmas: function (ot, cls) {
     var tr = ot.transporte || {}, f = function (k, v) { return '<div>' + k + ': ' + (v ? '<b>' + U.esc(v) + '</b>' : '____________________') + '</div>'; };
     return '<div class="' + cls + '">' + f('TRANSPORTISTA', tr.transportista) + f('PATENTE', tr.patente) + f('CONDUCTOR', tr.conductor) +
       '<div>FIRMA ENTREGA: ________________</div><div>FIRMA RECEPCIÓN: ______________</div></div>';
   },
-  manifiesto58: function (ot) {
+  manifiesto58: function (ot, keys) {
     OT.recalcular(ot);
-    var t = ot.totales, m = ot.manifiesto, h = '<div class="hoja vo">';
+    var t = Plantillas._totSel(ot, keys), m = ot.manifiesto, h = '<div class="hoja vo">', sel = Plantillas._selTxt(ot, keys);
     h += '<div class="sep"></div><div class="c h1">' + U.esc(DB.cfg.empresa) + '</div><div class="c h1">MANIFIESTO DE TRANSPORTE</div><div class="sep"></div>';
     h += '<div class="dest">' + U.esc(ot.numero) + '</div>';
     h += '<div>OT creada: ' + U.fechaCL(ot.fecha) + ' ' + U.esc(ot.hora) + '</div>';
-    h += '<div>Manifiesto: ' + U.fechaCL(m.fecha) + ' ' + U.esc(m.hora) + (m.version > 1 ? ' (v' + m.version + ')' : '') + '</div><div class="sep"></div>';
-    U.each(Plantillas._porDoc(ot), function (g) {
+    h += '<div>Manifiesto: ' + U.fechaCL(m.fecha) + ' ' + U.esc(m.hora) + (m.version > 1 ? ' (v' + m.version + ')' : '') + '</div>' + (sel ? '<div><b>' + sel + '</b></div>' : '') + '<div class="sep"></div>';
+    U.each(Plantillas._porDoc(ot, keys), function (g) {
       h += '<div class="b"><div class="t">' + U.esc(g.doc.orden) + ' | ' + U.esc(OT.etiquetaDoc(g.doc)) + '</div>';
       U.each(g.bultos, function (b) {
         h += '<div>' + b.numero + '/' + g.total + '  ' + b.ancho + 'x' + b.alto + 'x' + b.largo + '  ' + U.fx(b.peso, 1) + 'kg  ' + U.fx(b.volumen, 3) + 'm3' +
@@ -2697,14 +2772,14 @@ var Plantillas = {
     h += '<div class="sep"></div>' + Plantillas._firmas(ot, 'firma') + '<div class="sep"></div></div>';
     return h;
   },
-  manifiestoA4: function (ot) {
+  manifiestoA4: function (ot, keys) {
     OT.recalcular(ot);
-    var t = ot.totales, m = ot.manifiesto, h = '<div class="hoja ma">';
+    var t = Plantillas._totSel(ot, keys), m = ot.manifiesto, h = '<div class="hoja ma">', sel = Plantillas._selTxt(ot, keys);
     h += '<h1>MANIFIESTO DE TRANSPORTE</h1>';
     h += '<div class="enc"><b>' + U.esc(DB.cfg.empresa) + '</b><br>N° OT: <b>' + U.esc(ot.numero) + '</b> &nbsp; Fecha: <b>' + U.fechaCL(ot.fecha) +
-      '</b> &nbsp; Hora: <b>' + U.esc(ot.hora) + '</b><br>Manifiesto generado: ' + U.fechaCL(m.fecha) + ' ' + U.esc(m.hora) + (m.version > 1 ? ' (versión ' + m.version + ')' : '') + '</div>';
+      '</b> &nbsp; Hora: <b>' + U.esc(ot.hora) + '</b><br>Manifiesto generado: ' + U.fechaCL(m.fecha) + ' ' + U.esc(m.hora) + (m.version > 1 ? ' (versión ' + m.version + ')' : '') + (sel ? '<br><b>' + sel + '</b>' : '') + '</div>';
     h += '<table><thead><tr><th>Orden/Ticket</th><th>Factura</th><th>Bulto</th><th>Courier</th><th>N° Courier</th><th>Medidas (cm)</th><th>Peso (kg)</th><th>Vol. (m³)</th><th>P.Vol (kg)</th></tr></thead><tbody>';
-    U.each(Plantillas._porDoc(ot), function (g) {
+    U.each(Plantillas._porDoc(ot, keys), function (g) {
       U.each(g.bultos, function (b) {
         h += '<tr><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + b.numero + '/' + g.total + '</td><td>' +
           U.esc(b.courier || '') + '</td><td>' + U.esc(b.ordenCourier || '') + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td class="n">' + U.fx(b.peso, 2) + '</td><td class="n">' + U.fx(b.volumen, 3) +
@@ -2740,7 +2815,24 @@ var Plantillas = {
     return '<div class="hoja ep" style="' + st + '">' + h + '</div>';
   },
   margen: function (f) { var m = f ? Number(f.margen) : 0; return m > 0 ? Math.min(15, Math.round(m * 2) / 2) : 0; },
-  opcionesFormato: function (fmt) { return fmt.tipo === 'troquel' ? { tipo: 'troquel', ancho: fmt.ancho, alto: fmt.alto } : { tipo: 'rollo', ancho: fmt.ancho }; },
+  ajuste: function (f) {
+    var n = function (v, a, b, d) { v = parseFloat(String(v == null ? '' : v).replace(',', '.')); if (isNaN(v)) v = d; return Math.max(a, Math.min(b, Math.round(v * 2) / 2)); };
+    return { x: n(f && f.desX, -15, 15, 0), y: n(f && f.desY, -15, 15, 0), e: Math.round(n(f && f.escala, 50, 200, 100)) };
+  },
+  opcionesFormato: function (fmt) { var a = Plantillas.ajuste(fmt), o = fmt.tipo === 'troquel' ? { tipo: 'troquel', ancho: fmt.ancho, alto: fmt.alto } : { tipo: 'rollo', ancho: fmt.ancho }; o.desX = a.x; o.desY = a.y; o.escala = a.e; return o; },
+  regla: function (f) {
+    var w = f.ancho, h = f.tipo === 'troquel' ? f.alto : 30, s = '', i, mg = Plantillas.margen(f), aj = Plantillas.ajuste(f);
+    for (i = 0; i <= w; i++) s += '<line x1="' + i + '" y1="0" x2="' + i + '" y2="' + (i % 10 ? (i % 5 ? 1.5 : 2.5) : 4) + '" stroke="#000" stroke-width="0.15"/>';
+    for (i = 0; i <= h; i++) s += '<line x1="0" y1="' + i + '" x2="' + (i % 10 ? (i % 5 ? 1.5 : 2.5) : 4) + '" y2="' + i + '" stroke="#000" stroke-width="0.15"/>';
+    for (i = 10; i < w; i += 10) s += '<text x="' + i + '" y="6.5" font-size="2.2" text-anchor="middle" font-family="Arial">' + i + '</text>';
+    for (i = 10; i < h; i += 10) s += '<text x="5.2" y="' + (i + 0.8) + '" font-size="2.2" font-family="Arial">' + i + '</text>';
+    s += '<rect x="0.1" y="0.1" width="' + (w - 0.2) + '" height="' + (h - 0.2) + '" fill="none" stroke="#000" stroke-width="0.2"/>';
+    if (mg) s += '<rect x="' + mg + '" y="' + mg + '" width="' + (w - 2 * mg) + '" height="' + (h - 2 * mg) + '" fill="none" stroke="#000" stroke-width="0.15" stroke-dasharray="1 1"/>';
+    var bx = Math.max(8, (w - 40) / 2), by = h / 2 + 2;
+    s += '<rect x="' + bx + '" y="' + by + '" width="40" height="3" fill="#000"/><text x="' + (w / 2) + '" y="' + (by - 1.2) + '" font-size="2.6" text-anchor="middle" font-family="Arial" font-weight="bold">BARRA 40 mm</text>';
+    s += '<text x="' + (w / 2) + '" y="' + (by + 7) + '" font-size="2.3" text-anchor="middle" font-family="Arial">' + U.esc(w + '×' + h + ' mm · margen ' + mg + ' · X ' + aj.x + ' · Y ' + aj.y + ' · escala ' + aj.e + '%') + '</text>';
+    return '<div class="hoja ep" style="width:' + w + 'mm;height:' + h + 'mm;padding:0;overflow:hidden"><svg xmlns="http://www.w3.org/2000/svg" width="' + w + 'mm" height="' + h + 'mm" viewBox="0 0 ' + w + ' ' + h + '" style="display:block">' + s + '</svg></div>';
+  },
   marcadores: function (t, conf, i, n) {
     return String(t || '').replace(/\{bulto\}/g, i + '/' + n).replace(/\{prefijo\}/g, conf.prefijo || '').replace(/\{orden\}/g, conf.orden || '')
       .replace(/\{cliente\}/g, conf.cliente || '').replace(/\{fecha\}/g, U.fechaCL(U.fechaISO())).replace(/\{empresa\}/g, DB.cfg.empresa || '');
@@ -3075,23 +3167,49 @@ CubUI.imprimirDocs = function (keys) {
   if (!bs.length) { UI.toast('Los documentos elegidos no tienen bultos', 'warn'); return; }
   PackingUI.elegirFormatoBulto(null, bs);
 };
-CubUI.elegirDocs = function (lista) {
-  var docs = CubUI.docsDe(lista);
+CubUI.voucherDocs = function (keys) {
+  var gs = U.filter(U.map(keys, function (k) { var bs = CubUI.bultosDoc(k), b = bs[0]; return b ? { key: k, orden: b.orden, tipo: b.tipoDocumento, num: b.numeroDocumento, bultos: bs, total: bs.length } : null; }), function (g) { return !!g; });
+  if (!gs.length) { UI.toast('Los documentos elegidos no tienen bultos', 'warn'); return; }
+  VoucherUI.mostrar(Plantillas.voucherDocs(gs, 'Desde cubicación (antes de la OT)'), gs);
+};
+var VoucherUI = {
+  mostrar: function (html, gs) {
+    UI.modal({ titulo: gs.length > 1 ? 'Voucher consolidado · ' + gs.length + ' documentos' : 'Voucher · ' + gs[0].orden,
+      html: ZoomImp.html() + '<div class="zprev" style="background:#f1f3f5;padding:10px;border-radius:8px"><div style="background:white;max-width:80mm;margin:auto;padding:8px;border:1px solid #bbb">' + html + '</div></div>',
+      botones: [
+        { txt: 'WHATSAPP', cls: 'btn-ok', fn: function () { VoucherUI.whatsapp(gs); return false; } },
+        { txt: 'IMPRIMIR 58 mm', cls: 'btn-sec', fn: function () { Impresion.imprimir(html, { tipo: 'rollo', ancho: 58, margen: 2 }); return false; } },
+        { txt: 'IMPRIMIR 80 mm', cls: 'btn-ok', fn: function () { Impresion.imprimir(html, { tipo: 'rollo', ancho: 80, margen: 3 }); return false; } },
+        { txt: 'CERRAR', cls: 'btn-sec' }
+      ] });
+  },
+  whatsapp: function (gs) {
+    var t = DB.cfg.empresa + (gs.length > 1 ? ' · ' + gs.length + ' documentos' : ''), n = 0, kg = 0;
+    U.each(gs, function (g) {
+      t += '\n\n' + (g.orden || '-') + ' · ' + (U.trim((g.tipo || '') + ' ' + (g.num || '')) || 'sin documento');
+      U.each(g.bultos, function (b, i) { n++; kg += Number(b.peso) || 0; t += '\nBulto ' + (b.numero || i + 1) + '/' + (g.total || g.bultos.length) + ': ' + Plantillas.med(b) + ' · ' + U.fx(b.peso, 2) + ' kg'; });
+    });
+    t += '\n\nTotal: ' + n + ' bulto(s) · ' + U.fx(kg, 2) + ' kg';
+    window.location.href = 'https://wa.me/?text=' + encodeURIComponent(t);
+  }
+};
+CubUI.elegirDocs = function (lista, modo) {
+  var docs = CubUI.docsDe(lista), esV = modo === 'voucher';
   if (!docs.length) { UI.toast('No hay bultos en la lista. Use el buscador para elegir la orden.', 'warn'); return; }
-  var h = '<div class="muted">Marque los pedidos o documentos: se imprime una etiqueta por cada uno de sus bultos.</div>' +
+  var h = '<div class="muted">' + (esV ? 'Marque los pedidos o documentos: se genera un voucher con todos sus bultos.' : 'Marque los pedidos o documentos: se imprime una etiqueta por cada uno de sus bultos.') + '</div>' +
     '<input id="edQ" class="inp sm" placeholder="Filtrar por orden o documento…" style="margin:6px 0">' +
     '<div class="btns" style="margin:0 0 6px"><button type="button" class="btn btn-sec btn-sm" id="edTodos">MARCAR VISIBLES</button><button type="button" class="btn btn-sec btn-sm" id="edNada">NINGUNO</button></div><div id="edLista" style="max-height:52vh;overflow:auto">' +
     U.map(docs, function (d, i) { return '<label class="chk" data-ed="' + i + '" style="display:block;padding:10px 6px;border-bottom:1px solid #eee;font-size:16px"><input type="checkbox" data-edk="' + U.esc(d.key) + '"' + (CubUI.selDocs[d.key] || docs.length === 1 ? ' checked' : '') + '> <b>' + CubUI.etDoc(d) + '</b><br><span class="muted" style="margin-left:28px">' + d.bultos.length + ' bulto(s) · ' + U.esc(U.fechaCL(d.fecha)) + '</span></label>'; }).join('') +
     '</div><div id="edRes" class="msg" style="margin-top:6px"></div>';
   var marcados = function () { return U.filter(U.qa(U.$('modalHost'), 'input[data-edk]'), function (c) { return c.checked; }); };
-  var resumen = function () { var n = 0, ks = marcados(); U.each(ks, function (c) { n += CubUI.bultosDoc(c.getAttribute('data-edk')).length; }); U.$('edRes').innerHTML = ks.length + ' documento(s) · <b>' + n + ' etiqueta(s)</b>'; };
-  UI.modal({ titulo: 'Etiquetas por documento', html: h, botones: [
+  var resumen = function () { var n = 0, ks = marcados(); U.each(ks, function (c) { n += CubUI.bultosDoc(c.getAttribute('data-edk')).length; }); U.$('edRes').innerHTML = ks.length + ' documento(s) · <b>' + n + (esV ? ' bulto(s)' : ' etiqueta(s)') + '</b>'; };
+  UI.modal({ titulo: esV ? 'Voucher por documento' : 'Etiquetas por documento', html: h, botones: [
     { txt: 'CANCELAR', cls: 'btn-sec' },
     { txt: 'CONTINUAR', cls: 'btn-ok', fn: function () {
       var ks = U.map(marcados(), function (c) { return c.getAttribute('data-edk'); });
       if (!ks.length) { UI.toast('Marque al menos un documento', 'error'); return false; }
       CubUI.selDocs = {}; U.each(ks, function (k) { CubUI.selDocs[k] = true; });
-      UI.cerrarModal(); CubUI.imprimirDocs(ks); return false;
+      UI.cerrarModal(); if (esV) CubUI.voucherDocs(ks); else CubUI.imprimirDocs(ks); return false;
     } }
   ], alAbrir: function (host) {
     resumen();
@@ -3102,7 +3220,7 @@ CubUI.elegirDocs = function (lista) {
   } });
 };
 
-CubUI.tipos = function (sel) { var a = ['TICKET', 'ORDEN', 'COTIZACIÓN', 'NOTA DE VENTA', 'FACTURA', 'BOLETA', 'GUÍA DE DESPACHO', 'TRASPASO', 'OTRO'], h = ''; U.each(a, function (x) { h += '<option' + (x === sel ? ' selected' : '') + '>' + x + '</option>'; }); return h; };
+CubUI.tipos = function (sel) { var a = TiposDoc.nombres(sel), h = ''; U.each(a, function (x) { h += '<option' + (x === sel ? ' selected' : '') + '>' + x + '</option>'; }); return h; };
 
 CubUI.editarBulto = function (id) {
   var b = U.find(CubPool.lista, function (x) { return x.id === id; }); if (!b) return;
@@ -3398,7 +3516,7 @@ Pantallas.cubicacion = function (m) {
     '<button class="btn btn-ok btn-xl" data-a="agregar">+ AGREGAR BULTO</button>' +
     '<div class="btns"><button class="btn btn-sec" data-a="repetir">REPETIR MEDIDAS</button><button class="btn btn-sec" data-a="igual">OTRO IGUAL</button></div>' +
     '<div class="btns"><button class="btn btn-warn" data-a="limpiarDoc">LIMPIAR DOCUMENTO</button><button class="btn btn-sec" data-a="nuevo">NUEVO ID CUBICACIÓN</button></div></div>' +
-    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuLista"></div><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS</button><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button><button class="btn" data-a="packing">PACKING →</button></div></div>';
+    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuLista"></div><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS</button><button class="btn btn-sec" data-a="vouCub" id="cuVou">VOUCHER</button><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button><button class="btn" data-a="packing">PACKING →</button></div></div>';
   m.innerHTML = h;
   var calc = function () { var a = U.num(U.$('cuAncho').value), al = U.num(U.$('cuAlto').value), l = U.num(U.$('cuLargo').value); if (a && al && l) { var c = OT.calcular(a, al, l); U.$('cuCalc').innerHTML = 'Volumen <b>' + U.fx(c.volumen, 3) + ' m³</b> · Peso vol. <b>' + U.fx(c.pesoVol, 2) + ' kg</b>'; } else U.$('cuCalc').innerHTML = ''; };
   var pintar = function () {
@@ -3579,6 +3697,13 @@ Pantallas.cubicacion = function (m) {
       var vis = (CubUI.visibles || []).slice(0), dd = CubUI.docsDe(vis);
       if (dd.length === 1) { CubUI.imprimirDocs([dd[0].key]); return; }
       CubUI.elegirDocs(vis);
+    },
+    vouCub: function () {
+      var ks = []; for (var k in CubUI.selDocs) if (CubUI.selDocs[k]) ks.push(k);
+      if (ks.length) { CubUI.voucherDocs(ks); return; }
+      var vis = (CubUI.visibles || []).slice(0), dd = CubUI.docsDe(vis);
+      if (dd.length === 1) { CubUI.voucherDocs([dd[0].key]); return; }
+      CubUI.elegirDocs(vis, 'voucher');
     },
     selDoc: function (k, el, e) { if (e && e.stopPropagation) e.stopPropagation(); if (el.checked) CubUI.selDocs[k] = true; else delete CubUI.selDocs[k]; var n = 0; for (var x in CubUI.selDocs) if (CubUI.selDocs[x]) n++; U.$('cuEtq').innerHTML = n ? 'ETIQUETAS (' + n + ')' : 'ETIQUETAS'; },
     pdfA4: function () { CubicacionPDF.generar('A4'); },
@@ -3786,6 +3911,22 @@ var PackingUI = {
         { txt: 'CERRAR', cls: 'btn-sec' }
       ]
     });
+  },
+  voucherVarios: function (ot) {
+    var docs = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
+    var h = '<div class="muted">Marque los documentos de ' + U.esc(ot.numero) + ' que van en un solo voucher.</div>' +
+      U.map(docs, function (d) { return '<label class="chk" style="padding:10px 4px;border-bottom:1px solid #eee"><input type="checkbox" class="vvDoc" value="' + U.esc(d.key) + '" checked> <b>' + U.esc(d.orden + ' · ' + OT.etiquetaDoc(d)) + '</b> <span class="muted">(' + OT.bultosDoc(ot, d.key).length + ' bulto/s)</span></label>'; }).join('');
+    UI.modal({ titulo: 'Voucher de varios documentos', html: h, botones: [
+      { txt: 'CANCELAR', cls: 'btn-sec' },
+      { txt: 'GENERAR', cls: 'btn-ok', fn: function () {
+        var ks = U.map(U.filter(U.qa(U.$('modalHost'), '.vvDoc'), function (c) { return c.checked; }), function (c) { return c.value; });
+        if (!ks.length) { UI.toast('Marque al menos un documento', 'error'); return false; }
+        var gs = U.map(ks, function (k) { var d = OT.documento(ot, k); return { key: k, orden: d.orden, tipo: OT.tipoDoc(d), num: OT.numeroDoc(d), bultos: OT.bultosDoc(ot, k), total: OT.totalEtiqueta(ot, k) }; });
+        UI.cerrarModal();
+        setTimeout(function () { VoucherUI.mostrar(Plantillas.voucherDocs(gs, 'OT ' + ot.numero), gs); }, 60);
+        return false;
+      } }
+    ] });
   },
   editarOT: function (ot) {
     if (!ot) return;
@@ -4077,6 +4218,7 @@ Pantallas.packing = function (m) {
     });
     sh += '<div class="btns">';
     sh += '<button class="btn btn-ok" data-a="courierToda">COURIER TODA LA OT</button>';
+    if (ot.documentos.length > 1) sh += '<button class="btn btn-sec" data-a="vouVarios">VOUCHER DE VARIOS DOCUMENTOS</button>';
     if (ot.estado !== 'ABIERTA') sh += '<button class="btn btn-warn" data-a="reabrir">REABRIR / EDITAR OT</button>';
     sh += '<button class="btn btn-sec" data-a="editarOT">EDITAR OT</button><button class="btn btn-sec" data-a="ots">OTs</button>';
     if (ot.bultos.length) sh += '<button class="btn btn-ok" data-a="manif">GENERAR MANIFIESTO →</button>';
@@ -4084,6 +4226,7 @@ Pantallas.packing = function (m) {
     sec.innerHTML = sh; m.appendChild(sec);
     UI.delegar(sec, {
       voucher: function (k) { PackingUI.voucherPreview(ot, k); },
+      vouVarios: function () { PackingUI.voucherVarios(ot); },
       etiquetas: function(k){PackingUI.etiquetasDocumento(ot,k);},
       etiquetasRapidas: function(k){PackingUI.elegirFormatoBulto(ot,OT.bultosDoc(ot,k));},
       reabrir: function () { Seguridad.admin('Reabrir ' + ot.numero, function (aut) { OT.reabrir(ot, aut); OT.setActiva(ot.id); App.ir('packing'); }); },
@@ -4464,7 +4607,7 @@ var DespachoGrupo = {
 Pantallas.despacho = function (m) { DespachoGrupo.pantalla(m); };
 
 var Compartida = {
-  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'couriers', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto', 'remitente'],
+  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'couriers', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto', 'remitente', 'tiposDoc'],
   datos: function () { var o = {}; U.each(Compartida.CAMPOS, function (k) { if (DB.cfg[k] != null) o[k] = DB.cfg[k]; }); return o; },
   activo: function () { return Sync.modo() !== 'local' && !!DB.cfg.sync.token; },
   subir: function (cb) {
@@ -4724,12 +4867,13 @@ var Seguimiento = {
     return U.filter(lista, function (d) {
       if (f.etapa !== 'TODAS' && d.etapa !== f.etapa) return false;
       if (f.courier !== 'TODOS' && d.couriers.indexOf(f.courier) < 0) return false;
+      if (f.tipo && f.tipo !== 'TODOS' && U.norm(d.tipoDocumento) !== U.norm(f.tipo)) return false;
       if ((f.desde || f.hasta) && !d.fecha) return false;
       if (f.desde && d.fecha < f.desde) return false;
       if (f.hasta && d.fecha > f.hasta) return false;
       if (vs.length) {
         var t = Seguimiento.textoCampo(d, f.campo), ok = false;
-        U.each(vs, function (v) { if (ok) return; U.each(t, function (x) { if (!ok && String(x || '').indexOf(v) >= 0) ok = true; }); });
+        U.each(vs, function (v) { if (ok) return; U.each(t, function (x) { if (!ok && (f.exacta ? U.norm(x) === v || U.norm(x).split(' ').pop() === v : String(x || '').indexOf(v) >= 0)) ok = true; }); });
         if (!ok) return false;
       }
       return true;
@@ -4831,7 +4975,8 @@ var Seguimiento = {
 
 Pantallas.seguimiento = function (m) {
   Pedidos.reconciliarEstados();
-  var f = Seguimiento.filtro, todos = Seguimiento.indice(), vista = [], cous = DB.cfg.couriers.slice(0);
+  var f = Seguimiento.filtro, todos = Seguimiento.indice(), vista = [], cous = DB.cfg.couriers.slice(0), tiposSeg = TiposDoc.nombres();
+  U.each(todos, function (d) { var t = U.norm(d.tipoDocumento); if (t && !U.find(tiposSeg, function (x) { return U.norm(x) === t; })) tiposSeg.push(t); });
   U.each(todos, function (d) { U.each(d.couriers, function (c) { if (cous.indexOf(c) < 0) cous.push(c); }); });
   var opt = function (v, t, sel) { return '<option value="' + U.esc(v) + '"' + (v === sel ? ' selected' : '') + '>' + U.esc(t) + '</option>'; };
   m.innerHTML = '<div class="otbar"><div class="n">SEGUIMIENTO DE DOCUMENTOS</div><div class="muted">Consulta el avance de uno o varios documentos mandantes: pedido, cubicación, packing, despacho y manifiesto.</div></div>' +
@@ -4839,6 +4984,8 @@ Pantallas.seguimiento = function (m) {
     '<label class="lbl" for="sgValor">VALOR(ES)</label><input id="sgValor" class="inp sm" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="Uno o varios, separados por coma o espacio" value="' + U.esc(f.valor) + '">' +
     '<div class="fila"><div class="c"><label class="lbl" for="sgEtapa">ETAPA</label><select id="sgEtapa" class="inp sm">' + opt('TODAS', 'TODAS', f.etapa) + U.map(Seguimiento.etapas, function (e) { return opt(e, e, f.etapa); }).join('') + '</select></div>' +
     '<div class="c"><label class="lbl" for="sgCourier">COURIER</label><select id="sgCourier" class="inp sm">' + opt('TODOS', 'TODOS', f.courier) + U.map(cous, function (c) { return opt(c, c, f.courier); }).join('') + '</select></div></div>' +
+    '<div class="fila"><div class="c"><label class="lbl" for="sgTipo">TIPO DE DOCUMENTO</label><select id="sgTipo" class="inp sm">' + opt('TODOS', 'TODOS', f.tipo || 'TODOS') + U.map(tiposSeg, function (x) { return opt(x, x, f.tipo || 'TODOS'); }).join('') + '</select></div>' +
+    '<div class="c"><label class="chk" style="padding-top:28px"><input type="checkbox" id="sgExacta"' + (f.exacta ? ' checked' : '') + '> Coincidencia exacta</label></div></div>' +
     '<div class="fila"><div class="c"><label class="lbl" for="sgDesde">DESDE</label><input id="sgDesde" class="inp sm" type="date" value="' + U.esc(f.desde) + '"></div>' +
     '<div class="c"><label class="lbl" for="sgHasta">HASTA</label><input id="sgHasta" class="inp sm" type="date" value="' + U.esc(f.hasta) + '"></div></div>' +
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="segRango" data-x="0">HOY</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="7">7 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="30">30 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segLimpiar">LIMPIAR</button></div></div>' +
@@ -4866,7 +5013,7 @@ Pantallas.seguimiento = function (m) {
     U.$('sgConteo').innerHTML = vista.length + ' documento(s) de ' + todos.length + (Seguimiento.kpi ? ' · <b>' + KPI_TXT[Seguimiento.kpi] + '</b>' : '');
   };
   var leer = function () {
-    f.campo = U.$('sgCampo').value; f.valor = U.$('sgValor').value; f.etapa = U.$('sgEtapa').value; f.courier = U.$('sgCourier').value;
+    f.campo = U.$('sgCampo').value; f.valor = U.$('sgValor').value; f.etapa = U.$('sgEtapa').value; f.courier = U.$('sgCourier').value; f.tipo = U.$('sgTipo').value; f.exacta = U.$('sgExacta').checked;
     f.desde = U.$('sgDesde').value; f.hasta = U.$('sgHasta').value;
     if (f.desde && f.hasta && f.desde > f.hasta) { var t = f.desde; f.desde = f.hasta; f.hasta = t; U.$('sgDesde').value = f.desde; U.$('sgHasta').value = f.hasta; }
     render();
@@ -4887,7 +5034,7 @@ Pantallas.seguimiento = function (m) {
     segLimpiar: function () {
       Seguimiento.kpi = '';
       Seguimiento.filtro = f = { campo: 'TODOS', valor: '', etapa: 'TODAS', courier: 'TODOS', desde: '', hasta: '' };
-      U.$('sgCampo').value = 'TODOS'; U.$('sgValor').value = ''; U.$('sgEtapa').value = 'TODAS'; U.$('sgCourier').value = 'TODOS'; U.$('sgDesde').value = ''; U.$('sgHasta').value = '';
+      U.$('sgCampo').value = 'TODOS'; U.$('sgValor').value = ''; U.$('sgEtapa').value = 'TODAS'; U.$('sgCourier').value = 'TODOS'; U.$('sgDesde').value = ''; U.$('sgHasta').value = ''; U.$('sgTipo').value = 'TODOS'; U.$('sgExacta').checked = false;
       render();
     },
     segVer: function (i) { var d = vista[parseInt(i, 10)]; if (d) Seguimiento.detalle(d); },
@@ -5358,13 +5505,23 @@ Pantallas.manifiesto = function (m) {
     h += '<button class="btn btn-ok btn-xl" data-a="generar"' + (t.bultos ? '' : ' disabled') + '>' + (mf.desactualizado ? 'REGENERAR MANIFIESTO' : 'GENERAR MANIFIESTO') + '</button>' +
       '<div class="muted" style="margin-top:4px">Al generar, la OT pasa a CERRADA.</div>';
   } else {
-    h += ZoomImp.html() + '<div class="btns"><button class="btn" data-a="imp58">IMPRIMIR 58 mm</button><button class="btn" data-a="impA4">IMPRIMIR A4</button></div>' +
+    if (!Manif.sel || Manif.sel.ot !== ot.id) Manif.sel = { ot: ot.id, keys: U.map(ot.documentos, function (d) { return d.key; }) };
+    Manif.sel.keys = U.filter(Manif.sel.keys, function (k) { return !!U.find(ot.documentos, function (d) { return d.key === k; }); });
+    h += '<h2>Documentos a imprimir</h2><div class="muted">Marque los documentos que van en el manifiesto impreso. Los totales impresos corresponden solo a lo marcado.</div>' +
+      '<div class="btns"><button class="btn btn-sec btn-sm" data-a="mfTodos">MARCAR TODOS</button><button class="btn btn-sec btn-sm" data-a="mfNinguno">QUITAR TODOS</button></div>' +
+      U.map(ot.documentos, function (d) { var x = OT.totalesDoc(ot, d.key); return '<label class="chk"><input type="checkbox" class="mfDoc" value="' + U.esc(d.key) + '"' + (Manif.sel.keys.indexOf(d.key) >= 0 ? ' checked' : '') + '> ' + U.esc(d.orden + ' · ' + OT.etiquetaDoc(d)) + ' <span class="muted">(' + x.bultos + ' bulto/s · ' + U.fx(x.peso, 1) + ' kg)</span></label>'; }).join('') +
+      '<div class="muted" id="mfSelTxt"></div>' +
+      ZoomImp.html() + '<div class="btns"><button class="btn" data-a="imp58">IMPRIMIR 58 mm</button><button class="btn" data-a="imp80">IMPRIMIR 80 mm</button><button class="btn" data-a="impA4">IMPRIMIR A4</button></div>' +
       '<button class="btn btn-warn" data-a="reabrir">REABRIR OT</button>';
   }
   h += '<button class="btn btn-sec" data-a="todas"' + (t.bultos ? '' : ' disabled') + '>IMPRIMIR TODAS LAS ETIQUETAS</button>' +
     '<div class="btns"><button class="btn btn-sec" data-a="activar">USAR EN PACKING</button><button class="btn btn-dan" data-a="eliminar">ELIMINAR OT</button></div></div>';
   m.innerHTML = h;
+  var selTxt = function () { var e = U.$('mfSelTxt'); if (e) e.innerHTML = Manif.sel.keys.length + ' de ' + ot.documentos.length + ' documento(s) marcados'; };
+  if (Manif.sel && Manif.sel.ot === ot.id) selTxt();
+  var keysImp = function () { if (!Manif.sel.keys.length) { UI.toast('Marque al menos un documento', 'error'); return null; } return Manif.sel.keys.length === ot.documentos.length ? null : Manif.sel.keys.slice(); };
   m.onchange = function (e) {
+    if (e.target.className === 'mfDoc') { Manif.sel.keys = U.map(U.filter(U.qa(m, '.mfDoc'), function (x) { return x.checked; }), function (x) { return x.value; }); selTxt(); return; }
     if (e.target.id === 'mfSel') { Manif.otId = e.target.value; App.ir('manifiesto'); return; }
     if (e.target.id === 'mfTr' || e.target.id === 'mfPat' || e.target.id === 'mfCond') {
       tr.transportista = U.trim(U.$('mfTr').value); tr.patente = U.norm(U.$('mfPat').value); tr.conductor = U.trim(U.$('mfCond').value);
@@ -5383,8 +5540,11 @@ Pantallas.manifiesto = function (m) {
       Sync.programar(200);
       App.ir('manifiesto');
     },
-    imp58: function () { if (Manif.puedeImprimir(ot)) Impresion.imprimir(Plantillas.manifiesto58(ot), { tipo: 'rollo' }); },
-    impA4: function () { if (Manif.puedeImprimir(ot)) Impresion.imprimir(Plantillas.manifiestoA4(ot), { tipo: 'a4' }); },
+    mfTodos: function () { Manif.sel.keys = U.map(ot.documentos, function (d) { return d.key; }); U.each(U.qa(m, '.mfDoc'), function (x) { x.checked = true; }); selTxt(); },
+    mfNinguno: function () { Manif.sel.keys = []; U.each(U.qa(m, '.mfDoc'), function (x) { x.checked = false; }); selTxt(); },
+    imp58: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiesto58(ot, keysImp()), { tipo: 'rollo', ancho: 58, margen: 2 }); },
+    imp80: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiesto58(ot, keysImp()), { tipo: 'rollo', ancho: 80, margen: 3 }); },
+    impA4: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiestoA4(ot, keysImp()), { tipo: 'a4' }); },
     reabrir: function () { Seguridad.admin('Reabrir ' + ot.numero, function (aut) { OT.reabrir(ot, aut); OT.setActiva(ot.id); App.ir('packing'); }); },
     todas: function () { Packing.imprimirTodas(ot); },
     activar: function () { OT.setActiva(ot.id); App.ir('packing'); },
@@ -5406,6 +5566,11 @@ Manif.puedeImprimir = function (ot) {
   return true;
 };
 
+var Avisos = {
+  ceros: function (n, l, que) {
+    UI.modal({ titulo: 'Códigos unidos por ceros a la izquierda', html: '<div class="msg">' + n + ' código(s) del archivo no existían tal cual en ' + (que === 'medidas' ? 'la hoja de medidas' : 'el catálogo') + ' y se aplicaron al código que coincide al quitar los ceros a la izquierda. Revise que sean el mismo producto:</div><div style="max-height:40vh;overflow:auto;font-family:monospace;font-size:14px">' + U.map(l || [], function (x) { return U.esc(x); }).join('<br>') + (n > (l || []).length ? '<br>…' : '') + '</div>', botones: [{ txt: 'ENTENDIDO', cls: 'btn-ok' }] });
+  }
+};
 var Rapida = { prod: null };
 
 Rapida.buscar = function (exacto) {
@@ -5413,7 +5578,8 @@ Rapida.buscar = function (exacto) {
   Rapida.prod = p;
   if (p) {
     U.$('rqDesc').value = p.descripcion;
-    U.$('rqEst').innerHTML = 'En catálogo: <b>' + U.esc(p.codigo) + '</b>' + (p.marca ? ' · ' + U.esc(p.marca) : '') + (p.precio ? ' · ' + U.clp(p.precio) : '');
+    U.$('rqEst').innerHTML = 'En catálogo: <b>' + U.esc(p.codigo) + '</b>' + (p.marca ? ' · ' + U.esc(p.marca) : '') + (p.precio ? ' · ' + U.clp(p.precio) : '') +
+      (Catalogo.porCeros(v, p) ? '<div class="aviso amar" style="margin-top:4px">Ojo: «' + U.esc(U.trim(v)) + '» no existe tal cual; coincide con <b>' + U.esc(p.codigo) + '</b> solo quitando ceros a la izquierda. Verifique que sea el mismo producto.</div>' : '');
     sug.innerHTML = '';
   } else {
     U.$('rqEst').innerHTML = U.trim(v) ? '<b style="color:#c00000">No está en el catálogo</b> — se imprimirá el código con la descripción ingresada.' : '';
@@ -5635,6 +5801,11 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
     '<div class="fila"><div class="c"><label class="lbl">ALTO mm</label><input id="efAl" class="inp sm" type="number" min="0" max="200" value="' + (f.alto || 0) + '"></div>' +
     '<div class="c"><label class="lbl">MARGEN mm</label><input id="efMg" class="inp sm" type="number" min="0" max="15" step="0.5" inputmode="decimal" value="' + Plantillas.margen(f) + '"></div></div>' +
     '<div class="muted">Alto solo aplica a troqueladas. Rollo: el alto se ajusta al contenido. Margen: espacio en blanco adicional en los cuatro bordes (0 = como hasta ahora).</div>' +
+    '<div class="fila"><div class="c"><label class="lbl">MOVER X mm</label><input id="efDX" class="inp sm" type="number" min="-15" max="15" step="0.5" inputmode="decimal" value="' + Plantillas.ajuste(f).x + '"></div>' +
+    '<div class="c"><label class="lbl">MOVER Y mm</label><input id="efDY" class="inp sm" type="number" min="-15" max="15" step="0.5" inputmode="decimal" value="' + Plantillas.ajuste(f).y + '"></div>' +
+    '<div class="c"><label class="lbl">ESCALA %</label><input id="efEs" class="inp sm" type="number" min="50" max="200" step="1" inputmode="numeric" value="' + Plantillas.ajuste(f).e + '"></div></div>' +
+    '<div class="muted">Mover: corre el contenido impreso a la derecha (X+) o hacia abajo (Y+) sin cambiar el tamaño del papel. Escala: agranda o achica solo el contenido de esta etiqueta. El zoom de Datos sigue siendo por equipo.</div>' +
+    '<button type="button" class="btn btn-sec btn-sm" id="efRegla">IMPRIMIR PRUEBA CON REGLA</button>' +
     '<h3 style="margin:10px 0 4px;font-size:15px">Campos</h3>' + Pt.lista('ptListaE') +
     '<div class="frow cab"><span class="fx">Campo (marcar para imprimir)</span><span class="ptIn">Tamaño pt</span><span class="tg">Negrita</span><span class="mini">Orden</span></div>';
   U.each(orden, function (k, i) {
@@ -5658,8 +5829,16 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
     UI.confirmar('¿Eliminar el formato "' + f.nombre + '"?', function () { FormSync.eliminar(f.id); DB.formatos.splice(idx, 1); DB.guardarFormatos(); App.ir('rotulado'); FormSync.publicar('Formato eliminado'); }, { peligro: true, si: 'ELIMINAR' });
     return false;
   } });
+  var leerAjuste = function () { return Plantillas.ajuste({ desX: U.$('efDX').value, desY: U.$('efDY').value, escala: U.$('efEs').value }); };
+  var reglaDe = function () {
+    var g = { tipo: U.$('efTipo').value, ancho: Math.max(20, Math.min(120, parseInt(U.$('efAn').value, 10) || 58)), alto: Math.max(0, parseInt(U.$('efAl').value, 10) || 0), margen: parseFloat(String(U.$('efMg').value).replace(',', '.')) || 0 }, a = leerAjuste();
+    g.desX = a.x; g.desY = a.y; g.escala = a.e;
+    if (g.tipo === 'troquel' && g.alto < 10) { UI.toast('Una troquelada necesita ALTO (mm)', 'error'); return; }
+    var o = Plantillas.opcionesFormato(g);
+    Impresion.imprimir(Plantillas.regla(g), U.assign(o, { tipo: 'troquel', alto: g.tipo === 'troquel' ? g.alto : 30 }));
+  };
   botones.push({ txt: 'GUARDAR', cls: 'btn-ok', fn: function () {
-    var host = U.$('modalHost'), rows = U.qa(host, '.efRow'), campos = [];
+    var host = U.$('modalHost'), rows = U.qa(host, '.efRow'), campos = [], aj = leerAjuste();
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       if (!r.querySelector('.efOn').checked) continue;
@@ -5669,7 +5848,7 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
     }
     var nf = { id: f.id || U.uid(esBulto ? 'bul-' : 'fmt-'), uso: esBulto ? 'bulto' : 'producto', nombre: U.trim(U.$('efNom').value) || 'Formato', tipo: U.$('efTipo').value,
       ancho: Math.max(20, Math.min(120, parseInt(U.$('efAn').value, 10) || 58)), alto: Math.max(0, parseInt(U.$('efAl').value, 10) || 0),
-      margen: Plantillas.margen({ margen: parseFloat(String(U.$('efMg').value).replace(',', '.')) || 0 }),
+      margen: Plantillas.margen({ margen: parseFloat(String(U.$('efMg').value).replace(',', '.')) || 0 }), desX: aj.x, desY: aj.y, escala: aj.e,
       barra: U.$('efBar').checked, campoBarra: U.$('efCB').value, altoBarra: Math.max(5, Math.min(30, parseInt(U.$('efBA').value, 10) || 10)), textoBarra: U.$('efBT').checked, campos: campos, act: new Date().toISOString() };
     if (nf.tipo === 'troquel' && nf.alto < 10) { UI.toast('Una troquelada necesita ALTO (mm)', 'error'); return false; }
     if (!campos.length && !nf.barra) { UI.toast('Marque al menos un campo o el código de barras', 'error'); return false; }
@@ -5682,6 +5861,7 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
   host.onclick = function (e) {
     var b = U.cerca(e.target, 'data-ef', host);
     if (b) { var row = U.cerca(b, 'data-k', host), ant = row.previousSibling; while (ant && (ant.nodeType !== 1 || ant.className.indexOf('efRow') < 0)) ant = ant.previousSibling; if (ant) row.parentNode.insertBefore(row, ant); return; }
+    if (e.target && e.target.id === 'efRegla') { reglaDe(); return; }
     prev(e);
   };
 };
@@ -5972,6 +6152,7 @@ CatUI.importarMedidas = function (alFin) {
           ProdSync.bajarMedidas(function () {
             DB.cfg.prodDesde = r.fecha || ''; DB.guardarCfg();
             UI.toast('Medidas en la hoja: ' + r.nuevos + ' nuevas, ' + r.actualizados + ' actualizadas' + (r.protegidos ? ', ' + r.protegidos + ' de bodega conservadas' : '') + '. Total ' + r.total + '.', 'ok', 6000);
+            if (r.porCeros) Avisos.ceros(r.porCeros, r.porCerosCodigos, 'medidas');
             if (alFin) alFin();
           });
         }, function (e) { UI.toast('No se importó: ' + e, 'error', 6000); });
@@ -6038,7 +6219,7 @@ CatUI.importar = function (alFin) {
         var lista = U.map(d.productos, function (x) { return { codigo: x.codigo, descripcion: x.descripcion, marca: x.marca, precio: x.precio, familia: x.familia, codigoBarra: x.codigoBarra, ubicacion: x.ubicacion }; });
         Sync.llamar('satCatalogoImportar', { productos: lista, modo: modo, usuario: resp, archivo: archivo }, function (res) {
           UI.toast('Catálogo en la nube: ' + res.nuevos + ' nuevos, ' + res.actualizados + ' actualizados' + (res.eliminados ? ', ' + res.eliminados + ' eliminados' : '') + (res.ubicacionesProtegidas ? ' · ' + res.ubicacionesProtegidas + ' ubicaciones de bodega conservadas' : '') + '. Total ' + res.total + '. Los demás equipos lo reciben al sincronizar.', 'ok', 7000);
-          ProdSync.bajarCatalogo(function () { Catalogo.reindex(); Catalogo.guardar(); alFin(); });
+          ProdSync.bajarCatalogo(function () { Catalogo.reindex(); Catalogo.guardar(); alFin(); if (res.porCeros) Avisos.ceros(res.porCeros, res.porCerosCodigos, 'catalogo'); });
         }, function (msg) { UI.toast('Quedó en este equipo, pero no se pudo subir a la nube: ' + msg, 'error', 7000); alFin(); });
       };
       UI.confirmar((modo === 'reemplazar' ? 'Se REEMPLAZARÁ el catálogo ' + (nube ? 'de la nube y de todos los equipos' : 'de este equipo') + ' (' + Catalogo.lista.length + ' productos) por ' : 'Se fusionarán ') + d.productos.length + ' productos.\n¿Continuar?', function () {
@@ -6095,6 +6276,9 @@ Pantallas.datos = function (m) {
     '<label class="lbl">PREFIJO DE ESTE EQUIPO</label><input id="cfEq" class="inp sm" maxlength="6" autocapitalize="characters" value="' + U.esc(c.equipo) + '">' +
     '<div class="muted">Con varios equipos, un prefijo distinto evita números de OT repetidos.</div>' +
     '<button class="btn btn-ok" data-a="guardarCfg">GUARDAR CONFIGURACIÓN</button></div>';
+  h += '<div class="card"><h2>Tipos de documento</h2><div class="muted">Se ofrecen en Pedidos, Cubicación y Packing de todos los equipos. Desactivar oculta el tipo para registros nuevos; los ya registrados lo conservan. Cambiar el nombre aplica solo a registros nuevos. La abreviatura va en la marca de Correos (ej. 5001 FAC 4925 B1/2).</div>' +
+    '<div class="frow cab"><span class="fx">Nombre</span><span class="ptIn">Abrev.</span><span class="tg">Activo</span><span class="mini">Orden</span></div><div id="tdLista"></div>' +
+    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="tdAgregar">+ AGREGAR TIPO</button><button class="btn btn-ok btn-sm" data-a="tdGuardar">GUARDAR TIPOS</button></div><div id="tdMsg"></div></div>';
   h += '<div class="card"><h2>Remitente por defecto (envíos)</h2><div class="muted">Se usa en los datos de envío de cada pedido, salvo que el pedido indique otro. Se comparte con todos los equipos y con la extensión de Correos.</div>' +
     EnvioDatos.formulario('rmD_', EnvioDatos.remitenteDefecto()) +
     '<button class="btn btn-ok" data-a="guardarRem">GUARDAR REMITENTE</button></div>';
@@ -6154,7 +6338,45 @@ Pantallas.datos = function (m) {
     if (e.target && e.target.id === 'cfPag') { DB.cfg.paginaImpresion = e.target.value; DB.guardarCfg(); UI.toast('Tamaño de página guardado', 'ok'); }
     if (e.target && e.target.id === 'cfPerf') { DB.cfg.perfilImpresora = e.target.value; DB.guardarCfg(); UI.toast('Impresora de este equipo: ' + e.target.options[e.target.selectedIndex].text, 'ok', 3500); }
   };
+  var td = U.clone(TiposDoc.lista()), tdUsados = TiposDoc.usados();
+  var tdLeer = function () {
+    U.each(U.qa(m, '.tdRow'), function (r, i) {
+      td[i].n = U.trim(String(r.querySelector('.tdN').value || '')).toUpperCase().replace(/\s+/g, ' ');
+      td[i].ab = U.sinAcentos(String(r.querySelector('.tdA').value || '').toUpperCase()).replace(/[^A-Z0-9]/g, '').substr(0, 4);
+      td[i].on = r.querySelector('.tdO').checked;
+    });
+  };
+  var tdPintar = function () {
+    var box = U.$('tdLista'); if (!box) return;
+    box.innerHTML = U.map(td, function (t, i) {
+      var uso = tdUsados[U.norm(t.orig || t.n)] || 0;
+      return '<div class="frow tdRow" data-i="' + i + '"><input class="inp sm fx tdN" maxlength="30" value="' + U.esc(t.n) + '">' +
+        '<input class="inp sm ptIn tdA" maxlength="4" autocapitalize="characters" value="' + U.esc(t.ab) + '">' +
+        '<label class="tg"><input type="checkbox" class="tdO"' + (t.on ? ' checked' : '') + '>Sí</label>' +
+        '<button class="mini" data-a="tdSubir" data-x="' + i + '" title="Subir">↑</button></div>' +
+        (uso ? '<div class="muted" style="margin:-2px 0 4px">' + uso + ' registro(s) usan «' + U.esc(t.orig || t.n) + '»</div>' : '');
+    }).join('');
+  };
+  U.each(td, function (t) { t.orig = t.n; });
+  tdPintar();
   UI.delegar(m, {
+    tdAgregar: function () { tdLeer(); td.push({ n: '', ab: '', on: true }); tdPintar(); var l = U.qa(m, '.tdN'); if (l.length) l[l.length - 1].focus(); },
+    tdSubir: function (x) { tdLeer(); var i = +x; if (i > 0) { var t = td[i]; td[i] = td[i - 1]; td[i - 1] = t; tdPintar(); } },
+    tdGuardar: function () {
+      tdLeer();
+      var l = U.filter(td, function (t) { return t.n || t.ab; }), err = TiposDoc.validar(l), box = U.$('tdMsg');
+      if (err) { box.innerHTML = '<div class="aviso rojo">' + U.esc(err) + '</div>'; return; }
+      var ren = U.filter(l, function (t) { return t.orig && t.orig !== t.n && tdUsados[U.norm(t.orig)]; });
+      var guardar = function () {
+        c.tiposDoc = U.map(l, function (t) { return { n: t.n, ab: t.ab, on: !!t.on }; });
+        DB.guardarCfg();
+        U.each(l, function (t) { t.orig = t.n; });
+        box.innerHTML = '<div class="aviso verde">Tipos guardados (' + U.filter(l, function (t) { return t.on; }).length + ' activos).</div>';
+        Compartida.subir(function (ok) { UI.toast(ok ? 'Tipos de documento compartidos con todos los equipos' : 'Tipos guardados en este equipo (sin conexión a la nube)', ok ? 'ok' : 'warn', 3500); });
+      };
+      if (ren.length) UI.confirmar('Cambiará el nombre de ' + U.map(ren, function (t) { return '«' + t.orig + '» → «' + t.n + '»'; }).join(', ') + '. Los registros existentes conservan el nombre anterior; solo los nuevos usarán el nuevo. ¿Continuar?', guardar, { si: 'GUARDAR' });
+      else guardar();
+    },
     calib58: function () { Impresion.calibrar(58); },
     pruebaT29: function () { Plantillas.imprimirBultos(null, [{ id: 'prueba', numero: 1, orden: 'PRUEBA-60X29', tipoDocumento: 'FACTURA', numeroDocumento: '12345', factura: '12345', ancho: 30, alto: 20, largo: 10, peso: 1.5, fecha: U.fechaISO(), hora: U.hora() }], 'bul-60x29'); },
     pruebaT40: function () { Plantillas.imprimirBultos(null, [{ id: 'prueba', numero: 1, orden: 'PRUEBA-60X40', tipoDocumento: 'FACTURA', numeroDocumento: '12345', factura: '12345', ancho: 30, alto: 20, largo: 10, peso: 1.5, fecha: U.fechaISO(), hora: U.hora() }], 'bul-60x40'); },
