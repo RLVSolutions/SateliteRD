@@ -459,7 +459,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.21.2', build: '2026-10-21', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.22.0', build: '2026-10-22', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -831,7 +831,7 @@ var Pedidos = {
       var m = [];
       if (num && U.norm(p.numero) === num) m.push('mismo N° de pedido / O.C.');
       if (nd && U.norm(p.numeroDocumento) === nd && (!td || !p.tipoDocumento || U.norm(p.tipoDocumento) === td)) m.push('mismo documento ' + (p.tipoDocumento || '') + ' ' + p.numeroDocumento);
-      if (m.length) out.push({ p: p, motivo: m.join(' y '), exacto: Pedidos.clave(p.origen, p.tipo, p.numero) === Pedidos.clave(d.origen, d.tipo, d.numero) });
+      if (m.length) { var ev = Pedidos.evidencia(p); out.push({ p: p, motivo: m.join(' y '), exacto: Pedidos.clave(p.origen, p.tipo, p.numero) === Pedidos.clave(d.origen, d.tipo, d.numero), despacho: ev === 'EN PREPARACIÓN' || ev === 'ENVIADO' || ev === 'ENTREGADO' || p.estado === 'ENVIADO' || p.estado === 'ENTREGADO', evidencia: ev || p.estado }); }
     });
     return out;
   },
@@ -875,7 +875,8 @@ var Pedidos = {
     var numero = U.trim(p.numero || p.pedido || p.orden || '');
     if (!numero) return { ok:false, error:'Falta número de pedido / O.C.' };
     var origen = U.norm(p.origen || 'MANUAL'), tipo = U.norm(p.tipo || 'PEDIDO');
-    var x = p.id ? Pedidos.porId(p.id) : Pedidos.porClave(origen, tipo, numero);
+    var x = p.id ? Pedidos.porId(p.id) : (p.nuevo ? null : Pedidos.porClave(origen, tipo, numero));
+    if (x && !p.id && x.estado !== 'ELIMINADO' && U.trim(p.numeroDocumento) && U.trim(x.numeroDocumento) && (U.norm(p.numeroDocumento) !== U.norm(x.numeroDocumento) || U.norm(p.tipoDocumento || '') !== U.norm(x.tipoDocumento || ''))) x = null;
     var ahora = new Date().toISOString(), nuevo = !x || x.estado === 'ELIMINADO', aviso = '';
     if (!x) {
       x = { id: U.uid('ped-'), creado: ahora };
@@ -984,12 +985,14 @@ var Pedidos = {
   },
   evidencia: function(p) {
     var key=OT.docKey(p.numero,p.tipoDocumento,p.numeroDocumento), tieneCub=false, tieneOT=false, total=0, desp=0, ret=0;
+    var ajeno={};
     U.each(CubPool.lista,function(b){
       if(b.estado==='ELIMINADO')return;
+      if(b.pedidoId && b.pedidoId!==p.id){ajeno[b.id]=1;return;}
       if(b.pedidoId===p.id || OT.docKey(b.orden,b.tipoDocumento,b.numeroDocumento)===key)tieneCub=true;
     });
     U.each(OT.lista,function(ot){
-      var bs=OT.bultosDoc(ot,key), man=OT.conManifiesto(ot);
+      var bs=U.filter(OT.bultosDoc(ot,key),function(b){return !ajeno[b.origenCubicacionId];}), man=OT.conManifiesto(ot);
       if(bs.length)tieneOT=true;
       U.each(bs,function(b){total++;if(man||b.verificadoCourier||b.despachoId||b.despachado||b.etapa==='DESPACHADO')desp++;if(b.retiro)ret++;});
     });
@@ -2742,6 +2745,7 @@ var Plantillas = {
     var n = String(txt || '').length || 1, max = anchoMm / (n * (factor || 0.62) * 0.3528);
     return Math.max(7, Math.min(base, Math.floor(max * 2) / 2));
   },
+  nTxt: function (b) { var pb = Plantillas._posBulto(null, b); return pb.pos + '/' + pb.tot; },
   _posBulto: function (ot, b) {
     var k = OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento || b.factura), mapa = {}, l = [];
     var poner = function (clave, orden1, orden2, orden3) { if (!clave || mapa[clave]) return; mapa[clave] = 1; l.push({ k: clave, a: orden1, b: orden2, c: orden3 }); };
@@ -2821,7 +2825,8 @@ var Plantillas = {
     h += '<div>DOCUMENTO:</div><div class="dest">' + U.esc(OT.etiquetaDoc(doc)) + '</div>';
     h += '<div class="sep"></div><div class="dest">BULTOS: ' + bs.length + (doc.esperado > bs.length ? ' (de ' + doc.esperado + ' esperados)' : '') + '</div><div class="sep"></div>';
     U.each(bs, function (b) {
-      h += '<div class="b"><div class="t">BULTO ' + b.numero + '</div><div>' + U.esc(Plantillas.med(b)) + '</div>' +
+      var pb = Plantillas._posBulto(ot, b);
+      h += '<div class="b"><div class="t">BULTO ' + pb.pos + '/' + pb.tot + '</div><div>' + U.esc(Plantillas.med(b)) + '</div>' +
         '<div>Peso: ' + U.fx(b.peso, 2) + ' kg</div><div>Vol: ' + U.fx(b.volumen, 3) + ' m3</div>' +
         (b.courier || b.ordenCourier ? '<div>' + U.esc((b.courier || '') + ' ' + (b.ordenCourier || '')) + '</div>' : '') + '</div>';
     });
@@ -2847,7 +2852,8 @@ var Plantillas = {
       U.each(bs, function (b, i) {
         var c = OT.calcular(b.ancho, b.alto, b.largo), vol = b.volumen != null && b.volumen !== '' ? Number(b.volumen) : c.volumen, pv = b.pesoVol != null && b.pesoVol !== '' ? Number(b.pesoVol) : c.pesoVol;
         st.peso += Number(b.peso) || 0; st.volumen += vol || 0; st.pesoVol += pv || 0;
-        h += '<div class="b"><div class="t">BULTO ' + (b.numero || i + 1) + '/' + (g.total || bs.length) + '</div><div>' + U.esc(Plantillas.med(b)) + ' · ' + U.fx(b.peso, 2) + ' kg</div><div>Vol: ' + U.fx(vol, 3) + ' m3 · P.Vol: ' + U.fx(pv, 2) + ' kg</div>' +
+        var pb = Plantillas._posBulto(null, b);
+        h += '<div class="b"><div class="t">BULTO ' + pb.pos + '/' + pb.tot + '</div><div>' + U.esc(Plantillas.med(b)) + ' · ' + U.fx(b.peso, 2) + ' kg</div><div>Vol: ' + U.fx(vol, 3) + ' m3 · P.Vol: ' + U.fx(pv, 2) + ' kg</div>' +
           (b.courier || b.ordenCourier ? '<div>' + U.esc((b.courier || '') + ' ' + (b.ordenCourier || '')) + '</div>' : '') + '</div>';
       });
       if (grupos.length > 1) h += '<div class="r"><span class="l">Subtotal ' + bs.length + ' bulto(s):</span><span class="rr">' + U.fx(st.peso, 2) + ' kg</span></div>';
@@ -2888,7 +2894,8 @@ var Plantillas = {
     U.each(Plantillas._porDoc(ot, keys), function (g) {
       h += '<div class="b"><div class="t">' + U.esc(g.doc.orden) + ' | ' + U.esc(OT.etiquetaDoc(g.doc)) + '</div>';
       U.each(g.bultos, function (b) {
-        h += '<div>' + b.numero + '/' + g.total + '  ' + b.ancho + 'x' + b.alto + 'x' + b.largo + '  ' + U.fx(b.peso, 1) + 'kg  ' + U.fx(b.volumen, 3) + 'm3' +
+        var pb = Plantillas._posBulto(ot, b);
+        h += '<div>' + pb.pos + '/' + pb.tot + '  ' + b.ancho + 'x' + b.alto + 'x' + b.largo + '  ' + U.fx(b.peso, 1) + 'kg  ' + U.fx(b.volumen, 3) + 'm3' +
           (b.ordenCourier ? '<br>&nbsp;&nbsp;' + U.esc((b.courier || '') + ' ' + b.ordenCourier) : '') + '</div>';
       });
       h += '</div>';
@@ -2911,7 +2918,8 @@ var Plantillas = {
     h += '<table><thead><tr><th>Orden/Ticket</th><th>Factura</th><th>Bulto</th><th>Courier</th><th>N° Courier</th><th>Medidas (cm)</th><th>Peso (kg)</th><th>Vol. (m³)</th><th>P.Vol (kg)</th></tr></thead><tbody>';
     U.each(Plantillas._porDoc(ot, keys), function (g) {
       U.each(g.bultos, function (b) {
-        h += '<tr><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + b.numero + '/' + g.total + '</td><td>' +
+        var pb = Plantillas._posBulto(ot, b);
+        h += '<tr><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + pb.pos + '/' + pb.tot + '</td><td>' +
           U.esc(b.courier || '') + '</td><td>' + U.esc(b.ordenCourier || '') + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td class="n">' + U.fx(b.peso, 2) + '</td><td class="n">' + U.fx(b.volumen, 3) +
           '</td><td class="n">' + U.fx(b.pesoVol, 2) + '</td></tr>';
       });
@@ -3210,7 +3218,7 @@ var CubPool = {
     var b = { id: U.uid('cub-'), pedidoId: d.pedidoId || '', cubicacionId: cub, numero: mismos.length + 1, orden: U.norm(d.orden), tipoDocumento: U.norm(d.tipoDocumento || (U.trim(d.numeroDocumento) ? 'FACTURA' : '')), numeroDocumento: U.norm(d.numeroDocumento), factura: U.norm(d.numeroDocumento), ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso, volumen: c.volumen, pesoVol: c.pesoVol, fecha: U.fechaISO(a), hora: U.hora(a), estado: 'DISPONIBLE', otId: '', otNumero: '', act: a.toISOString() };
     if (d.producto) { b.producto = d.producto; b.productoDesc = d.productoDesc || ''; }
     SyncReg.marcar(b);
-    CubPool.lista.push(b); CubPool.ultimo = { ancho: b.ancho, alto: b.alto, largo: b.largo, peso: b.peso }; CubPool.guardar(); return b;
+    CubPool.lista.push(b); CubPool.ultimo = { ancho: b.ancho, alto: b.alto, largo: b.largo, peso: b.peso, producto: b.producto || '', productoDesc: b.productoDesc || '' }; CubPool.guardar(); return b;
   },
   disponibles: function (orden) { return U.filter(CubPool.lista, function (b) { return b.estado === 'DISPONIBLE' && (!orden || U.norm(b.orden) === U.norm(orden)); }); },
   reconciliar: function () {
@@ -3333,7 +3341,7 @@ var VoucherUI = {
     var t = DB.cfg.empresa + (gs.length > 1 ? ' · ' + gs.length + ' documentos' : ''), n = 0, kg = 0;
     U.each(gs, function (g) {
       t += '\n\n' + (g.orden || '-') + ' · ' + (U.trim((g.tipo || '') + ' ' + (g.num || '')) || 'sin documento');
-      U.each(g.bultos, function (b, i) { n++; kg += Number(b.peso) || 0; t += '\nBulto ' + (b.numero || i + 1) + '/' + (g.total || g.bultos.length) + ': ' + Plantillas.med(b) + ' · ' + U.fx(b.peso, 2) + ' kg'; });
+      U.each(g.bultos, function (b, i) { var pb = Plantillas._posBulto(null, b); n++; kg += Number(b.peso) || 0; t += '\nBulto ' + pb.pos + '/' + pb.tot + ': ' + Plantillas.med(b) + ' · ' + U.fx(b.peso, 2) + ' kg'; });
     });
     t += '\n\nTotal: ' + n + ' bulto(s) · ' + U.fx(kg, 2) + ' kg';
     window.location.href = 'https://wa.me/?text=' + encodeURIComponent(t);
@@ -3466,9 +3474,10 @@ CubUI.editarBulto = function (id) {
 
 
 Pantallas.inicio = function (m) {
+  Pedidos.reconciliarEstados();
   var pedAct=0, pedCub=0, otAb=0, otDesp=0, otCer=0, bultos=0, cubPend=0;
   U.each(Pedidos.vigentes(),function(p){
-    if(p.estado!=='ENTREGADO' && p.estado!=='CANCELADO') pedAct++;
+    if(['ENVIADO','ENTREGADO','CANCELADO'].indexOf(p.estado)<0) pedAct++;
     if(p.estado==='CUBICADO') pedCub++;
   });
   U.each(OT.lista,function(o){
@@ -3536,7 +3545,7 @@ Pantallas.pedidos = function (m) {
     l.sort(function(a,b){ return String(a.fecha||'') < String(b.fecha||'') ? 1 : -1; });
     U.each(l,function(p){
       if ((estadoFiltro === 'ELIMINADOS') !== (p.estado === 'ELIMINADO')) return;
-      if (estadoFiltro === 'ACTIVOS' && (p.estado === 'ENTREGADO' || p.estado === 'CANCELADO')) return;
+      if (estadoFiltro === 'ACTIVOS' && (p.estado === 'ENVIADO' || p.estado === 'ENTREGADO' || p.estado === 'CANCELADO')) return;
       if (estadoFiltro === 'VIGENTES' && ['CUBICADO','EN PREPARACIÓN','ENVIADO','ENTREGADO','CANCELADO'].indexOf(p.estado)>=0) return;
       if (estadoFiltro === 'HISTÓRICO' && ['CUBICADO','EN PREPARACIÓN','ENVIADO','ENTREGADO','CANCELADO'].indexOf(p.estado)<0) return;
       if (estadoFiltro !== 'TODOS' && estadoFiltro !== 'VIGENTES' && estadoFiltro !== 'HISTÓRICO' && estadoFiltro !== 'ACTIVOS' && estadoFiltro !== 'ELIMINADOS' && p.estado !== estadoFiltro) return;
@@ -3573,7 +3582,7 @@ Pantallas.pedidos = function (m) {
       var d = { origen: U.$('pnOrigen').value, tipo: U.$('pnTipo').value, numero: U.$('pnNumero').value, tipoDocumento: U.$('pnTD').value, numeroDocumento: U.$('pnND').value };
       var l = Pedidos.duplicados(d, p.id), el = U.$('pnAviso');
       if (!el) return l;
-      el.innerHTML = l.length ? '<div class="msg" style="background:#fff3cd;border-left:5px solid #f0ad00"><b>⚠ Ya existe un registro parecido. Revíselo antes de guardar:</b>' + U.map(l, function (x) { return '<div style="margin-top:4px">' + U.esc(x.p.numero) + ' · ' + U.esc(x.p.origen) + ' · ' + U.esc(U.fechaCL(x.p.fecha)) + (x.p.numeroDocumento ? ' · ' + U.esc(x.p.tipoDocumento + ' ' + x.p.numeroDocumento) : '') + ' · <b>' + U.esc(x.p.estado) + '</b> — ' + U.esc(x.motivo) + ' <button class="btn btn-sec btn-sm" data-a="pnRevisar" data-x="' + x.p.id + '">REVISAR</button></div>'; }).join('') + (U.find(l, function (x) { return x.exacto; }) ? '<div style="margin-top:6px"><b>Mismo origen, tipo y número: no se puede crear otro igual.</b> Edite el existente.</div>' : '<div style="margin-top:6px">Si de verdad es otro pedido, pulse GUARDAR otra vez.</div>') + '</div>' : '';
+      el.innerHTML = l.length ? '<div class="msg" style="background:#fff3cd;border-left:5px solid #f0ad00"><b>⚠ Esta orden ya tiene registro. Una orden puede tener varios despachos: si es otro despacho, guarde igual (se pide confirmar).</b>' + U.map(l, function (x) { return '<div style="margin-top:4px">' + U.esc(x.p.numero) + ' · ' + U.esc(x.p.origen) + ' · ' + U.esc(U.fechaCL(x.p.fecha)) + (x.p.numeroDocumento ? ' · ' + U.esc(x.p.tipoDocumento + ' ' + x.p.numeroDocumento) : '') + ' · <b>' + U.esc(x.p.estado) + '</b>' + (x.despacho ? ' · <b>con despacho asociado</b>' : '') + ' — ' + U.esc(x.motivo) + ' <button class="btn btn-sec btn-sm" data-a="pnRevisar" data-x="' + x.p.id + '">REVISAR</button></div>'; }).join('') + (U.find(l, function (x) { return x.exacto; }) ? '<div style="margin-top:6px"><b>Mismo origen, tipo y número: no se puede crear otro igual.</b> Edite el existente.</div>' : '<div style="margin-top:6px">Si de verdad es otro pedido, pulse GUARDAR otra vez.</div>') + '</div>' : '';
       return l;
     };
     var est = p.id ? (Pedidos.sinRespaldo(p) ? '<div class="msg" style="background:#fff3cd">⚠ El estado <b>' + U.esc(p.estado) + '</b> no tiene respaldo en este equipo (sin medidas, OT o despacho registrados). Puede corregirlo a una etapa anterior.</div>' : '') +
@@ -3592,14 +3601,13 @@ Pantallas.pedidos = function (m) {
         if(!U.trim(U.$('pnNumero').value)){UI.toast('Falta número de pedido / O.C.','error');return false;}
         var dups=avisoDup(), firma=U.map(dups,function(x){return x.p.id;}).join(',');
         if(p.id&&U.norm(p.numero)===U.norm(U.$('pnNumero').value)&&U.norm(p.numeroDocumento)===U.norm(U.$('pnND').value)&&U.norm(p.origen)===U.norm(U.$('pnOrigen').value)&&U.norm(p.tipo)===U.norm(U.$('pnTipo').value))dups=[];
-        if(U.find(dups,function(x){return x.exacto;})){UI.toast('Ya existe ese pedido con el mismo origen y tipo. Revise el registro existente.','error',4500);return false;}
-        if(dups.length&&firmaAviso!==firma){firmaAviso=firma;UI.toast('Posible duplicado: revise el aviso y pulse GUARDAR otra vez para confirmar.','warn',4500);return false;}
+        if(dups.length&&firmaAviso!==firma){firmaAviso=firma;UI.toast('Esta orden ya tiene registro'+(U.find(dups,function(x){return x.despacho;})?' con despacho asociado':'')+'. Si es otro despacho de la misma orden, pulse GUARDAR otra vez para registrarlo.','warn',5500);return false;}
         var nuevoEstado=p.id?U.$('pnEstado').value:'RECIBIDO';
         if(p.id&&!Pedidos.puedeCambiar(p,nuevoEstado)){UI.toast(Pedidos.motivoEstado(p,nuevoEstado),'error',5000);return false;}
         if(p.id&&nuevoEstado==='CANCELADO'&&p.estado!=='CANCELADO'&&Pedidos.bultosDe(p).length&&firmaAviso!=='CANCELAR'){firmaAviso='CANCELAR';UI.toast('El pedido tiene '+Pedidos.bultosDe(p).length+' bulto(s) cubicado(s) que quedarán sin OT. Pulse GUARDAR otra vez para cancelarlo.','warn',5000);return false;}
         var obs=U.$('pnObs').value;
         if(dups.length)obs=U.trim(obs+(obs?' · ':'')+'Registrado pese a aviso de duplicado ('+U.map(dups,function(x){return x.p.numero;}).join(', ')+')');
-        var r=Pedidos.upsert({id:p.id,origen:U.$('pnOrigen').value,tipo:U.$('pnTipo').value,numero:U.$('pnNumero').value,fecha:U.$('pnFecha').value,
+        var r=Pedidos.upsert({id:p.id,nuevo:!p.id,origen:U.$('pnOrigen').value,tipo:U.$('pnTipo').value,numero:U.$('pnNumero').value,fecha:U.$('pnFecha').value,
           tipoDocumento:U.$('pnTD').value,numeroDocumento:U.$('pnND').value,estado:nuevoEstado,observacion:obs});
         if(!r.ok){UI.toast(r.error,'error');return false;}
         if(r.avisoEstado){UI.toast(r.avisoEstado,'warn',5000);}
@@ -3697,7 +3705,7 @@ Pantallas.cubicacion = function (m) {
   CubUI.filaBulto = function (b) {
     var hh = '';
 
-      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + b.numero + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + (b.productoDesc ? '<br>' + U.esc(b.productoDesc) : '') + (CorreosSat.deBulto(b) ? '<br><span class="est COMPLETO">CORREOS ' + U.esc(CorreosSat.deBulto(b).seguimiento || CorreosSat.deBulto(b).numeroEnvio) + '</span>' : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
+      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + Plantillas.nTxt(b) + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + (b.productoDesc ? '<br>' + U.esc(b.productoDesc) : '') + (CorreosSat.deBulto(b) ? '<br><span class="est COMPLETO">CORREOS ' + U.esc(CorreosSat.deBulto(b).seguimiento || CorreosSat.deBulto(b).numeroEnvio) + '</span>' : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
 
     return hh;
   };
@@ -3751,7 +3759,7 @@ Pantallas.cubicacion = function (m) {
         if (U.$('ofResp')) { var r = U.trim(U.$('ofResp').value); if (!r) { UI.toast('Indique el responsable', 'error'); return false; } DB.cfg.operador = r; DB.guardarCfg(); }
         var cambios = {}, base = {};
         U.each(dif, function (c) { cambios[c[0]] = d[c[0]]; base[c[0]] = m[c[0]] === '' || m[c[0]] == null ? '' : m[c[0]]; });
-        ProdSync.guardar(f, cambios, base, function (ok, msg) { UI.toast(ok ? 'Ficha actualizada · ' + msg : msg, ok ? 'ok' : 'error', 4000); if (ok) { UI.cerrarModal(); CubUI.prod.med = { ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso }; prodPintarSel(); } });
+        ProdSync.guardar(f, cambios, base, function (ok, msg) { UI.toast(ok ? 'Ficha actualizada · ' + msg : msg, ok ? 'ok' : 'error', 4000); if (ok) { UI.cerrarModal(); p.med = { ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso }; prodPintarSel(); } });
         return false;
       } }
     ] });
@@ -3766,7 +3774,10 @@ Pantallas.cubicacion = function (m) {
     var el = U.$('cuEnvioRes'); if (!el) return;
     var pe = CubUI.pedidoId ? Pedidos.porId(CubUI.pedidoId) : EnvioDatos.buscarPedido(U.$('cuOrden').value, U.$('cuTipo').value, U.$('cuDoc').value);
     var d = pe && pe.envio ? pe.envio.destinatario : null;
-    el.innerHTML = d && EnvioDatos.tieneDatos(d) ? 'Para: ' + U.esc(EnvioDatos.resumen(d)) : '';
+    var ordenQ = U.norm(U.$('cuOrden').value), previos = [];
+    if (ordenQ.length >= 3) U.each(OT.lista, function (o) { U.each(o.documentos || [], function (dd) { if (U.norm(dd.orden) === ordenQ) { var t = OT.etiquetaDoc(dd) + ' · ' + o.numero + (OT.conManifiesto(o) ? ' (con manifiesto)' : ''); if (previos.indexOf(t) < 0) previos.push(t); } }); });
+    el.innerHTML = (d && EnvioDatos.tieneDatos(d) ? 'Para: ' + U.esc(EnvioDatos.resumen(d)) : '') +
+      (previos.length ? '<div class="aviso amar" style="margin:4px 0 0">Esta orden ya tiene despacho asociado: ' + U.esc(previos.slice(0, 4).join(' · ')) + (previos.length > 4 ? '…' : '') + '. Puede cubicar un nuevo despacho de la misma orden.</div>' : '');
     var bt = m.querySelector('[data-a="cuEnvio"]'); if (bt) bt.innerHTML = pe && pe.envio ? '✓ DATOS DE ENVÍO' : 'DATOS DE ENVÍO';
   };
   var acciones = {
@@ -3778,8 +3789,11 @@ Pantallas.cubicacion = function (m) {
       if (!U.trim(d.numeroDocumento) && !d.pedidoId) { var pe0 = EnvioDatos.buscarPedido(d.orden, d.tipoDocumento, ''); if (pe0) d.pedidoId = pe0.id; }
       var b = CubPool.agregar(d); if (d.pedidoId) Pedidos.marcarCubicado(d.pedidoId);
       U.each(['cuAncho', 'cuAlto', 'cuLargo', 'cuPeso'], function (id) { U.$(id).value = ''; });
-      calc(); pintar(); U.$('cuAncho').focus(); UI.toast('Bulto ' + b.numero + ' cubicado', 'ok');
-      if (CubUI.prod) CubUI.ofrecerFicha(d);
+      calc(); pintar(); U.$('cuAncho').focus(); UI.toast('Bulto ' + Plantillas.nTxt(b) + ' del documento cubicado', 'ok');
+      if (CubUI.prod && !CubUI.prod.repetido) CubUI.ofrecerFicha(d);
+      CubUI.prod = null; prodPintarSel();
+      if (U.$('cuProd')) U.$('cuProd').value = '';
+      if (U.$('cuProdRes')) U.$('cuProdRes').innerHTML = '';
     },
     prodSel: function (i) { var f = prodRes[Number(i)]; if (f) prodElegir(f); },
     prodFicha: function () { if (CubUI.prod) CatUI.ficha(CubUI.prod.codigo, function () { prodPintarSel(); }); },
@@ -3792,7 +3806,7 @@ Pantallas.cubicacion = function (m) {
       if (prodRes.length === 1 || (prodRes.length && (Medidas.sinCeros(prodRes[0].codigo) === Medidas.sinCeros(q) || Medidas.cod(prodRes[0].codigoBarra) === Medidas.cod(q)))) prodElegir(prodRes[0]);
       else if (!prodRes.length) UI.toast('Producto no encontrado', 'warn');
     },
-    repetir: function () { var x = CubPool.ultimo; if (!x) { UI.toast('No hay medidas anteriores', 'warn'); return; } U.$('cuAncho').value = x.ancho; U.$('cuAlto').value = x.alto; U.$('cuLargo').value = x.largo; U.$('cuPeso').value = x.peso; calc(); U.$('cuAncho').focus(); },
+    repetir: function () { var x = CubPool.ultimo; if (!x) { UI.toast('No hay medidas anteriores', 'warn'); return; } U.$('cuAncho').value = x.ancho; U.$('cuAlto').value = x.alto; U.$('cuLargo').value = x.largo; U.$('cuPeso').value = x.peso; if (x.producto) { CubUI.prod = { codigo: x.producto, descripcion: x.productoDesc || '', med: null, repetido: true }; prodPintarSel(); } calc(); U.$('cuAncho').focus(); },
     igual: function () { acciones.repetir(); if (CubPool.ultimo) setTimeout(acciones.agregar, 20); },
     limpiarDoc: function () {
       U.$('cuOrden').value = '';
@@ -3902,7 +3916,7 @@ var CubicacionPDF = {
   titulo: function (l) { if (!l.length) return 'Cubicación'; var b = l[0]; return 'Cubicación · ' + b.orden + ' · ' + b.tipoDocumento + ' ' + b.numeroDocumento; },
   html: function (l, formato) {
     var h = '<h1>CUBICACIÓN / CONTROL DE BULTOS</h1><p><b>' + U.esc(DB.cfg.empresa) + '</b></p>';
-    U.each(l, function (b) { h += '<div style="border-top:1px solid #999;padding:6px 0"><b>' + U.esc(b.orden) + ' · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</b><br>' + U.esc(b.cubicacionId) + ' · Bulto ' + b.numero + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg · ' + U.fx(b.volumen, 3) + ' m³</div>'; });
+    U.each(l, function (b) { h += '<div style="border-top:1px solid #999;padding:6px 0"><b>' + U.esc(b.orden) + ' · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</b><br>' + U.esc(b.cubicacionId) + ' · Bulto ' + Plantillas.nTxt(b) + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg · ' + U.fx(b.volumen, 3) + ' m³</div>'; });
     return '<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:' + (formato === 'A4' ? '12mm' : '2mm') + ';size:' + (formato === 'A4' ? 'A4' : formato + 'mm auto') + '}body{font-family:Arial,sans-serif;font-size:' + (formato === '58' ? '10pt' : '11pt') + '}h1{font-size:15pt}</style></head><body>' + h + '</body></html>';
   },
   pedir: function (formato, cb) {
@@ -4047,7 +4061,7 @@ var PackingUI = {
   compartirVoucher: function(ot,key) {
     var d=OT.documento(ot,key),bs=OT.bultosDoc(ot,key);if(!d)return;
     var t='VOUCHER PACKING\nOT: '+ot.numero+'\nORDEN: '+d.orden+'\nDOCUMENTO: '+OT.etiquetaDoc(d)+'\nBULTOS: '+bs.length;
-    U.each(bs,function(b){t+='\nBulto '+b.numero+'/'+bs.length+': '+Plantillas.med(b)+' · '+U.fx(b.peso,2)+' kg';});
+    U.each(bs,function(b){var pb=Plantillas._posBulto(ot,b);t+='\nBulto '+pb.pos+'/'+pb.tot+': '+Plantillas.med(b)+' · '+U.fx(b.peso,2)+' kg';});
     var url='https://wa.me/?text='+encodeURIComponent(t);
     try{window.open(url,'_blank');}catch(e){window.location.href=url;}
   },
@@ -4112,7 +4126,7 @@ var PackingUI = {
     U.each(ot.bultos, function (b) {
       var bloqueado = !!(b.ordenCourier || b.verificadoCourier || b.despachoId || b.despachado);
       h += '<div class="it" data-pe-doc="' + U.esc(b.docKey) + '" style="cursor:pointer"><b>' + U.esc(b.orden) + '</b> · ' + U.esc((b.tipoDocumento || 'FACTURA') + ' ' + (b.numeroDocumento || b.factura)) +
-        '<div class="c2">Bulto ' + b.numero + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg</div>' +
+        '<div class="c2">Bulto ' + Plantillas.nTxt(b) + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg</div>' +
         (editable && !bloqueado ? '<button class="btn btn-warn btn-sm" data-pe-lib="' + b.id + '">QUITAR / LIBERAR</button>' : (bloqueado ? ' <span class="est CERRADA">GESTIÓN COURIER</span>' : '')) +
         (editable && b.origenCubicacionId && U.find(CubPool.lista, function (x) { return x.id === b.origenCubicacionId; }) ? ' <button class="btn btn-sec btn-sm" data-pe-mov="' + U.esc(b.origenCubicacionId) + '">EDITAR / MOVER</button>' : '') + '</div>';
     });
@@ -4147,7 +4161,7 @@ var PackingUI = {
       var box = U.$('peDisp'); if (!box) return;
       var q = U.norm(U.$('peBuscar').value), hh = '', l = U.filter(CubPool.lista, function (b) { return b.estado === 'DISPONIBLE' && (!q || U.norm(b.orden).indexOf(q) >= 0 || U.norm(b.numeroDocumento).indexOf(q) >= 0); });
       if (!l.length) hh = '<div class="muted">No hay bultos disponibles para este filtro.</div>';
-      U.each(l, function (b) { hh += '<div class="it"><b>' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento + ' ' + b.numeroDocumento) + '<div class="c2">' + U.esc(b.cubicacionId) + ' · Bulto ' + b.numero + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' · ' + U.fx(b.peso, 2) + ' kg</div><button class="btn btn-ok btn-sm" data-pe-add="' + b.id + '">+ AGREGAR</button></div>'; });
+      U.each(l, function (b) { hh += '<div class="it"><b>' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento + ' ' + b.numeroDocumento) + '<div class="c2">' + U.esc(b.cubicacionId) + ' · Bulto ' + Plantillas.nTxt(b) + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' · ' + U.fx(b.peso, 2) + ' kg</div><button class="btn btn-ok btn-sm" data-pe-add="' + b.id + '">+ AGREGAR</button></div>'; });
       box.innerHTML = hh;
     }
     if (editable) { U.$('peBuscar').oninput = pintarDisp; pintarDisp(); }
@@ -4172,7 +4186,7 @@ var PackingUI = {
     var bs = OT.bultosDoc(ot, key), conGest = false;
     U.each(bs, function (b) { if (b.ordenCourier || b.verificadoCourier || b.despachoId || b.despachado) conGest = true; });
     var h = '<label class="lbl">ORDEN / TICKET</label><input id="pdOrd" class="inp" type="text" value="' + U.esc(d.orden) + '"><label class="lbl">TIPO DOCUMENTO</label><select id="pdTipo" class="inp sm">' + CubUI.tipos(d.tipoDocumento || 'FACTURA') + '</select><label class="lbl">N° DOCUMENTO</label><input id="pdNum" class="inp" type="text" value="' + U.esc(d.numeroDocumento || d.factura || '') + '"><div class="lista">';
-    U.each(bs, function (b) { var bl = Flujo.docBloqueado(ot, Flujo.docKey(b)); h += '<div class="it"><b>Bulto ' + b.numero + '</b> · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' · ' + U.fx(b.peso, 2) + ' kg' + (!bl ? '<button class="btn btn-warn btn-sm" data-lib="' + b.id + '">LIBERAR</button>' : ' <span class="est CERRADA">GESTIÓN COURIER</span>') + '</div>'; });
+    U.each(bs, function (b) { var bl = Flujo.docBloqueado(ot, Flujo.docKey(b)); h += '<div class="it"><b>Bulto ' + Plantillas.nTxt(b) + '</b> · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' · ' + U.fx(b.peso, 2) + ' kg' + (!bl ? '<button class="btn btn-warn btn-sm" data-lib="' + b.id + '">LIBERAR</button>' : ' <span class="est CERRADA">GESTIÓN COURIER</span>') + '</div>'; });
     h += '</div>';
     var botDoc = [{ txt: 'VOUCHER', cls: 'btn-sec', fn: function () { PackingUI.voucherPreview(ot, key); return false; } }];
     if (!conGest) botDoc.push({ txt: 'ELIMINAR DOC.', cls: 'btn-dan', fn: function () {
@@ -4308,7 +4322,7 @@ Pantallas.packing = function (m) {
       U.each(g, function (b) {
         hh += '<label style="display:block;padding:12px 8px;border-top:1px solid #ddd;font-size:18px;font-weight:700;cursor:pointer">' +
           '<input type="checkbox" data-bid="' + b.id + '" style="width:24px;height:24px;vertical-align:middle;margin-right:8px"' + (PackUI.seleccion[b.id] ? ' checked' : '') + '>' +
-          'BULTO ' + b.numero + ' &nbsp; ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm &nbsp; ' + U.fx(b.peso, 2) + ' kg</label>';
+          'BULTO ' + Plantillas._posBulto(null, b).pos + '/' + Plantillas._posBulto(null, b).tot + ' &nbsp; ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm &nbsp; ' + U.fx(b.peso, 2) + ' kg</label>';
       });
       hh += '</div>';
     }
@@ -4566,7 +4580,7 @@ var DespachoGrupo = {
       var hechos = DespachoGrupo.hechos(g), pct = total ? Math.round(hechos * 100 / total) : 0, ls = '';
       U.each(g.bultos, function (b) {
         var hecho = b.verificadoCourier || b.despachado;
-        ls += '<div class="grp' + (hecho ? ' comp' : '') + '"><div class="n">' + (hecho ? '✓' : '—') + '</div><div class="o">Bulto ' + b.numero + '</div><div class="d">' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.retiro ? ' · RETIRADO POR ' + U.esc(b.retiro.nombre) + ' ' + U.esc(U.fechaCL(U.fechaISO(new Date(b.retiro.fecha))) + ' ' + U.hora(new Date(b.retiro.fecha))) : (b.ordenCourierEscaneada ? ' · ' + U.esc(b.ordenCourierEscaneada) : (b.ordenCourier ? ' · ' + U.esc(b.ordenCourier) : ' · SIN N° COURIER'))) + '</div></div>';
+        ls += '<div class="grp' + (hecho ? ' comp' : '') + '"><div class="n">' + (hecho ? '✓' : '—') + '</div><div class="o">Bulto ' + Plantillas.nTxt(b) + '</div><div class="d">' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.retiro ? ' · RETIRADO POR ' + U.esc(b.retiro.nombre) + ' ' + U.esc(U.fechaCL(U.fechaISO(new Date(b.retiro.fecha))) + ' ' + U.hora(new Date(b.retiro.fecha))) : (b.ordenCourierEscaneada ? ' · ' + U.esc(b.ordenCourierEscaneada) : (b.ordenCourier ? ' · ' + U.esc(b.ordenCourier) : ' · SIN N° COURIER'))) + '</div></div>';
       });
       U.$('dgCnt').innerHTML = '<div class="card tot"><b style="font-size:28px">' + hechos + ' / ' + total + '</b> bultos verificados<div class="prog"><div style="width:' + pct + '%"></div></div>' + (hechos === total ? '<div class="aviso verde"><b>COMPLETO:</b> el total escaneado coincide con los bultos asignados.</div>' : '<div class="muted">Faltan ' + (total - hechos) + ' bulto(s).</div>') + '</div>';
       var ords = {};
@@ -4639,7 +4653,7 @@ var DespachoGrupo = {
       OT.guardar(ot);
       Beep.ok();
       U.$('dgEsp').innerHTML = U.esc(g.ordenes.join(', '));
-      U.$('dgMsg').innerHTML = '<div class="scan ok"><div class="t">BULTO REGISTRADO' + (reutilizado ? ' (CÓDIGO REUTILIZADO)' : '') + '</div><div class="big">' + DespachoGrupo.hechos(g) + ' / ' + total + '</div><div class="s">' + U.esc(code) + ' · Bulto ' + b.numero + (nota ? '<br>' + nota : '') + '</div></div>';
+      U.$('dgMsg').innerHTML = '<div class="scan ok"><div class="t">BULTO REGISTRADO' + (reutilizado ? ' (CÓDIGO REUTILIZADO)' : '') + '</div><div class="big">' + DespachoGrupo.hechos(g) + ' / ' + total + '</div><div class="s">' + U.esc(code) + ' · Bulto ' + Plantillas.nTxt(b) + (nota ? '<br>' + nota : '') + '</div></div>';
       pintar(); U.$('dgScan').focus();
     }
     U.$('dgLista').onchange=function(e){var id=e.target.getAttribute('data-dg-bid');if(id)excluidos[id]=!e.target.checked;};
@@ -4702,7 +4716,7 @@ var DespachoGrupo = {
   textoRetiro: function (ot, key, en) {
     var d = OT.documento(ot, key), bs = OT.bultosDoc(ot, key);
     var t = 'VOUCHER DE ENTREGA EN BODEGA\n' + DB.cfg.empresa + '\nOT: ' + ot.numero + '\nORDEN: ' + d.orden + '\nDOCUMENTO: ' + OT.etiquetaDoc(d) + '\nBULTOS: ' + bs.length;
-    U.each(bs, function (b) { t += '\nBulto ' + b.numero + '/' + bs.length + ': ' + Plantillas.med(b) + ' · ' + U.fx(b.peso, 2) + ' kg'; });
+    U.each(bs, function (b) { t += '\nBulto ' + Plantillas.nTxt(b) + ': ' + Plantillas.med(b) + ' · ' + U.fx(b.peso, 2) + ' kg'; });
     t += '\n\nRETIRA: ' + en.nombre + (en.rut ? ' · RUT ' + en.rut : '') + '\nFECHA: ' + DespachoGrupo.fh(en.fecha) + '\nBULTOS ENTREGADOS: ' + en.bultos.join(', ') + (en.obs ? '\nOBS: ' + en.obs : '');
     return t;
   },
@@ -4730,7 +4744,7 @@ var DespachoGrupo = {
       h += '<label class="lbl">NOMBRE DE QUIEN RETIRA *</label><input id="rtNom" class="inp" maxlength="80" autocomplete="off">' +
         '<div class="fila"><div class="c"><label class="lbl">RUT</label><input id="rtRut" class="inp sm" maxlength="12" autocomplete="off" placeholder="12.345.678-9"></div><div class="c"><label class="lbl">TELÉFONO</label><input id="rtTel" class="inp sm" type="tel" inputmode="tel" maxlength="15" placeholder="912345678"></div></div>' +
         '<label class="lbl">OBSERVACIÓN</label><input id="rtObs" class="inp sm" maxlength="120">' +
-        '<label class="lbl">BULTOS QUE SE ENTREGAN</label>' + U.map(g.bultos, function (b) { var listo = b.verificadoCourier || b.despachoId || b.despachado; return '<label class="chk" style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" data-rt-b="' + U.esc(b.id) + '"' + (listo ? ' disabled' : ' checked') + '> Bulto ' + b.numero + ' · ' + U.esc(Plantillas.med(b)) + ' · ' + U.fx(b.peso, 2) + ' kg' + (listo ? ' <b>(' + (b.retiro ? 'ya entregado' : 'ya despachado') + ')</b>' : '') + '</label>'; }).join('') +
+        '<label class="lbl">BULTOS QUE SE ENTREGAN</label>' + U.map(g.bultos, function (b) { var listo = b.verificadoCourier || b.despachoId || b.despachado; return '<label class="chk" style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" data-rt-b="' + U.esc(b.id) + '"' + (listo ? ' disabled' : ' checked') + '> Bulto ' + Plantillas.nTxt(b) + ' · ' + U.esc(Plantillas.med(b)) + ' · ' + U.fx(b.peso, 2) + ' kg' + (listo ? ' <b>(' + (b.retiro ? 'ya entregado' : 'ya despachado') + ')</b>' : '') + '</label>'; }).join('') +
         '<div class="muted" style="margin-top:6px">Queda registrado en la bitácora con fecha, hora y equipo. Los bultos entregados ya no se escanean para el courier.</div>';
     }
     var bot = [{ txt: 'VOLVER', cls: 'btn-sec', fn: function () { DespachoGrupo.abrir(ot, key); return false; } }];
@@ -5690,7 +5704,7 @@ Pantallas.manifiesto = function (m) {
     'VOLUMEN TOTAL: <b>' + U.fx(t.volumen, 3) + ' m³</b><br>PESO VOLUMÉTRICO TOTAL: <b>' + U.fx(t.pesoVol, 2) + ' kg</b></div>';
   h += '<div class="card"><table class="tbl"><thead><tr><th>Orden</th><th>Fact.</th><th>Bulto</th><th>Medidas</th><th>Kg</th></tr></thead><tbody>';
   U.each(Plantillas._porDoc(ot), function (g) {
-    U.each(g.bultos, function (b) { h += '<tr><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + b.numero + '/' + g.total + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td>' + U.fx(b.peso, 1) + '</td></tr>'; });
+    U.each(g.bultos, function (b) { var pb = Plantillas._posBulto(ot, b); h += '<tr><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + pb.pos + '/' + pb.tot + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td>' + U.fx(b.peso, 1) + '</td></tr>'; });
   });
   if (!t.bultos) h += '<tr><td colspan="5" class="muted">Sin bultos</td></tr>';
   h += '</tbody></table></div>';
