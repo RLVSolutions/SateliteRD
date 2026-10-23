@@ -459,7 +459,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.22.0', build: '2026-10-22', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.23.0', build: '2026-10-22', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -737,6 +737,7 @@ var DB = {
     Catalogo.cargar();
     Medidas.cargar();
     CorreosSat.cargar();
+    Listas.aplicar();
     CubPool.reconciliar();
   },
   guardarCfg: function () { return StorageManager.guardar(CLAVES.config, DB.cfg); },
@@ -803,6 +804,7 @@ var Pedidos = {
   transiciones: function (p) {
     var e = p && p.estado, pre = Pedidos.PREVIOS, i = pre.indexOf(e), r = [];
     if (!p || !e) return ['RECIBIDO'];
+    if (i < 0 && Pedidos.estados.indexOf(e) >= 0 && ESTADOS_COLA.indexOf(e) < 0) { r = pre.slice(0); r.push(e); r.push('CANCELADO'); return r; }
     if (i >= 0) {
       for (var k = 0; k <= i; k++) r.push(pre[k]);
       if (i < pre.length - 1) r.push(pre[i + 1]);
@@ -1021,7 +1023,7 @@ var Pt = {
 var TIPOS_DOC_DEFECTO = [['TICKET', 'TIC'], ['ORDEN', 'ORD'], ['COTIZACIÓN', 'COT'], ['NOTA DE VENTA', 'NOT'], ['FACTURA', 'FAC'], ['BOLETA', 'BOL'], ['GUÍA DE DESPACHO', 'GUI'], ['TRASPASO', 'TRA'], ['OTRO', 'OTR']];
 var TiposDoc = {
   defecto: function () { var l = []; for (var i = 0; i < TIPOS_DOC_DEFECTO.length; i++) l.push({ n: TIPOS_DOC_DEFECTO[i][0], ab: TIPOS_DOC_DEFECTO[i][1], on: true }); return l; },
-  lista: function () { var l = DB.cfg && DB.cfg.tiposDoc; return U.esArray(l) && l.length ? l : TiposDoc.defecto(); },
+  lista: function () { if (typeof Listas !== 'undefined' && DB.cfg && DB.cfg.listas && U.esArray(DB.cfg.listas.TIPO_DOC) && DB.cfg.listas.TIPO_DOC.length) return U.map(DB.cfg.listas.TIPO_DOC, function (x) { return { n: x.v, ab: x.ab, on: x.on !== false }; }); var l = DB.cfg && DB.cfg.tiposDoc; return U.esArray(l) && l.length ? l : TiposDoc.defecto(); },
   nombres: function (sel) {
     var out = [], k = U.norm(sel || '');
     U.each(TiposDoc.lista(), function (t) { if (t.on) out.push(t.n); });
@@ -1087,6 +1089,72 @@ var Pag = {
       if (Pag.fn[k]) Pag.fn[k]();
       e.stopPropagation();
     }, true);
+  }
+};
+var ESTADOS_SISTEMA = ['RECIBIDO', 'EN PREPARACIÓN', 'CUBICADO', 'ENVIADO', 'ENTREGADO', 'CANCELADO'], ESTADOS_COLA = ['EN PREPARACIÓN', 'CUBICADO', 'ENVIADO', 'ENTREGADO', 'CANCELADO'];
+var Listas = {
+  ORDEN: ['TIPO_DOC', 'CANAL', 'TIPO_PEDIDO', 'ESTADO', 'COURIER'],
+  NOMBRES: { TIPO_DOC: 'Tipos de documento', CANAL: 'Canales (origen del pedido)', TIPO_PEDIDO: 'Tipos de pedido', ESTADO: 'Etapas / estados del pedido', COURIER: 'Couriers' },
+  defecto: function (l) {
+    var c = DB.cfg || {}, m = function (a) { return U.map(a, function (v) { return { v: v, e: '', ab: '', on: true, sis: false }; }); };
+    if (l === 'TIPO_DOC') return U.map(U.esArray(c.tiposDoc) && c.tiposDoc.length ? c.tiposDoc : TiposDoc.defecto(), function (t) { return { v: t.n, e: '', ab: t.ab, on: t.on !== false, sis: false }; });
+    if (l === 'CANAL') return m(['WEB', 'MERCADOLIBRE', 'ERP', 'MANUAL', 'OTRO']);
+    if (l === 'TIPO_PEDIDO') return m(['PEDIDO', 'ORDEN DE COMPRA']);
+    if (l === 'COURIER') return m(U.esArray(c.couriers) && c.couriers.length ? c.couriers : CONFIG_DEFECTO.couriers);
+    if (l === 'ESTADO') return U.map(['RECIBIDO', 'EN RECOLECCIÓN', 'PARA REVISIÓN', 'REVISADO', 'EN PREPARACIÓN', 'CUBICADO', 'ENVIADO', 'ENTREGADO', 'CANCELADO'], function (v) { return { v: v, e: '', ab: '', on: true, sis: ESTADOS_SISTEMA.indexOf(v) >= 0 }; });
+    return [];
+  },
+  get: function (l) {
+    var x = DB.cfg && DB.cfg.listas && DB.cfg.listas[l];
+    var r = U.esArray(x) && x.length ? x : Listas.defecto(l);
+    if (l === 'ESTADO') {
+      U.each(ESTADOS_SISTEMA, function (v) { var it = U.find(r, function (y) { return y.v === v; }); if (!it) r = r.concat([{ v: v, e: '', ab: '', on: true, sis: true }]); else { it.sis = true; it.on = true; } });
+    }
+    return r;
+  },
+  activos: function (l, incluir) {
+    var out = [];
+    U.each(Listas.get(l), function (x) { if (x.on !== false) out.push(x.v); });
+    U.each(incluir || [], function (v) { v = U.norm(v || ''); if (v && out.indexOf(v) < 0) out.push(v); });
+    return out;
+  },
+  etq: function (l, v) { var it = U.find(Listas.get(l), function (x) { return x.v === v; }); return it && it.e ? it.e : v; },
+  aplicar: function () {
+    var est = Listas.get('ESTADO'), man = [], inact = [];
+    U.each(est, function (x) { if (x.sis) return; if (x.on !== false) man.push(x.v); else inact.push(x.v); });
+    Pedidos.PREVIOS = ['RECIBIDO'].concat(man);
+    Pedidos.estados = Pedidos.PREVIOS.concat(inact).concat(ESTADOS_COLA);
+    if (DB.cfg) { var cs = Listas.activos('COURIER'); if (cs.length) DB.cfg.couriers = cs; }
+  },
+  sincronizar: function (cb) {
+    if (typeof Compartida === 'undefined' || !Compartida.activo()) { Listas.aplicar(); if (cb) cb(false); return; }
+    var def = {}; U.each(Listas.ORDEN, function (l) { def[l] = Listas.get(l); });
+    Sync.llamar('satListasLeer', { defectos: def, usuario: DB.cfg.operador || '' }, function (r) {
+      if (!DB.cfg.listas) DB.cfg.listas = {};
+      U.each(Listas.ORDEN, function (l) { if (r && r.listas && U.esArray(r.listas[l]) && r.listas[l].length) DB.cfg.listas[l] = r.listas[l]; });
+      DB.cfg.listasAct = (r && r.actualizado) || {}; DB.guardarCfg(); Listas.aplicar();
+      if (cb) cb(true);
+    }, function (m) { Listas.aplicar(); if (cb) cb(false, m); });
+  },
+  guardar: function (l, items, cb) {
+    if (!DB.cfg.listas) DB.cfg.listas = {};
+    DB.cfg.listas[l] = items; DB.guardarCfg(); Listas.aplicar();
+    if (typeof Compartida === 'undefined' || !Compartida.activo()) { if (cb) cb(false, 'sin conexión'); return; }
+    Sync.llamar('satListasGuardar', { lista: l, items: items, usuario: DB.cfg.operador || DB.cfg.nombreAdmin || '' }, function (r) {
+      if (r && r.items) { DB.cfg.listas[l] = r.items; if (!DB.cfg.listasAct) DB.cfg.listasAct = {}; DB.cfg.listasAct[l] = r.actualizado; DB.guardarCfg(); Listas.aplicar(); }
+      if (cb) cb(true);
+    }, function (m) { if (cb) cb(false, m); });
+  },
+  validar: function (l, items) {
+    var vistos = {}, abs = {}, act = 0;
+    for (var i = 0; i < items.length; i++) {
+      var t = items[i], k = U.sinAcentos(U.norm(t.v));
+      if (!k) return 'Fila ' + (i + 1) + ': falta el nombre.';
+      if (vistos[k]) return '«' + t.v + '» está repetido.';
+      if (l === 'TIPO_DOC') { if (!/^[A-Z0-9]{2,4}$/.test(t.ab || '')) return 'Abreviatura de «' + t.v + '»: use 2 a 4 letras o números.'; if (abs[t.ab]) return 'La abreviatura ' + t.ab + ' se repite (' + abs[t.ab] + ' y ' + t.v + ').'; abs[t.ab] = t.v; }
+      vistos[k] = 1; if (t.on !== false) act++;
+    }
+    return act ? '' : 'Debe quedar al menos un valor activo.';
   }
 };
 var CAMPOS_DIRECCION = [
@@ -2177,7 +2245,7 @@ function entrarDatos(fn) {
 
 var Sync = {
   _t: null, _enCurso: false, _cola: [],
-  FUNCIONES: ['satInfo','satFormatosLeer','satFormatosGuardar','satSubir','satBajar','satCatalogo','satMedidas','satUbicaciones','satUbicacionesImportar','satUbicacionesGuardar','satCatalogoImportar','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
+  FUNCIONES: ['satInfo','satListasLeer','satListasGuardar','satFormatosLeer','satFormatosGuardar','satSubir','satBajar','satCatalogo','satMedidas','satUbicaciones','satUbicacionesImportar','satUbicacionesGuardar','satCatalogoImportar','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
   gas: function () { try { return typeof google !== 'undefined' && !!google.script && !!google.script.run; } catch (e) { return false; } },
   urlServidor: function () {
     var u = U.trim((DB.cfg && DB.cfg.sync && DB.cfg.sync.url) || '');
@@ -2330,7 +2398,7 @@ var Sync = {
   },
   bajarTodo: function(cb) {
     Sync._conf = 0;
-    var pasos=[Sync.bajar, Sync.subirPedidos, Sync.bajarPedidos, Sync.subirCubicaciones, Sync.bajarCubicaciones, function(sig){ if (typeof ProdSync==='undefined') { sig(true); return; } ProdSync.actualizar(function(){ sig(true); }, true); }, function(sig){ FormSync.sincronizar(function(){ sig(true); }); }], i=0;
+    var pasos=[Sync.bajar, Sync.subirPedidos, Sync.bajarPedidos, Sync.subirCubicaciones, Sync.bajarCubicaciones, function(sig){ if (typeof ProdSync==='undefined') { sig(true); return; } ProdSync.actualizar(function(){ sig(true); }, true); }, function(sig){ FormSync.sincronizar(function(){ sig(true); }); }, function(sig){ Listas.sincronizar(function(){ sig(true); }); }], i=0;
     var sig=function(ok,msg){
       if(ok===false){cb(false,msg);return;}
       if(i>=pasos.length){
@@ -3161,7 +3229,7 @@ var App = {
     App.ir('inicio');
     Asistente.init();
     if (Activacion.pendiente()) setTimeout(function () { Activacion.mostrar(); }, 400);
-    else Compartida.bajar(function () { FormSync.sincronizar(); });
+    else Compartida.bajar(function () { FormSync.sincronizar(); Listas.sincronizar(function (ok) { if (ok && App.pantalla !== 'inicio' && !UI.abierto()) App.ir(App.pantalla, true); }); });
     setTimeout(function () { if (Sync.modo() !== 'local') Sync.ejecutar(); }, 1200);
     setInterval(function () {
       if (Sync.modo() === 'local') return;
@@ -3558,7 +3626,7 @@ Pantallas.pedidos = function (m) {
         hh += '<!--pe--><div class="doc" style="border-left:7px solid #6c757d;background:#f4f4f4"><div class="dh"><div class="cnt"><span class="est ANULADO">ELIMINADO</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):'')+'</div></div><div class="db"><div class="muted">'+U.esc(p.observacion||'')+'</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedRestaurar" data-x="'+p.id+'">RESTAURAR</button></div></div></div>';
         return;
       }
-      hh +='<!--pe--><div class="doc" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(p.estado)+'</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(p.monto?' · $'+U.esc(p.monto):'')+'</div></div>'+
+      hh +='<!--pe--><div class="doc" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(Listas.etq('ESTADO',p.estado))+'</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(p.monto?' · $'+U.esc(p.monto):'')+'</div></div>'+
         '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO')+'</button><button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
     });
     var bloques = hh ? hh.split('<!--pe-->') : [];
@@ -3570,13 +3638,11 @@ Pantallas.pedidos = function (m) {
   m.innerHTML = '<div class="otbar"><div class="n">PEDIDOS / ÓRDENES DE COMPRA</div><div class="muted">Registro previo a Cubicación. El documento de venta puede agregarse después.</div></div>'+
     '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="pedNuevo">+ NUEVO</button><button class="btn btn-sec" data-a="pedPegar">PEGAR DESDE EXCEL</button></div>'+
     '<label class="lbl">BUSCAR</label><input id="peBuscar" class="inp sm" placeholder="Pedido, O.C., documento, origen…">'+
-    '<div class="fila"><div class="c"><label class="lbl">ETAPA / ESTADO</label><select id="peFiltro" class="inp sm">'+U.map(['VIGENTES','ACTIVOS','HISTÓRICO','TODOS'].concat(Pedidos.estados).concat(['ELIMINADOS']),function(e){return '<option'+(e===estadoFiltro?' selected':'')+'>'+U.esc(e)+'</option>';}).join('')+'</select></div><div class="c"><label class="lbl">CANAL</label><select id="peCanal" class="inp sm"><option>TODOS</option>'+U.map(['WEB','M.P.','MERCADOLIBRE','ERP','MANUAL','EXCEL','OTRO'],function(c){return '<option>'+c+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="fila"><div class="c"><label class="lbl">ETAPA / ESTADO</label><select id="peFiltro" class="inp sm">'+U.map(['VIGENTES','ACTIVOS','HISTÓRICO','TODOS'].concat(Pedidos.estados).concat(['ELIMINADOS']),function(e){return '<option value="'+U.esc(e)+'"'+(e===estadoFiltro?' selected':'')+'>'+U.esc(Listas.etq('ESTADO',e))+'</option>';}).join('')+'</select></div><div class="c"><label class="lbl">CANAL</label><select id="peCanal" class="inp sm"><option>TODOS</option>'+U.map(Listas.activos('CANAL',U.map(Pedidos.lista,function(x){return x.origen;})),function(c){return '<option>'+U.esc(c)+'</option>';}).join('')+'</select></div></div>'+
     '<div id="peConteo" class="muted" style="margin:8px 0"></div><div id="peLista" class="lista-int"></div></div>';
   var editar=function(p){
     p=p||{origen:'MANUAL',tipo:'PEDIDO',numero:'',fecha:U.fechaISO(),tipoDocumento:'',numeroDocumento:'',estado:'RECIBIDO',observacion:''};
-    var tipos=['PEDIDO','ORDEN DE COMPRA'], origenes=['WEB','MERCADOLIBRE','ERP','MANUAL','OTRO'];
-    if (p.origen && origenes.indexOf(p.origen) < 0) origenes.push(p.origen);
-    if (p.tipo && tipos.indexOf(p.tipo) < 0) tipos.push(p.tipo);
+    var tipos=Listas.activos('TIPO_PEDIDO',[p.tipo]), origenes=Listas.activos('CANAL',[p.origen]);
     var opcionesEstado = p.id ? Pedidos.transiciones(p) : ['RECIBIDO'], firmaAviso = '';
     var avisoDup = function () {
       var d = { origen: U.$('pnOrigen').value, tipo: U.$('pnTipo').value, numero: U.$('pnNumero').value, tipoDocumento: U.$('pnTD').value, numeroDocumento: U.$('pnND').value };
@@ -3586,7 +3652,7 @@ Pantallas.pedidos = function (m) {
       return l;
     };
     var est = p.id ? (Pedidos.sinRespaldo(p) ? '<div class="msg" style="background:#fff3cd">⚠ El estado <b>' + U.esc(p.estado) + '</b> no tiene respaldo en este equipo (sin medidas, OT o despacho registrados). Puede corregirlo a una etapa anterior.</div>' : '') +
-      '<label class="lbl">ESTADO <span class="unidad">según el flujo del proceso</span></label><select id="pnEstado" class="inp sm">' + U.map(opcionesEstado, function (x) { return '<option' + (p.estado === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
+      '<label class="lbl">ESTADO <span class="unidad">según el flujo del proceso</span></label><select id="pnEstado" class="inp sm">' + U.map(opcionesEstado, function (x) { return '<option value="' + U.esc(x) + '"' + (p.estado === x ? ' selected' : '') + '>' + U.esc(Listas.etq('ESTADO', x)) + '</option>'; }).join('') + '</select>' +
       '<div class="muted">Flujo: RECIBIDO → EN RECOLECCIÓN → PARA REVISIÓN → REVISADO → CUBICADO (al medir) → EN PREPARACIÓN (OT) → ENVIADO (despacho) → ENTREGADO. Las etapas automáticas no se eligen a mano.</div>'
       : '<label class="lbl">ESTADO</label><div class="inp sm" style="background:#f4f4f4">RECIBIDO</div><div class="muted">Todo pedido nuevo entra como RECIBIDO; avanza después según el flujo.</div>';
     UI.modal({titulo:p.id?'Editar pedido':'Nuevo pedido',alAbrir:function(h){h.oninput=function(e){if(/^(pnNumero|pnND)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onchange=function(e){if(/^(pnOrigen|pnTipo|pnTD)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onclick=function(e){var b=U.cerca(e.target,'data-a',h);if(b&&b.getAttribute('data-a')==='pnRevisar'){var x=Pedidos.porId(b.getAttribute('data-x'));UI.cerrarModal();editar(x);}};if(p.id)avisoDup();},html:
@@ -3662,7 +3728,7 @@ Pantallas.cubicacion = function (m) {
   var pedSel = CubUI.pedidoId ? Pedidos.porId(CubUI.pedidoId) : null;
   var pedOpts = '<option value="">— CUBICACIÓN MANUAL —</option>';
   var pedLista=Pedidos.lista.slice(0); pedLista.sort(function(a,b){var ac=(a.estado==='CUBICADO'||a.estado==='EN PREPARACIÓN'||a.estado==='ENVIADO')?1:0,bc=(b.estado==='CUBICADO'||b.estado==='EN PREPARACIÓN'||b.estado==='ENVIADO')?1:0;return ac-bc;});
-  U.each(pedLista, function(p){ if(p.estado==='RECIBIDO'||p.estado==='EN RECOLECCIÓN'||p.estado==='PARA REVISIÓN'||p.estado==='REVISADO') pedOpts += '<option value="'+p.id+'"'+(pedSel&&pedSel.id===p.id?' selected':'')+'>'+U.esc(p.numero)+' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento)+' · '+U.esc(p.estado)+'</option>'; });
+  U.each(pedLista, function(p){ if(Pedidos.PREVIOS.indexOf(p.estado)>=0) pedOpts += '<option value="'+p.id+'"'+(pedSel&&pedSel.id===p.id?' selected':'')+'>'+U.esc(p.numero)+' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento)+' · '+U.esc(p.estado)+'</option>'; });
   var h = '<div class="otbar"><div class="n">CUBICACIÓN <span class="est ABIERTA">' + U.esc(CubUI.cubId) + '</span></div><div class="muted">Mida y registre. La OT se crea después, en Packing.</div></div>' +
     '<div class="card"><label class="lbl">PEDIDO / O.C. REGISTRADO</label><select id="cuPedido" class="inp sm">'+pedOpts+'</select><div class="muted">'+(pedSel?('Estado: <b>'+U.esc(pedSel.estado)+'</b> · '+U.esc(pedSel.origen)+' · '+U.esc(U.fechaCL(pedSel.fecha))):'Seleccione un registro o use cubicación manual.')+'</div><label class="lbl">ORDEN / TICKET</label><input id="cuOrden" class="inp" autocomplete="off" placeholder="Orden, ticket o referencia" value="'+U.esc(pedSel?pedSel.numero:'')+'" data-next="cuTipo">' +
     '<label class="lbl">TIPO DOCUMENTO <span class="unidad">opcional · se exige al pasar a Packing</span></label><select id="cuTipo" class="inp sm" data-next="cuDoc"><option value=""' + ((pedSel ? !pedSel.tipoDocumento : CubUI.tipo === '') ? ' selected' : '') + '>(SIN DOCUMENTO AÚN)</option>' + CubUI.tipos(pedSel ? pedSel.tipoDocumento : CubUI.tipo) + '</select>' +
@@ -4819,7 +4885,7 @@ var DespachoGrupo = {
 Pantallas.despacho = function (m) { DespachoGrupo.pantalla(m); };
 
 var Compartida = {
-  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'couriers', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto', 'remitente', 'tiposDoc'],
+  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto', 'remitente'],
   datos: function () { var o = {}; U.each(Compartida.CAMPOS, function (k) { if (DB.cfg[k] != null) o[k] = DB.cfg[k]; }); return o; },
   activo: function () { return Sync.modo() !== 'local' && !!DB.cfg.sync.token; },
   subir: function (cb) {
@@ -4918,7 +4984,7 @@ var Activacion = {
       s.token = t; s.sinConexion = false; s.ultimoError = ''; s.intentosFallidos = 0; DB.guardarCfg();
       Activacion.avisado = false;
       Compartida.bajar(function () {
-        FormSync.sincronizar();
+        FormSync.sincronizar(); Listas.sincronizar();
         UI.cerrarModal();
         App.ir(App.pantalla === 'datos' ? 'inicio' : App.pantalla);
         UI.toast('Equipo activado' + (r && r.nombre ? ' · ' + r.nombre : ''), 'ok', 4000);
@@ -6490,16 +6556,17 @@ Pantallas.datos = function (m) {
     '<label class="chk"><input type="checkbox" id="cfAi"' + (c.autoImprimir ? ' checked' : '') + '> Imprimir etiqueta al agregar bulto</label>' +
     '<label class="lbl">MÉTODO DE IMPRESIÓN</label><select id="cfMi" class="inp sm"><option value="documento"' + (c.metodoImpresion !== 'pagina' ? ' selected' : '') + '>Documento dedicado con fondo blanco (recomendado)</option><option value="pagina"' + (c.metodoImpresion === 'pagina' ? ' selected' : '') + '>Página completa (método anterior)</option></select>' +
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="prueba58">PRUEBA 58 mm</button><button class="btn btn-sec btn-sm" data-a="prueba80">PRUEBA 80 mm</button></div>' +
-    '<label class="lbl">COURIERS (uno por línea)</label><textarea id="cfCou" class="inp" style="min-height:120px;font-family:Arial,sans-serif;font-size:15px">' + U.esc(c.couriers.join('\n')) + '</textarea>' +
+    '<div class="muted">Couriers, canales, tipos de documento, tipos de pedido y estados: más abajo, en «Listas de selección».</div>' +
     '<label class="lbl">CLAVE ADMINISTRADOR (acciones forzosas)</label><input id="cfAdm" class="inp sm" type="password" value="' + U.esc(c.claveAdmin || '') + '">' +
     '<label class="lbl">NOMBRE DE QUIEN AUTORIZA (por defecto)</label><input id="cfAdmNom" class="inp sm" value="' + U.esc(c.nombreAdmin || '') + '">' +
     '<label class="lbl">WHATSAPP PARA "HABLAR CON UNA PERSONA"</label><input id="cfWsp" class="inp sm" inputmode="tel" maxlength="20" placeholder="56912345678" value="' + U.esc(c.whatsapp || '') + '">' +
     '<label class="lbl">PREFIJO DE ESTE EQUIPO</label><input id="cfEq" class="inp sm" maxlength="6" autocapitalize="characters" value="' + U.esc(c.equipo) + '">' +
     '<div class="muted">Con varios equipos, un prefijo distinto evita números de OT repetidos.</div>' +
     '<button class="btn btn-ok" data-a="guardarCfg">GUARDAR CONFIGURACIÓN</button></div>';
-  h += '<div class="card"><h2>Tipos de documento</h2><div class="muted">Se ofrecen en Pedidos, Cubicación y Packing de todos los equipos. Desactivar oculta el tipo para registros nuevos; los ya registrados lo conservan. Cambiar el nombre aplica solo a registros nuevos. La abreviatura va en la marca de Correos (ej. 5001 FAC 4925 B1/2).</div>' +
-    '<div class="frow cab"><span class="fx">Nombre</span><span class="ptIn">Abrev.</span><span class="tg">Activo</span><span class="mini">Orden</span></div><div id="tdLista"></div>' +
-    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="tdAgregar">+ AGREGAR TIPO</button><button class="btn btn-ok btn-sm" data-a="tdGuardar">GUARDAR TIPOS</button></div><div id="tdMsg"></div></div>';
+  h += '<div class="card"><h2>Listas de selección</h2><div class="muted">Lo que se despliega en los selectores de Pedidos, Cubicación, Packing, Despacho y Seguimiento. Respaldo en la hoja <b>SAT_Listas</b> de la planilla; se comparte con todos los equipos.</div>' +
+    '<label class="lbl" for="lsSel">LISTA</label><select id="lsSel" class="inp sm">' + U.map(Listas.ORDEN, function (l) { return '<option value="' + l + '">' + U.esc(Listas.NOMBRES[l]) + '</option>'; }).join('') + '</select>' +
+    '<div id="lsAyuda" class="muted" style="margin-top:6px"></div><div id="lsCab"></div><div id="tdLista"></div>' +
+    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="tdAgregar" id="lsAgregar">+ AGREGAR</button><button class="btn btn-ok btn-sm" data-a="tdGuardar">GUARDAR LISTA</button></div><div id="tdMsg"></div></div>';
   h += '<div class="card"><h2>Remitente por defecto (envíos)</h2><div class="muted">Se usa en los datos de envío de cada pedido, salvo que el pedido indique otro. Se comparte con todos los equipos y con la extensión de Correos.</div>' +
     EnvioDatos.formulario('rmD_', EnvioDatos.remitenteDefecto()) +
     '<button class="btn btn-ok" data-a="guardarRem">GUARDAR REMITENTE</button></div>';
@@ -6556,46 +6623,83 @@ Pantallas.datos = function (m) {
       } }] });
   };
   m.onchange = function (e) {
+    if (e.target && e.target.id === 'lsSel') { lsCargar(e.target.value); return; }
     if (e.target && e.target.id === 'cfPag') { DB.cfg.paginaImpresion = e.target.value; DB.guardarCfg(); UI.toast('Tamaño de página guardado', 'ok'); }
     if (e.target && e.target.id === 'cfPerf') { DB.cfg.perfilImpresora = e.target.value; DB.guardarCfg(); UI.toast('Impresora de este equipo: ' + e.target.options[e.target.selectedIndex].text, 'ok', 3500); }
   };
-  var td = U.clone(TiposDoc.lista()), tdUsados = TiposDoc.usados();
+  var lsCual = 'TIPO_DOC', td = [], tdUsados = {};
+  var lsUsados = function (l) {
+    var u = {}, add = function (v) { var k = U.norm(v || ''); if (k) u[k] = (u[k] || 0) + 1; };
+    if (l === 'TIPO_DOC') return TiposDoc.usados();
+    if (l === 'CANAL') U.each(Pedidos.lista, function (p) { add(p.origen); });
+    if (l === 'TIPO_PEDIDO') U.each(Pedidos.lista, function (p) { add(p.tipo); });
+    if (l === 'ESTADO') U.each(Pedidos.lista, function (p) { add(p.estado); });
+    if (l === 'COURIER') U.each(OT.lista, function (o) { U.each(o.bultos || [], function (b) { add(b.courier); }); });
+    return u;
+  };
+  var AYUDA = {
+    TIPO_DOC: 'Desactivar oculta el tipo para registros nuevos; los ya registrados lo conservan. Cambiar el nombre aplica solo a registros nuevos. La abreviatura va en la marca de Correos (ej. 5001 FAC 4925 B1/2).',
+    CANAL: 'Canales u orígenes del pedido (WEB, MERCADOLIBRE, ERP…). Los pedidos ya registrados conservan su canal.',
+    TIPO_PEDIDO: 'Tipos de pedido que se ofrecen al ingresar un pedido.',
+    ESTADO: 'Los estados del sistema (RECIBIDO, CUBICADO, EN PREPARACIÓN, ENVIADO, ENTREGADO, CANCELADO) los asigna el flujo: no se pueden quitar, pero sí cambiar el texto que se ve en pantalla. Los estados manuales (entre RECIBIDO y la cubicación) se pueden agregar, ordenar, renombrar en pantalla o desactivar; el pedido avanza por ellos en el orden de la lista.',
+    COURIER: 'Couriers que se ofrecen en Packing y Despacho. Los bultos ya asignados conservan su courier.'
+  };
   var tdLeer = function () {
     U.each(U.qa(m, '.tdRow'), function (r, i) {
-      td[i].n = U.trim(String(r.querySelector('.tdN').value || '')).toUpperCase().replace(/\s+/g, ' ');
-      td[i].ab = U.sinAcentos(String(r.querySelector('.tdA').value || '').toUpperCase()).replace(/[^A-Z0-9]/g, '').substr(0, 4);
-      td[i].on = r.querySelector('.tdO').checked;
+      var t = td[i];
+      if (r.querySelector('.tdN') && !t.sis) t.v = U.trim(String(r.querySelector('.tdN').value || '')).toUpperCase().replace(/\s+/g, ' ');
+      if (r.querySelector('.tdE')) t.e = U.trim(String(r.querySelector('.tdE').value || ''));
+      if (r.querySelector('.tdA')) t.ab = U.sinAcentos(String(r.querySelector('.tdA').value || '').toUpperCase()).replace(/[^A-Z0-9]/g, '').substr(0, 4);
+      if (r.querySelector('.tdO') && !t.sis) t.on = r.querySelector('.tdO').checked;
     });
   };
   var tdPintar = function () {
     var box = U.$('tdLista'); if (!box) return;
+    var esE = lsCual === 'ESTADO', esT = lsCual === 'TIPO_DOC';
+    U.$('lsAyuda').innerHTML = U.esc(AYUDA[lsCual]) + (DB.cfg.listasAct && DB.cfg.listasAct[lsCual] ? ' Última actualización en la hoja: ' + U.esc(U.fechaCL(DB.cfg.listasAct[lsCual].substr(0, 10))) + '.' : '');
+    U.$('lsCab').innerHTML = '<div class="frow cab"><span class="fx">' + (esE ? 'Estado (código)' : 'Nombre') + '</span>' + (esE ? '<span class="fx">Texto en pantalla</span>' : '') + (esT ? '<span class="ptIn">Abrev.</span>' : '') + '<span class="tg">Activo</span><span class="mini">Orden</span></div>';
+    U.$('lsAgregar').innerHTML = esE ? '+ AGREGAR ESTADO MANUAL' : '+ AGREGAR';
     box.innerHTML = U.map(td, function (t, i) {
-      var uso = tdUsados[U.norm(t.orig || t.n)] || 0;
-      return '<div class="frow tdRow" data-i="' + i + '"><input class="inp sm fx tdN" maxlength="30" value="' + U.esc(t.n) + '">' +
-        '<input class="inp sm ptIn tdA" maxlength="4" autocapitalize="characters" value="' + U.esc(t.ab) + '">' +
-        '<label class="tg"><input type="checkbox" class="tdO"' + (t.on ? ' checked' : '') + '>Sí</label>' +
-        '<button class="mini" data-a="tdSubir" data-x="' + i + '" title="Subir">↑</button></div>' +
-        (uso ? '<div class="muted" style="margin:-2px 0 4px">' + uso + ' registro(s) usan «' + U.esc(t.orig || t.n) + '»</div>' : '');
+      var uso = tdUsados[U.norm(t.orig || t.v)] || 0;
+      return '<div class="frow tdRow" data-i="' + i + '">' +
+        (t.sis ? '<span class="fx" style="font-weight:bold">' + U.esc(t.v) + ' <span class="muted">· sistema</span></span>' : '<input class="inp sm fx tdN" maxlength="40" value="' + U.esc(t.v) + '">') +
+        (esE ? '<input class="inp sm fx tdE" maxlength="40" placeholder="' + U.esc(t.v) + '" value="' + U.esc(t.e || '') + '">' : '') +
+        (esT ? '<input class="inp sm ptIn tdA" maxlength="4" autocapitalize="characters" value="' + U.esc(t.ab || '') + '">' : '') +
+        '<label class="tg"><input type="checkbox" class="tdO"' + (t.on !== false ? ' checked' : '') + (t.sis ? ' disabled' : '') + '>Sí</label>' +
+        (t.sis && esE ? '<span class="mini" style="border:0"></span>' : '<button class="mini" data-a="tdSubir" data-x="' + i + '" title="Subir">↑</button>') + '</div>' +
+        (uso ? '<div class="muted" style="margin:-2px 0 4px">' + uso + ' registro(s) usan «' + U.esc(t.orig || t.v) + '»</div>' : '');
     }).join('');
   };
-  U.each(td, function (t) { t.orig = t.n; });
-  tdPintar();
+  var lsCargar = function (l) { lsCual = l; td = U.clone(Listas.get(l)); U.each(td, function (t) { t.orig = t.v; }); tdUsados = lsUsados(l); U.$('tdMsg').innerHTML = ''; tdPintar(); };
+  lsCargar('TIPO_DOC');
   UI.delegar(m, {
-    tdAgregar: function () { tdLeer(); td.push({ n: '', ab: '', on: true }); tdPintar(); var l = U.qa(m, '.tdN'); if (l.length) l[l.length - 1].focus(); },
-    tdSubir: function (x) { tdLeer(); var i = +x; if (i > 0) { var t = td[i]; td[i] = td[i - 1]; td[i - 1] = t; tdPintar(); } },
+    tdAgregar: function () {
+      tdLeer();
+      var nuevo = { v: '', e: '', ab: '', on: true, sis: false };
+      if (lsCual === 'ESTADO') { var k = U.findIdx(td, function (t) { return t.v === 'EN PREPARACIÓN'; }); td.splice(k < 0 ? td.length : k, 0, nuevo); } else td.push(nuevo);
+      tdPintar(); var l = Array.prototype.filter.call(U.qa(m, '.tdN'), function (x) { return !x.value; }); if (l.length) l[0].focus();
+    },
+    tdSubir: function (x) {
+      tdLeer(); var i = +x; if (i <= 0) return;
+      if (lsCual === 'ESTADO' && (td[i - 1].sis || td[i].sis)) { UI.toast('Los estados del sistema mantienen su lugar; ordene solo los manuales entre sí', 'warn'); return; }
+      var t = td[i]; td[i] = td[i - 1]; td[i - 1] = t; tdPintar();
+    },
     tdGuardar: function () {
       tdLeer();
-      var l = U.filter(td, function (t) { return t.n || t.ab; }), err = TiposDoc.validar(l), box = U.$('tdMsg');
+      var l = U.filter(td, function (t) { return t.v || t.ab || t.e; }), err = Listas.validar(lsCual, l), box = U.$('tdMsg');
       if (err) { box.innerHTML = '<div class="aviso rojo">' + U.esc(err) + '</div>'; return; }
-      var ren = U.filter(l, function (t) { return t.orig && t.orig !== t.n && tdUsados[U.norm(t.orig)]; });
+      var ren = U.filter(l, function (t) { return t.orig && t.orig !== t.v && tdUsados[U.norm(t.orig)]; });
       var guardar = function () {
-        c.tiposDoc = U.map(l, function (t) { return { n: t.n, ab: t.ab, on: !!t.on }; });
-        DB.guardarCfg();
-        U.each(l, function (t) { t.orig = t.n; });
-        box.innerHTML = '<div class="aviso verde">Tipos guardados (' + U.filter(l, function (t) { return t.on; }).length + ' activos).</div>';
-        Compartida.subir(function (ok) { UI.toast(ok ? 'Tipos de documento compartidos con todos los equipos' : 'Tipos guardados en este equipo (sin conexión a la nube)', ok ? 'ok' : 'warn', 3500); });
+        var items = U.map(l, function (t) { return { v: t.v, e: t.e || '', ab: t.ab || '', on: t.on !== false, sis: !!t.sis }; });
+        if (lsCual === 'TIPO_DOC') { c.tiposDoc = U.map(items, function (t) { return { n: t.v, ab: t.ab, on: t.on }; }); }
+        box.innerHTML = '<div class="muted">Guardando…</div>';
+        Listas.guardar(lsCual, items, function (ok, msg) {
+          U.each(l, function (t) { t.orig = t.v; });
+          box.innerHTML = ok ? '<div class="aviso verde">' + U.esc(Listas.NOMBRES[lsCual]) + ' guardada en la hoja SAT_Listas (' + U.filter(items, function (t) { return t.on; }).length + ' activos). Todos los equipos la reciben al sincronizar.</div>' : '<div class="aviso amar">Guardada en este equipo; no se pudo guardar en la hoja: ' + U.esc(msg || '') + '</div>';
+          if (ok) lsCargar(lsCual);
+        });
       };
-      if (ren.length) UI.confirmar('Cambiará el nombre de ' + U.map(ren, function (t) { return '«' + t.orig + '» → «' + t.n + '»'; }).join(', ') + '. Los registros existentes conservan el nombre anterior; solo los nuevos usarán el nuevo. ¿Continuar?', guardar, { si: 'GUARDAR' });
+      if (ren.length) UI.confirmar('Cambiará el nombre de ' + U.map(ren, function (t) { return '«' + t.orig + '» → «' + t.v + '»'; }).join(', ') + '. Los registros existentes conservan el nombre anterior; solo los nuevos usarán el nuevo. ¿Continuar?', guardar, { si: 'GUARDAR' });
       else guardar();
     },
     calib58: function () { Impresion.calibrar(58); },
@@ -6623,9 +6727,6 @@ Pantallas.datos = function (m) {
       if (U.$('cfFb')) c.formatoBulto = U.$('cfFb').value;
       c.autoImprimir = U.$('cfAi').checked;
       if (U.$('cfMi')) c.metodoImpresion = U.$('cfMi').value;
-      var cous = [];
-      U.each(U.$('cfCou').value.split(/\r?\n/), function (x) { x = U.norm(x); if (x && cous.indexOf(x) < 0) cous.push(x); });
-      if (cous.length) c.couriers = cous;
       c.claveAdmin = String(U.$('cfAdm').value || '');
       c.nombreAdmin = U.trim(U.$('cfAdmNom').value);
       c.equipo = U.norm(U.$('cfEq').value).replace(/[^A-Z0-9]/g, '');
