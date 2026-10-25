@@ -464,7 +464,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.28.0', build: '2026-10-25', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.28.1', build: '2026-10-25', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -7794,7 +7794,11 @@ Pantallas.datos = function (m) {
       var el = U.$('iaMsg');
       if (!Cotizador.activo()) { el.innerHTML = '<div class="aviso amar" style="font-size:13px">Este equipo no está conectado a la planilla.</div>'; return; }
       el.innerHTML = '<div class="muted">Consultando la planilla…</div>';
-      Sync.llamar('satIAEstado', {}, function (r) { el.innerHTML = '<div class="aviso ' + (r.tieneApiKey ? 'verde' : 'rojo') + '" style="font-size:13px">Clave de Gemini: ' + (r.tieneApiKey ? 'configurada' : 'FALTA (GEMINI_API_KEY)') + ' · modelo ' + U.esc(r.modelo) + (r.modeloFijo ? ' (fijado en GEMINI_MODELO)' : ' (detectado automáticamente)') + ' · consultas hoy ' + r.usadasHoy + ' de ' + r.tope + '</div>'; }, function (m) { el.innerHTML = '<div class="aviso rojo" style="font-size:13px">' + U.esc(m) + '</div>'; });
+      Sync.llamar('satIAEstado', {}, function (r) {
+        if (r.valida === undefined) { el.innerHTML = '<div class="aviso amar" style="font-size:13px">La planilla tiene una versión anterior de Codigo.gs: publique la nueva versión para probar la clave con Google.</div>'; return; }
+        if (!r.valida) { el.innerHTML = '<div class="aviso rojo" style="font-size:13px">' + (r.tieneApiKey ? 'Google rechazó la clave guardada (' + r.largo + ' caracteres, empieza con «' + U.esc(r.inicio) + '…»).<br>Respuesta de Google: ' + U.esc(r.mensaje) + '<br>Revise que sea la clave completa copiada desde Google AI Studio (normalmente empieza con «AIza» y tiene 39 caracteres), sin restricciones de sitio web o IP, y con la API de Gemini habilitada.' : U.esc(r.mensaje)) + '</div>'; return; }
+        el.innerHTML = '<div class="aviso verde" style="font-size:13px">Google aceptó la clave ✓ · modelo ' + U.esc(r.modelo) + (r.modeloFijo ? ' (fijado en GEMINI_MODELO)' : ' (detectado automáticamente)') + ' · consultas hoy ' + r.usadasHoy + ' de ' + r.tope + '</div>';
+      }, function (m) { el.innerHTML = '<div class="aviso rojo" style="font-size:13px">' + U.esc(m) + '</div>'; });
     },
     cmPlantilla: function () { UI.descargar('plantilla_comunas.csv', Comunas.plantilla(), 'text/csv'); },
     cmExportar: function () { if (!Comunas.lista.length) { UI.toast('No hay comunas cargadas', 'warn'); return; } UI.descargar('comunas_' + U.sello() + '.csv', Comunas.exportar(), 'text/csv'); },
