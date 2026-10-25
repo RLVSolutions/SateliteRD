@@ -464,7 +464,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.25.0', build: '2026-10-24', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.26.0', build: '2026-10-24', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -2230,12 +2230,59 @@ var Combo = {
 var COT_URL_ERP = { CHILEXPRESS: 'https://www.chilexpress.cl/cotizadordeenvios', STARKEN: 'https://www.starken.cl/cotizador', 'BLUE EXPRESS': 'https://www.blue.cl/', 'CORREOS DE CHILE': 'https://www.correos.cl/', 'PULLMAN CARGO': 'http://www.pullmancargo.cl/' };
 var COT_REDONDEO = [['ENTERO', 'Kilo entero ↑'], ['MEDIO', 'Medio kilo ↑'], ['DECIMA', 'Décima de kg ↑'], ['EXACTO', 'Sin redondeo']];
 
+var CotRef = {
+  FUENTE: 'Tabla referencial Blue Express por región (impoparts.cl, feb. 2026, origen RM, IVA incluido) ajustada a cotizaciones públicas 2026 (tiendanube.com ago. 2026; bagie.cl sep. 2026)',
+  AJUSTE: 1.17,
+  BANDAS: [0.5, 3, 6, 16, 25],
+  ADIC: 320,
+  DOM: { 'ARICA Y PARINACOTA': [7150, 8300, 12400, 17000, 25000], 'TARAPACÁ': [6550, 7400, 10700, 15500, 23000], 'ANTOFAGASTA': [6300, 7000, 9900, 14000, 21000], 'ATACAMA': [4850, 5900, 7700, 9900, 13800], 'COQUIMBO': [4600, 5300, 7000, 9600, 12800],
+    'VALPARAÍSO': [3900, 4500, 6000, 7700, 9700], 'METROPOLITANA': [3100, 3650, 4700, 5700, 7600], "LIBERTADOR B. O'HIGGINS": [4000, 4800, 6400, 8300, 11300], 'MAULE': [4200, 5200, 6700, 8900, 12100], 'ÑUBLE': [4600, 5400, 7200, 9200, 12600],
+    'BIOBÍO': [4700, 5700, 7300, 9500, 12800], 'LA ARAUCANÍA': [4950, 5900, 7700, 9900, 13800], 'LOS RÍOS': [5300, 6100, 8300, 10000, 14200], 'LOS LAGOS': [5300, 6100, 8300, 10000, 14200], 'AYSÉN': [8000, 9500, 14000, 21500, 28500], 'MAGALLANES': [8000, 9500, 14000, 21500, 28500], MISMA: [3100, 3650, 4700, 5700, 7600] },
+  PUNTO: { 'ARICA Y PARINACOTA': [6350, 7500, 11600, 16200, 24200], 'TARAPACÁ': [5750, 6600, 9900, 14700, 22200], 'ANTOFAGASTA': [5500, 6200, 9100, 13200, 20200], 'ATACAMA': [4050, 5100, 6900, 9100, 13000], 'COQUIMBO': [3800, 4500, 6200, 8800, 12000],
+    'VALPARAÍSO': [3100, 3700, 5200, 6900, 8900], 'METROPOLITANA': [2300, 2850, 3900, 4900, 6800], "LIBERTADOR B. O'HIGGINS": [3200, 4000, 5600, 7500, 10500], 'MAULE': [3400, 4400, 5900, 8100, 11300], 'ÑUBLE': [3800, 4600, 6400, 8400, 11800],
+    'BIOBÍO': [3900, 4900, 6500, 8700, 12000], 'LA ARAUCANÍA': [4150, 5100, 6900, 9100, 13000], 'LOS RÍOS': [4500, 5300, 7500, 9200, 13400], 'LOS LAGOS': [4500, 5300, 7500, 9200, 13400], 'AYSÉN': [7200, 8700, 13200, 20700, 27700], 'MAGALLANES': [7200, 8700, 13200, 20700, 27700], MISMA: [2300, 2850, 3900, 4900, 6800] },
+  POS: { 'ARICA Y PARINACOTA': -2060, 'TARAPACÁ': -1780, 'ANTOFAGASTA': -1360, 'ATACAMA': -800, 'COQUIMBO': -470, 'VALPARAÍSO': -120, 'METROPOLITANA': 0, "LIBERTADOR B. O'HIGGINS": 87, 'MAULE': 255, 'ÑUBLE': 400, 'BIOBÍO': 500, 'LA ARAUCANÍA': 680, 'LOS RÍOS': 840, 'LOS LAGOS': 1020, 'AYSÉN': 1650, 'MAGALLANES': 3000 },
+  EXTREMO: { 'AYSÉN': 1, 'MAGALLANES': 1 },
+  COURIER: { 'BLUE EXPRESS': { r: 1, c: 0, n: 'tabla publicada por región' }, 'CORREOS DE CHILE': { r: 0.78, c: -10, n: 'proporción respecto de Blue Express en 2 comparativas públicas 2026' }, STARKEN: { r: 0.98, c: -10, n: 'proporción respecto de Blue Express en 2 comparativas públicas 2026' }, CHILEXPRESS: { r: 1.15, c: -10, n: 'proporción respecto de Blue Express en 2 comparativas públicas 2026' } },
+  INTERNO: /RETIRO|REPARTO PROPIO/,
+  fila: function (tabla, o, d) {
+    if (!d || !tabla[d]) return null;
+    if (o === d) return { v: tabla.MISMA, c: 0, n: 'misma región' };
+    if (!o || o === 'METROPOLITANA') return { v: tabla[d], c: o ? 0 : -10, n: o ? 'origen Región Metropolitana' : 'origen sin indicar: se usó Región Metropolitana' };
+    if (CotRef.EXTREMO[d]) return { v: tabla[d], c: -10, n: 'zona extrema' };
+    if (CotRef.EXTREMO[o]) return { v: tabla[o], c: -15, n: 'origen en zona extrema' };
+    var dist = Math.abs(CotRef.POS[d] - CotRef.POS[o]), pts = [{ d: 0, v: tabla.MISMA }], k;
+    for (k in CotRef.POS) if (k !== 'METROPOLITANA' && !CotRef.EXTREMO[k]) pts.push({ d: Math.abs(CotRef.POS[k]), v: tabla[k] });
+    pts.sort(function (a, b) { return a.d - b.d; });
+    var v = [], i, j;
+    for (i = 0; i < 5; i++) {
+      var a = pts[0], b = pts[pts.length - 1];
+      for (j = 0; j < pts.length - 1; j++) if (dist >= pts[j].d && dist <= pts[j + 1].d) { a = pts[j]; b = pts[j + 1]; break; }
+      if (dist > pts[pts.length - 1].d) a = b;
+      v.push(a === b || b.d === a.d ? a.v[i] : a.v[i] + (b.v[i] - a.v[i]) * (dist - a.d) / (b.d - a.d));
+    }
+    return { v: v, c: -10, n: 'ajustado por distancia desde el origen (' + Math.round(dist) + ' km aprox.)' };
+  },
+  monto: function (f, kg) {
+    for (var i = 0; i < CotRef.BANDAS.length; i++) if (kg <= CotRef.BANDAS[i] + 1e-9) return f.v[i];
+    return f.v[4] + CotRef.ADIC * Math.ceil(kg - 25 - 1e-9);
+  },
+  plazo: function (o, d) {
+    if (!d) return null;
+    if (CotRef.EXTREMO[d] || CotRef.EXTREMO[o]) return 7;
+    var dist = Math.abs((CotRef.POS[d] || 0) - (CotRef.POS[o] || 0));
+    return o === d ? 1 : (dist <= 600 ? 2 : (dist <= 1400 ? 3 : 4));
+  },
+  rango: function (conf) { return conf >= 85 ? 0.05 : (conf >= 70 ? 0.1 : (conf >= 50 ? 0.2 : 0.35)); }
+};
+
 var Cotizador = {
   datos: { couriers: {}, tarifas: [], act: '' },
   _idx: null,
   cargar: function () {
     var d = StorageManager.leer(CLAVES.cotizador, null) || {}, c = d.cot || {};
     Cotizador.datos = { couriers: c.couriers || {}, tarifas: U.esArray(c.tarifas) ? c.tarifas : [], act: c.act || '' };
+    Cotizador.cal = d.cal || {};
     Cotizador._idx = null;
   },
   guardarLocal: function () {
@@ -2249,7 +2296,11 @@ var Cotizador = {
       if (r && U.esArray(r.comunas) && (r.comunas.length || Comunas.lista.length)) Comunas.guardarLocal(r.comunas, r.actualizado, r.usuario);
       Sync.llamar('satCotizadorLeer', {}, function (q) {
         if (q && q.couriers) { Cotizador.datos = { couriers: q.couriers, tarifas: q.tarifas || [], act: q.actualizado || '' }; Cotizador.guardarLocal(); }
-        if (cb) cb(true);
+        Sync.llamar('satCotizacionesListar', { dias: 180, limite: 300 }, function (z) {
+          Cotizador.cal = Cotizador.calibrar(z && z.cotizaciones);
+          var dd = StorageManager.leer(CLAVES.cotizador, null) || {}; dd.cal = Cotizador.cal; StorageManager.guardar(CLAVES.cotizador, dd);
+          if (cb) cb(true);
+        }, function () { if (cb) cb(true); });
       }, function (m) { if (cb) cb(false, m); });
     }, function (m) { if (cb) cb(false, m); });
   },
@@ -2261,6 +2312,11 @@ var Cotizador = {
       volDesde: n('volDesde'), sucFisico: !!p.sucFisico, sdDims: p.sdDims || '', sdKg: n('sdKg'), sdCargo: n('sdCargo'), cargoBulto: n('cargoBulto'), ppSuc: n('ppSuc'), ppDom: n('ppDom'),
       zePct: n('zePct'), zeLista: p.zeLista || '', retiro: n('retiro'), iva: p.iva === 'MAS_IVA' ? 'MAS_IVA' : 'INCLUIDO', maxKg: n('maxKg'), maxLado: n('maxLado'), maxSuma: n('maxSuma') };
   },
+  efectivo: function (c) {
+    var p = Cotizador.param(c), pu = Cotizador.PUBLICADOS[c], k;
+    if (!p.existe && pu) { for (k in pu.v) p[k] = pu.v[k]; p.pub = true; }
+    return p;
+  },
   tarifas: function (c) {
     if (!Cotizador._idx) {
       Cotizador._idx = {};
@@ -2270,7 +2326,7 @@ var Cotizador = {
   },
   couriers: function () {
     var out = [];
-    U.each(Listas.get('COURIER'), function (x) { if (x.on === false) return; var p = Cotizador.param(x.v); if (p.en) out.push({ v: x.v, n: Listas.etq('COURIER', x.v), p: p }); });
+    U.each(Listas.get('COURIER'), function (x) { if (x.on === false) return; var p = Cotizador.efectivo(x.v); if (p.en) out.push({ v: x.v, n: Listas.etq('COURIER', x.v), p: p }); });
     return out;
   },
   redondear: function (kg, red) {
@@ -2299,7 +2355,7 @@ var Cotizador = {
   },
   pesos: function (bultos, p, op) {
     op = op || {};
-    var f = p.fv || Number(DB.cfg.factorVol) || 5000, l = [], tr = 0, tv = 0, tb = 0, sdLim = Cotizador.dims(p.sdDims), soloFis = op.modalidad === 'SUCURSAL' && p.sucFisico;
+    var f = p.fv || 4000, l = [], tr = 0, tv = 0, tb = 0, sdLim = Cotizador.dims(p.sdDims), soloFis = op.modalidad === 'SUCURSAL' && p.sucFisico;
     U.each(bultos, function (b) {
       var a = Number(b.ancho) || 0, al = Number(b.alto) || 0, la = Number(b.largo) || 0, real = Number(b.peso) || 0, ls = [a, al, la].sort(function (x, y) { return x - y; }), maxL = ls[2], suma = a + al + la;
       var usa = !soloFis && (!p.volDesde || maxL > p.volDesde), vol = usa ? a * al * la / f : 0, base = Math.max(real, vol, p.min), kg = Cotizador.redondear(base, p.red), no = '';
@@ -2317,50 +2373,97 @@ var Cotizador = {
   calcular: function (op) {
     var dest = { comuna: U.norm(op.comuna || ''), region: op.region || '' }, hoy = U.fechaISO(), out = [], mod = op.modalidad === 'SUCURSAL' ? 'SUCURSAL' : 'DOMICILIO';
     if (dest.comuna && !dest.region) { var cm = Comunas.buscar(dest.comuna, ''); if (cm) dest.region = cm.r; }
+    var ori = Cotizador.origen();
+    var cargos = function (r, flete, p, ps) {
+      var nSd = U.filter(ps.bultos, function (x) { return x.sd; }).length, d = { flete: flete };
+      d.sobredim = nSd * Math.round(p.sdCargo);
+      d.bultos = Math.max(0, op.bultos.length - 1) * Math.round(p.cargoBulto);
+      d.combustible = Math.round(flete * p.rec / 100);
+      d.zona = p.zePct && Cotizador.enLista(p.zeLista, dest) ? Math.round(flete * p.zePct / 100) : 0;
+      var sub = flete + d.sobredim + d.bultos + d.combustible + d.zona;
+      d.porPagar = op.porPagar ? Math.round(sub * (mod === 'SUCURSAL' ? p.ppSuc : p.ppDom) / 100) : 0;
+      d.retiro = op.retiro ? Math.round(p.retiro) : 0;
+      d.seguro = op.valor > 0 ? Math.round(op.valor * p.seg / 100) : 0;
+      var neto = sub + d.porPagar + d.retiro + d.seguro;
+      d.iva = r.fuente === 'TARIFA' && p.iva === 'MAS_IVA' ? Math.round(neto * 0.19) : 0;
+      r.d = d; r.sub = flete; r.total = neto + d.iva;
+      if (op.porPagar && !(mod === 'SUCURSAL' ? p.ppSuc : p.ppDom)) r.avisos.push('Por pagar: sin recargo registrado para ' + (mod === 'SUCURSAL' ? 'sucursal' : 'domicilio') + ' en este courier.');
+      if (op.retiro && !p.retiro) r.avisos.push('Retiro en bodega: sin cargo registrado en este courier.');
+    };
+    var fin = function (r) { var pct = CotRef.rango(r.conf); r.min = Math.round(r.total * (1 - pct) / 10) * 10; r.max = Math.round(r.total * (1 + pct) / 10) * 10; out.push(r); };
     U.each(Cotizador.couriers(), function (c) {
-      var p = c.p, ps = Cotizador.pesos(op.bultos, p, { modalidad: mod }), ts = Cotizador.tarifas(c.v), base = { courier: c.v, nombre: c.n, p: p, pesos: ps, kg: ps.kg, url: p.url || p.urlErp, avisos: [] };
-      var noAd = U.find(ps.bultos, function (x) { return !!x.no; }), idxNo = U.map(ps.bultos, function (x) { return x.no; }).indexOf(noAd ? noAd.no : '#');
-      if (noAd) { out.push(U.assign(base, { servicio: '', estado: 'NO_ADMITE', total: 0, motivo: 'Bulto ' + (idxNo + 1) + ': ' + noAd.no })); return; }
-      if (!ts.length) { out.push(U.assign(base, { servicio: '', estado: 'SIN_TARIFA', total: 0 })); return; }
-      var porS = {}, ordS = [];
-      U.each(ts, function (t) { if (!porS[t.s]) { porS[t.s] = []; ordS.push(t.s); } porS[t.s].push(t); });
-      U.each(ordS, function (s) {
-        var rows = porS[s], mejor = 0, av = [];
-        U.each(rows, function (t) { var n = Cotizador.nivel(t, dest); if (n > mejor) mejor = n; });
-        var r = U.assign(U.clone(base), { servicio: s, nivel: mejor, total: 0, plazo: null, avisos: av });
-        r.p = p; r.pesos = ps;
-        if (!mejor) { r.estado = 'SIN_DESTINO'; out.push(r); return; }
-        var sel = U.filter(rows, function (t) { return Cotizador.nivel(t, dest) === mejor; });
-        sel.sort(function (a, b) { return a.de - b.de; });
-        var flete = 0, falla = false, pl = null, kgs = p.cobro === 'ENVIO' ? [ps.kg] : U.map(ps.bultos, function (x) { return x.kg; });
-        U.each(kgs, function (kg) { var q = Cotizador.precio(sel, kg); if (!q) { falla = true; return; } flete += q.monto; if (q.pl != null && (pl == null || q.pl > pl)) pl = q.pl; });
-        if (falla) { r.estado = 'EXCEDE'; out.push(r); return; }
-        flete = Math.round(flete);
-        var nSd = U.filter(ps.bultos, function (x) { return x.sd; }).length, d = { flete: flete };
-        d.sobredim = nSd * Math.round(p.sdCargo);
-        d.bultos = Math.max(0, op.bultos.length - 1) * Math.round(p.cargoBulto);
-        d.combustible = Math.round(flete * p.rec / 100);
-        d.zona = p.zePct && Cotizador.enLista(p.zeLista, dest) ? Math.round(flete * p.zePct / 100) : 0;
-        var sub = flete + d.sobredim + d.bultos + d.combustible + d.zona;
-        d.porPagar = op.porPagar ? Math.round(sub * (mod === 'SUCURSAL' ? p.ppSuc : p.ppDom) / 100) : 0;
-        d.retiro = op.retiro ? Math.round(p.retiro) : 0;
-        d.seguro = op.valor > 0 ? Math.round(op.valor * p.seg / 100) : 0;
-        var neto = sub + d.porPagar + d.retiro + d.seguro;
-        d.iva = p.iva === 'MAS_IVA' ? Math.round(neto * 0.19) : 0;
-        r.d = d; r.sub = flete; r.total = neto + d.iva; r.plazo = pl;
-        r.estado = p.hasta && p.hasta < hoy ? 'VENCIDA' : (p.desde && p.desde > hoy ? 'FUTURA' : 'OK');
-        if (!ps.fOk && !ps.soloFis) av.push('Factor volumétrico no confirmado para este courier: se usó el general (' + ps.factor + ').');
-        if (!p.fuente) av.push('Tarifa sin fuente registrada.');
-        if (op.porPagar && !(mod === 'SUCURSAL' ? p.ppSuc : p.ppDom)) av.push('Por pagar: este courier no tiene recargo registrado para ' + (mod === 'SUCURSAL' ? 'sucursal' : 'domicilio') + '.');
-        if (op.retiro && !p.retiro) av.push('Retiro: este courier no tiene cargo de retiro registrado.');
-        out.push(r);
-      });
+      var p = c.p, cal = Cotizador.cal[c.v] || null, ps = Cotizador.pesos(op.bultos, p, { modalidad: mod }), ts = Cotizador.tarifas(c.v);
+      var base = { courier: c.v, nombre: c.n, p: p, pesos: ps, kg: ps.kg, url: p.url || p.urlErp, avisos: [], conf: 0, fuente: '' };
+      var noAd = U.find(ps.bultos, function (x) { return !!x.no; });
+      if (noAd) { out.push(U.assign(base, { servicio: '', estado: 'NO_ADMITE', total: 0, motivo: 'Bulto ' + (U.map(ps.bultos, function (x) { return x.no; }).indexOf(noAd.no) + 1) + ': ' + noAd.no })); return; }
+      var hechos = 0, motivoRef = '';
+      if (ts.length) {
+        var porS = {}, ordS = [];
+        U.each(ts, function (t) { if (!porS[t.s]) { porS[t.s] = []; ordS.push(t.s); } porS[t.s].push(t); });
+        U.each(ordS, function (s) {
+          var rows = porS[s], mejor = 0;
+          U.each(rows, function (t) { var n = Cotizador.nivel(t, dest); if (n > mejor) mejor = n; });
+          if (!mejor) { motivoRef = 'la tarifa cargada no cubre este destino'; return; }
+          var sel = U.filter(rows, function (t) { return Cotizador.nivel(t, dest) === mejor; });
+          sel.sort(function (a, b) { return a.de - b.de; });
+          var flete = 0, falla = false, pl = null, kgs = p.cobro === 'ENVIO' ? [ps.kg] : U.map(ps.bultos, function (x) { return x.kg; });
+          U.each(kgs, function (kg) { var q = Cotizador.precio(sel, kg); if (!q) { falla = true; return; } flete += q.monto; if (q.pl != null && (pl == null || q.pl > pl)) pl = q.pl; });
+          if (falla) { motivoRef = 'el peso queda fuera de los tramos de la tarifa cargada'; return; }
+          var r = U.assign(U.clone(base), { servicio: s, nivel: mejor, plazo: pl, fuente: 'TARIFA', avisos: [] });
+          r.p = p; r.pesos = ps;
+          r.estado = p.hasta && p.hasta < hoy ? 'VENCIDA' : (p.desde && p.desde > hoy ? 'FUTURA' : 'OK');
+          var conf = 90;
+          if (!ps.fOk && !ps.soloFis) { conf -= 15; r.avisos.push('Factor volumétrico no confirmado para este courier: se usó ' + ps.factor + '.'); }
+          if (!p.fuente) { conf -= 15; r.avisos.push('Tarifa sin fuente registrada.'); }
+          if (r.estado === 'VENCIDA') conf -= 30; else if (r.estado === 'FUTURA') conf -= 10;
+          if (cal && cal.nT) { if (Math.abs(cal.eT) <= 0.05) conf += 5; else if (Math.abs(cal.eT) > 0.15) { conf -= 15; r.avisos.push('Los precios reales registrados difieren en promedio ' + Math.round(cal.eT * 100) + ' % de esta tarifa: revísela.'); } }
+          r.conf = Math.max(30, Math.min(97, conf));
+          cargos(r, Math.round(flete), p, ps);
+          fin(r); hechos++;
+        });
+      }
+      if (hechos) return;
+      if (CotRef.INTERNO.test(c.v)) { out.push(U.assign(base, { servicio: '', estado: 'INTERNO', total: 0, motivo: 'servicio propio: cargue su costo como tarifa en Datos' })); return; }
+      if (!dest.region) { out.push(U.assign(base, { servicio: '', estado: 'SIN_DESTINO', total: 0, motivo: 'indique la comuna o región de destino' })); return; }
+      var cr = CotRef.COURIER[c.v] || { r: 1, c: -25, n: 'sin datos públicos de este courier: se usó el promedio de mercado', gen: true }, f = CotRef.fila(mod === 'SUCURSAL' ? CotRef.PUNTO : CotRef.DOM, ori.region, dest.region);
+      if (!f) { out.push(U.assign(base, { servicio: '', estado: 'SIN_DESTINO', total: 0, motivo: 'región de destino no reconocida' })); return; }
+      var r = U.assign(base, { servicio: mod === 'SUCURSAL' ? 'RETIRO EN SUCURSAL' : 'A DOMICILIO', fuente: 'REFERENCIA', estado: 'REF', plazo: CotRef.plazo(ori.region, dest.region), nota: [cr.n, f.n].join(' · ') });
+      var ajuste = CotRef.AJUSTE * cr.r * (cal && cal.nR ? cal.rR : 1), flete = 0;
+      U.each(ps.bultos, function (x) { flete += CotRef.monto(f, x.kg) * ajuste; });
+      flete = Math.round(flete / 10) * 10;
+      var conf = 60 + f.c + cr.c;
+      if (cal && cal.nR) { conf += Math.min(25, 8 * cal.nR); r.nota += ' · calibrado con ' + cal.nR + ' precio(s) real(es) registrado(s)'; }
+      if (motivoRef) r.avisos.push('Se usó la referencia pública porque ' + motivoRef + '.');
+      if (!ps.fOk && !ps.soloFis) r.avisos.push('Peso volumétrico con factor ' + ps.factor + ' (referencia pública).');
+      r.conf = Math.max(20, Math.min(80, conf));
+      cargos(r, flete, p, ps);
+      fin(r);
     });
-    var rango = function (x) { return x.total > 0 ? (x.estado === 'OK' ? 0 : 1) : 2; };
+    var rango = function (x) { return x.total > 0 ? (x.estado === 'OK' || x.estado === 'REF' ? 0 : 1) : 2; };
     out.sort(function (a, b) { var d = rango(a) - rango(b); if (d) return d; if (a.total && b.total) return a.total - b.total; return a.nombre < b.nombre ? -1 : 1; });
     return out;
   },
-  ESTADOS: { OK: ['ABIERTA', 'TARIFA VIGENTE'], VENCIDA: ['ANULADO', 'TARIFA VENCIDA'], FUTURA: ['PENDIENTE', 'AÚN NO VIGENTE'], SIN_TARIFA: ['CERRADA', 'SIN TARIFA CARGADA'], SIN_DESTINO: ['CERRADA', 'SIN TARIFA PARA ESTE DESTINO'], EXCEDE: ['PENDIENTE', 'PESO FUERA DE LA TARIFA'], NO_ADMITE: ['ANULADO', 'NO ADMITE ESTE BULTO'] },
+  origen: function () {
+    var rem = EnvioDatos.remitenteDefecto(), reg = rem.region || '';
+    if (!reg && rem.comuna) { var o = Comunas.buscar(rem.comuna, ''); if (o) reg = o.r; }
+    return { comuna: rem.comuna || '', region: REGIONES_CL.indexOf(reg) >= 0 ? reg : '' };
+  },
+  cal: {},
+  calibrar: function (lista) {
+    var acc = {};
+    U.each(lista || [], function (x) {
+      U.each(x.resultado || [], function (y) {
+        var o = x.observados && x.observados[y.courier];
+        if (!o || !(o.precio > 0) || !(y.total > 0) || (o.servicio && y.servicio && o.servicio !== y.servicio && y.fuente !== 'REFERENCIA')) return;
+        var a = acc[y.courier] = acc[y.courier] || { R: [], T: [] };
+        if (y.fuente === 'REFERENCIA') a.R.push(o.precio / y.total); else a.T.push(o.precio / y.total - 1);
+      });
+    });
+    var med = function (l) { var s = l.slice(0).sort(function (a, b) { return a - b; }), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }, out = {}, k;
+    for (k in acc) out[k] = { nR: acc[k].R.length, rR: acc[k].R.length ? Math.max(0.5, Math.min(2, med(acc[k].R))) : 1, nT: acc[k].T.length, eT: acc[k].T.length ? med(acc[k].T) : 0 };
+    return out;
+  },
+  ESTADOS: { OK: ['ABIERTA', 'TARIFA CARGADA'], VENCIDA: ['ANULADO', 'TARIFA VENCIDA'], FUTURA: ['PENDIENTE', 'TARIFA AÚN NO VIGENTE'], REF: ['PARCIAL', 'REFERENCIA PÚBLICA'], SIN_DESTINO: ['CERRADA', 'FALTA DESTINO'], INTERNO: ['CERRADA', 'SERVICIO PROPIO'], NO_ADMITE: ['ANULADO', 'NO ADMITE ESTE BULTO'] },
   DESGLOSE: [['flete', 'Flete'], ['sobredim', 'sobredimensión'], ['bultos', 'bultos adicionales'], ['combustible', 'recargo'], ['zona', 'zona extrema'], ['porPagar', 'por pagar'], ['retiro', 'retiro'], ['seguro', 'seguro'], ['iva', 'IVA']],
   PUBLICADOS: {
     CHILEXPRESS: { fuente: 'Guía de Servicios Chilexpress (cxpgdastprod.blob.core.windows.net/mdn/documentos/Guia_de_servicios.pdf) y enviafacil.cl/chilexpress/tarifas', v: { fv: 4000, volDesde: 60, sdDims: '80x80x120', sdKg: 50, sdCargo: 3500, ppSuc: 10, ppDom: 15, maxKg: 100, maxLado: 200 },
@@ -2441,8 +2544,9 @@ var CotUI = {
       '<div class="c2"><label class="lbl" for="ctRegion">REGIÓN</label><select id="ctRegion" class="inp sm"><option value=""></option>' + U.map(REGIONES_CL, function (r) { return '<option' + (st.region === r ? ' selected' : '') + '>' + U.esc(r) + '</option>'; }).join('') + '</select></div></div>' +
       '<div id="ctDestInfo" class="muted"></div>' +
       '<label class="lbl" for="ctValor">VALOR DECLARADO $ <span class="unidad">opcional · para seguro</span></label><input id="ctValor" class="inp sm" type="number" inputmode="numeric" min="0" step="1" value="' + (st.valor || '') + '" data-next="ctA">' +
-      '<div class="fila"><div class="c2"><label class="lbl" for="ctMod">ENTREGA</label><select id="ctMod" class="inp sm"><option value="DOMICILIO"' + (st.modalidad !== 'SUCURSAL' ? ' selected' : '') + '>A domicilio</option><option value="SUCURSAL"' + (st.modalidad === 'SUCURSAL' ? ' selected' : '') + '>Retira en sucursal</option></select></div>' +
-      '<div class="c2"><label class="chk" style="margin-top:22px"><input type="checkbox" id="ctPP"' + (st.porPagar ? ' checked' : '') + '> Por pagar</label><label class="chk"><input type="checkbox" id="ctRet"' + (st.retiro ? ' checked' : '') + '> Con retiro en bodega</label></div></div>' +
+      '<label class="lbl" for="ctMod">ENTREGA AL DESTINATARIO</label><select id="ctMod" class="inp sm"><option value="DOMICILIO"' + (st.modalidad !== 'SUCURSAL' ? ' selected' : '') + '>En su domicilio</option><option value="SUCURSAL"' + (st.modalidad === 'SUCURSAL' ? ' selected' : '') + '>Retira en sucursal del courier</option></select>' +
+      '<label class="lbl">CONDICIONES DEL ENVÍO <span class="unidad">opcionales</span></label><div class="fila"><div class="c"><label class="chk" style="margin:0"><input type="checkbox" id="ctPP"' + (st.porPagar ? ' checked' : '') + '> Por pagar</label></div>' +
+      '<div class="c"><label class="chk" style="margin:0"><input type="checkbox" id="ctRet"' + (st.retiro ? ' checked' : '') + '> Retiro en bodega</label></div></div>' +
       '<h2 style="margin-top:12px">BULTOS</h2><div id="ctBultos"></div>' +
       '<div class="fila num"><div class="c"><label class="lbl">ANCHO cm</label><input id="ctA" class="inp sm" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="ctAl"></div><div class="c"><label class="lbl">ALTO cm</label><input id="ctAl" class="inp sm" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="ctL"></div><div class="c"><label class="lbl">LARGO cm</label><input id="ctL" class="inp sm" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="ctP"></div></div>' +
       '<div class="fila"><div class="c"><label class="lbl">PESO kg</label><input id="ctP" class="inp sm" type="number" step="any" inputmode="decimal" enterkeyhint="done" data-enter="ctAgregar"></div><div class="c"><label class="lbl">CANTIDAD</label><input id="ctN" class="inp sm" type="number" min="1" max="50" step="1" value="1" data-enter="ctAgregar"></div></div>' +
@@ -2461,11 +2565,11 @@ var CotUI = {
     var pintarBultos = function () {
       var el = U.$('ctBultos');
       if (!st.bultos.length) { el.innerHTML = '<div class="muted" style="padding:6px 0">Agregue al menos un bulto.</div>'; return; }
-      var f = Number(DB.cfg.factorVol) || 5000, tr = 0, tv = 0;
+      var f = 4000, tr = 0, tv = 0;
       el.innerHTML = '<table class="tbl"><tr><th>#</th><th>ANCHO × ALTO × LARGO</th><th>kg</th><th>vol.*</th><th></th></tr>' + U.map(st.bultos, function (b, i) {
         var v = b.ancho * b.alto * b.largo / f; tr += b.peso; tv += v;
         return '<tr><td>' + (i + 1) + '</td><td>' + b.ancho + ' × ' + b.alto + ' × ' + b.largo + (b.desc ? '<br><span class="muted">' + U.esc(b.desc) + '</span>' : '') + '</td><td>' + U.fx(b.peso, 2) + '</td><td>' + U.fx(v, 2) + '</td><td><button class="mini dan" data-a="ctQuitar" data-x="' + i + '" aria-label="Quitar bulto ' + (i + 1) + '">✕</button></td></tr>';
-      }).join('') + '<tr><td></td><td><b>' + st.bultos.length + ' bulto(s)</b></td><td><b>' + U.fx(tr, 2) + '</b></td><td><b>' + U.fx(tv, 2) + '</b></td><td></td></tr></table><div class="muted">* Peso volumétrico con el factor general (' + f + '). En cada courier se usa su propio factor.</div>';
+      }).join('') + '<tr><td></td><td><b>' + st.bultos.length + ' bulto(s)</b></td><td><b>' + U.fx(tr, 2) + '</b></td><td><b>' + U.fx(tv, 2) + '</b></td><td></td></tr></table><div class="muted">* Peso volumétrico con factor 4000 (valor público común). Cada courier aplica su propio factor y reglas.</div>';
     };
     var pintarRes = function () {
       var el = U.$('ctRes');
@@ -2477,8 +2581,9 @@ var CotUI = {
       U.each(st.res, function (r, i) { (r.total > 0 ? conP : sinP).push(i); });
       el.innerHTML = (sinDest ? '<div class="aviso amar" style="font-size:13px">Indique la comuna o región de destino: sin destino solo aplican las tarifas «todo Chile».</div>' : '') +
         (!conP.length ? '<div class="aviso amar" style="font-size:13px">Ningún courier tiene tarifa cargada para este envío. Cargue tarifas reales en Datos → Cotizador, o consulte en el sitio de cada courier.</div>' : '') +
+        (U.find(st.res, function (r) { return r.fuente === 'REFERENCIA'; }) ? '<div class="muted" style="margin-bottom:6px">Sin tarifa cargada se estima con: ' + U.esc(CotRef.FUENTE) + '. La confianza sube al cargar tarifas reales o registrar precios reales.</div>' : '') +
         U.map(conP, function (i) { return tarjeta(st.res[i], i); }).join('') +
-        (sinP.length ? '<div class="card" style="margin-top:8px;padding:8px"><b>SIN PRECIO ESTIMADO</b><div class="muted">Consulte en el sitio; el kg cobrable es referencial.</div>' + U.map(sinP, function (i) {
+        (sinP.length ? '<div class="card" style="margin-top:8px;padding:8px"><b>SIN ESTIMACIÓN</b>' + U.map(sinP, function (i) {
           var r = st.res[i], e = Cotizador.ESTADOS[r.estado] || ['CERRADA', r.estado];
           return '<div class="frow" style="padding:6px 0;border-top:1px solid #eee8ef;align-items:center"><span class="fx"><b>' + U.esc(r.nombre) + '</b>' + (r.servicio ? ' · ' + U.esc(r.servicio) : '') + '<br><span class="muted">' + e[1] + (r.motivo ? ': ' + U.esc(r.motivo) : ' · ' + r.kg + ' kg cobrables' + (r.pesos.fOk || r.pesos.soloFis ? '' : ' (factor no confirmado)')) + '</span></span>' +
             (r.url ? '<button class="mini" data-a="ctIr" data-x="' + i + '" aria-label="Ir al sitio de ' + U.esc(r.nombre) + '">↗</button>' : '') + '<button class="mini" data-a="ctCopiar" data-x="' + i + '" aria-label="Copiar datos para ' + U.esc(r.nombre) + '">⧉</button></div>';
@@ -2488,10 +2593,13 @@ var CotUI = {
         var e = Cotizador.ESTADOS[r.estado] || ['CERRADA', r.estado], p = r.p, ob = st.obs[r.courier];
         var kgTxt = r.kg + ' kg cobrables' + (p.cobro === 'ENVIO' ? ' (por envío)' : ' (suma por bulto)') + ' · real ' + U.fx(r.pesos.real, 2) + (r.pesos.soloFis ? ' · en sucursal solo cuenta el peso físico' : ' · vol. ' + U.fx(r.pesos.vol, 2) + ' (factor ' + r.pesos.factor + (r.pesos.fOk ? '' : ', no confirmado') + (p.volDesde ? ', si un lado supera ' + p.volDesde + ' cm' : '') + ')') + (U.filter(r.pesos.bultos, function (x) { return x.sd; }).length ? ' · ' + U.filter(r.pesos.bultos, function (x) { return x.sd; }).length + ' bulto(s) sobredimensionado(s)' : '');
         var h = '<div class="doc"><div class="dh"><div><b style="font-size:17px">' + U.esc(r.nombre) + '</b>' + (r.servicio ? ' · ' + U.esc(r.servicio) : '') + '</div><span class="est ' + e[0] + '">' + e[1] + '</span></div>';
-        if (r.total > 0) h += '<div style="font-size:24px;font-weight:bold;margin:4px 0">' + U.clp(r.total) + ' <span class="muted" style="font-size:13px;font-weight:normal">estimado</span></div>' +
-          '<div class="s">' + U.map(U.filter(Cotizador.DESGLOSE, function (k) { return r.d[k[0]] > 0; }), function (k, n) { return (n ? '+ ' : '') + k[1] + ' ' + U.clp(r.d[k[0]]); }).join(' ') + (r.plazo != null ? ' · plazo ' + r.plazo + ' día(s) hábil(es)' : '') + ' · tarifa por ' + (r.nivel === 3 ? 'comuna' : (r.nivel === 2 ? 'región' : 'todo Chile')) + '</div>';
+        var cc = r.conf >= 85 ? '#0a7d24' : (r.conf >= 70 ? '#0b4fb3' : (r.conf >= 50 ? '#9a5b00' : '#c00000'));
+        if (r.total > 0) h += '<div style="font-size:24px;font-weight:bold;margin:4px 0">' + U.clp(r.total) + ' <span class="muted" style="font-size:13px;font-weight:normal">estimado · entre ' + U.clp(r.min) + ' y ' + U.clp(r.max) + '</span></div>' +
+          '<div style="margin:2px 0 4px"><span class="est" style="background:' + cc + ';color:#fff">CONFIANZA ' + r.conf + ' %</span> <span class="muted">' + (r.fuente === 'TARIFA' ? 'tarifa cargada en Datos' : 'sin tarifa cargada: referencia pública') + '</span></div>' +
+          '<div class="s">' + U.map(U.filter(Cotizador.DESGLOSE, function (k) { return r.d[k[0]] > 0; }), function (k, n) { return (n ? '+ ' : '') + k[1] + ' ' + U.clp(r.d[k[0]]); }).join(' ') + (r.plazo != null ? ' · plazo ' + (r.fuente === 'REFERENCIA' ? '≈ ' : '') + r.plazo + ' día(s) hábil(es)' : '') + (r.fuente === 'TARIFA' ? ' · tarifa por ' + (r.nivel === 3 ? 'comuna' : (r.nivel === 2 ? 'región' : 'todo Chile')) : '') + '</div>';
         h += '<div class="s">' + U.esc(kgTxt) + '</div>';
-        if (r.total > 0) h += '<div class="muted">Fuente: ' + U.esc(p.fuente || 'sin registrar') + (p.desde ? ' · vigente desde ' + U.esc(U.fechaCL(p.desde)) : '') + (p.hasta ? ' hasta ' + U.esc(U.fechaCL(p.hasta)) : '') + (p.verPor ? ' · cargada por ' + U.esc(p.verPor) + (p.verFecha ? ' el ' + U.esc(U.fechaCL(p.verFecha)) : '') : '') + '</div>';
+        if (r.fuente === 'REFERENCIA') h += '<div class="muted">Base: ' + U.esc(r.nota) + (p.pub ? ' · factores publicados del courier' : '') + '.</div>';
+        else if (r.total > 0) h += '<div class="muted">Fuente: ' + U.esc(p.fuente || 'sin registrar') + (p.desde ? ' · vigente desde ' + U.esc(U.fechaCL(p.desde)) : '') + (p.hasta ? ' hasta ' + U.esc(U.fechaCL(p.hasta)) : '') + (p.verPor ? ' · cargada por ' + U.esc(p.verPor) + (p.verFecha ? ' el ' + U.esc(U.fechaCL(p.verFecha)) : '') : '') + '</div>';
         U.each(r.avisos || [], function (a) { h += '<div class="muted" style="color:#9a5b00">⚠ ' + U.esc(a) + '</div>'; });
         if (ob) { var dif = r.total > 0 ? Math.round((ob.precio - r.total) / r.total * 100) : null; h += '<div class="s" style="color:#0a7d24"><b>Precio real registrado: ' + U.clp(ob.precio) + '</b>' + (dif != null ? ' (' + (dif > 0 ? '+' : '') + dif + '% vs. estimado)' : '') + '</div>'; }
         h += '<div class="btns">' + (r.url ? '<button class="btn btn-sec btn-sm" data-a="ctIr" data-x="' + i + '">IR AL SITIO ↗</button>' : '') + '<button class="btn btn-sec btn-sm" data-a="ctCopiar" data-x="' + i + '">COPIAR DATOS</button></div>';
@@ -2528,7 +2636,7 @@ var CotUI = {
       if (!st.bultos.length) { if (!silencio) UI.toast('Agregue bultos', 'error'); return; }
       if (!Cotizador.activo()) { if (!silencio) UI.toast('Equipo sin conexión a la planilla: la cotización no se guardó', 'warn', 4000); if (cb) cb(null); return; }
       var cot = { id: st.id, referencia: st.ref, docKey: st.docKey, origen: origen, comuna: st.comuna, region: st.region, valorDeclarado: st.valor, bultos: st.bultos,
-        opciones: { modalidad: st.modalidad, porPagar: st.porPagar, retiro: st.retiro }, resultado: U.map(st.res, function (r) { return { courier: r.courier, servicio: r.servicio, total: r.total, kg: r.kg, estado: r.estado }; }) };
+        opciones: { modalidad: st.modalidad, porPagar: st.porPagar, retiro: st.retiro }, resultado: U.map(st.res, function (r) { return { courier: r.courier, servicio: r.servicio, total: r.total, kg: r.kg, estado: r.estado, fuente: r.fuente, conf: r.conf }; }) };
       U.$('ctMsg').innerHTML = 'Guardando…';
       Sync.llamar('satCotizacionGuardar', { cot: cot, usuario: DB.cfg.operador || '' }, function (r) {
         st.id = r.cotizacion.id; st.obs = r.cotizacion.observados || {};
@@ -7252,7 +7360,7 @@ Pantallas.datos = function (m) {
   var ccResumen = function (c) {
     var ts = Cotizador.tarifas(c), sv = {}, nd = { TODO: 0, REGION: 0, COMUNA: 0 };
     U.each(ts, function (t) { sv[t.s] = 1; nd[t.dt] = (nd[t.dt] || 0) + 1; });
-    if (!ts.length) return '<div class="aviso amar" style="font-size:13px">Sin tarifas cargadas: el cotizador muestra solo los pesos y el enlace al sitio del courier.</div>';
+    if (!ts.length) return '<div class="aviso amar" style="font-size:13px">Sin tarifa cargada: el cotizador estima con la referencia pública (confianza baja a media). Cargue el tarifario real para subir la confianza.</div>';
     var p = Cotizador.param(c), hoy = U.fechaISO();
     return '<div class="tot"><b>' + ts.length + '</b> fila(s) de tarifa · servicios: <b>' + U.esc(Object.keys(sv).join(', ')) + '</b><br>Por comuna: ' + nd.COMUNA + ' · por región: ' + nd.REGION + ' · todo Chile: ' + nd.TODO +
       (p.verPor ? '<br>Cargadas por <b>' + U.esc(p.verPor) + '</b>' + (p.verFecha ? ' el ' + U.esc(U.fechaCL(p.verFecha)) : '') : '') + '</div>' +
@@ -7269,7 +7377,7 @@ Pantallas.datos = function (m) {
     box.innerHTML = '<label class="chk"><input type="checkbox" id="ccEn"' + (p.en ? ' checked' : '') + '> Mostrar este courier en el cotizador</label>' +
       '<div class="fila"><div class="c">' + ccFila('FACTOR VOL. cm³/kg', 'ccFv', '<input id="ccFv" class="inp sm" type="number" min="1000" max="10000" step="1" placeholder="no confirmado" value="' + (p.fv || '') + '">') + '</div>' +
       '<div class="c">' + ccFila('PESO MÍNIMO kg', 'ccMin', '<input id="ccMin" class="inp sm" type="number" min="0" max="100" step="any" value="' + (p.min || '') + '">') + '</div></div>' +
-      '<div class="muted">Factor vacío = no confirmado: se usa el general (' + (Number(DB.cfg.factorVol) || 5000) + ') y el cotizador lo advierte. El redondeo es siempre hacia arriba (↑).</div>' +
+      '<div class="muted">Factor vacío = no confirmado: se usa 4000, el valor público común (Blue Express, Chilexpress y Correos), y el cotizador lo advierte. El redondeo es siempre hacia arriba (↑).</div>' +
       '<div class="fila"><div class="c">' + ccFila('REDONDEO DEL PESO', 'ccRed', '<select id="ccRed" class="inp sm">' + U.map(COT_REDONDEO, function (x) { return op(x[0], x[1], p.red); }).join('') + '</select>') + '</div>' +
       '<div class="c">' + ccFila('SE COBRA', 'ccCobro', '<select id="ccCobro" class="inp sm">' + op('BULTO', 'Por cada bulto', p.cobro) + op('ENVIO', 'Por envío (peso sumado)', p.cobro) + '</select>') + '</div></div>' +
       '<div class="fila"><div class="c">' + ccFila('COMBUSTIBLE / RECARGO %', 'ccRec', '<input id="ccRec" class="inp sm" type="number" min="0" max="100" step="any" value="' + (p.rec || '') + '">') + '</div>' +
