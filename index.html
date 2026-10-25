@@ -310,6 +310,10 @@ textarea.inp{font-size:13px;border-radius:8px}
 .frow{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;min-height:48px;padding:3px 0;border-bottom:1px solid #eee8ef}
 .frow>*{margin:0 6px 0 0}.frow>*:last-child{margin-right:0}
 .frow .fx{-webkit-box-flex:1;-webkit-flex:1;flex:1;min-width:0}
+.combo{position:fixed;z-index:2147483000;background:#fff;border:1px solid #c9bccd;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.18);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.combo .ci{padding:11px 10px;border-bottom:1px solid #f0eaf1;font-size:15px;cursor:pointer}
+.combo .ci span{color:#777;font-size:12px}
+.combo .ci.on,.combo .ci:active{background:#f3e6f5}
 .frow .inp.sm,.frow .mini,.frow .tg{height:40px;margin-top:0;margin-bottom:0}
 .frow .chk{padding:0;line-height:20px}
 .frow .ptIn{width:76px;-webkit-flex:none;flex:none;text-align:center;padding:2px 4px}
@@ -436,13 +440,13 @@ textarea.inp{font-size:13px;border-radius:8px}
   <button data-p="inicio">DASHBOARD</button>
   <button data-p="pedidos">PEDIDOS</button>
   <button data-p="cubicacion">CUBICACIÓN</button>
-  <button data-p="cotizador">COTIZADOR</button>
   <button data-p="packing">PACKING</button>
   <button data-p="despacho">DESPACHO</button>
   <button data-p="manifiesto">MANIFIESTO</button>
   <button data-p="seguimiento">SEGUIMIENTO</button>
   <button data-p="rotulado">ROTULADO</button>
   <button data-p="catalogo">CATÁLOGO</button>
+  <button data-p="cotizador">COTIZADOR</button>
   <button data-p="datos">DATOS</button>
 </div>
 <div id="main"></div>
@@ -460,7 +464,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.24.0', build: '2026-10-23', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.25.0', build: '2026-10-24', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1222,7 +1226,7 @@ var EnvioDatos = {
       var id = pref + c.k;
       if (c.k === 'region') return '<label class="lbl" for="' + id + '">' + c.n + '</label><select id="' + id + '" class="inp sm"><option value=""></option>' + U.map(REGIONES_CL, function (r) { return '<option' + (d.region === r ? ' selected' : '') + '>' + U.esc(r) + '</option>'; }).join('') + '</select>';
       var tipo = c.k === 'correo' ? 'email' : (c.k === 'telefono' ? 'tel' : 'text');
-      if (c.k === 'comuna') return '<label class="lbl" for="' + id + '">' + c.n + '</label><input id="' + id + '" class="inp sm" type="text" maxlength="' + c.max + '" autocomplete="off" list="dlComunas" data-comuna="' + pref + '" value="' + U.esc(d.comuna || '') + '">';
+      if (c.k === 'comuna') return '<label class="lbl" for="' + id + '">' + c.n + '</label><input id="' + id + '" class="inp sm" type="text" maxlength="' + c.max + '" autocomplete="off" data-combo="comuna" data-region="' + pref + 'region" data-comuna="' + pref + '" autocorrect="off" spellcheck="false" placeholder="Escriba o elija" value="' + U.esc(d.comuna || '') + '">';
       if (c.k === 'rut') return '<label class="lbl" for="' + id + '">' + c.n + ' <span class="unidad">opcional · con dígito verificador</span></label><input id="' + id + '" class="inp sm" type="text" maxlength="12" autocomplete="off" placeholder="12.345.678-9" value="' + U.esc(d.rut ? DespachoGrupo.rutFormato(d.rut) : '') + '">';
       return '<label class="lbl" for="' + id + '">' + c.n + '</label><input id="' + id + '" class="inp sm" type="' + tipo + '" maxlength="' + c.max + '" autocomplete="off"' + (c.k === 'telefono' ? ' inputmode="tel" placeholder="56912345678"' : '') + ' value="' + U.esc(d[c.k] || '') + '">';
     }).join('');
@@ -2127,7 +2131,6 @@ var Comunas = {
       Comunas.lista.push(o); (Comunas.idx[k] = Comunas.idx[k] || []).push(o);
     });
     Comunas.lista.sort(function (a, b) { return a.c < b.c ? -1 : (a.c > b.c ? 1 : 0); });
-    Comunas.datalist();
   },
   guardarLocal: function (filas, act, usuario) {
     var d = StorageManager.leer(CLAVES.cotizador, null) || {};
@@ -2141,12 +2144,6 @@ var Comunas = {
     if (!l || !l.length) return null;
     if (region) { var x = U.find(l, function (o) { return o.r === region; }); if (x) return x; }
     return l[0];
-  },
-  datalist: function () {
-    if (typeof document === 'undefined' || !document.body) return;
-    var dl = document.getElementById('dlComunas');
-    if (!dl) { dl = document.createElement('datalist'); dl.id = 'dlComunas'; document.body.appendChild(dl); }
-    dl.innerHTML = U.map(Comunas.lista, function (o) { return '<option value="' + U.esc(o.c) + '">' + U.esc(o.r) + '</option>'; }).join('');
   },
   analizar: function (txt) {
     var p = CSV.parse(txt), r = { filas: [], rechazadas: [], duplicadas: 0, regiones: {}, error: '' }, mapa = {}, k, a, vistos = {};
@@ -2169,6 +2166,65 @@ var Comunas = {
   },
   plantilla: function () { return '﻿COMUNA;PROVINCIA;REGION;CODIGO\r\nCHILLÁN;DIGUILLÍN;ÑUBLE;16101\r\nSANTIAGO;SANTIAGO;METROPOLITANA;13101\r\n'; },
   exportar: function () { return '﻿COMUNA;PROVINCIA;REGION;CODIGO\r\n' + U.map(Comunas.lista, function (o) { return U.map([o.c, o.p, o.r, o.k], function (v) { return CSV.campo(v, ';'); }).join(';'); }).join('\r\n') + '\r\n'; }
+};
+
+var Combo = {
+  inp: null, caja: null, items: [], idx: -1, t: null,
+  iniciar: function () {
+    if (Combo._ok || typeof document === 'undefined') return; Combo._ok = true;
+    var c = document.createElement('div'); c.id = 'comboLista'; c.className = 'combo'; c.style.display = 'none'; c.setAttribute('role', 'listbox'); document.body.appendChild(c); Combo.caja = c;
+    var es = function (el) { return el && el.getAttribute && el.getAttribute('data-combo') === 'comuna'; };
+    document.addEventListener('focus', function (e) { if (es(e.target)) { clearTimeout(Combo.t); Combo.abrir(e.target); } }, true);
+    document.addEventListener('input', function (e) { if (es(e.target)) { Combo.idx = -1; Combo.abrir(e.target); } }, true);
+    document.addEventListener('blur', function (e) { if (es(e.target)) { clearTimeout(Combo.t); Combo.t = setTimeout(Combo.cerrar, 220); } }, true);
+    document.addEventListener('keydown', function (e) {
+      if (!es(e.target) || Combo.inp !== e.target) return;
+      var k = e.keyCode || e.which, abierta = Combo.caja.style.display !== 'none';
+      if (k === 40 || k === 38) { if (!abierta) Combo.abrir(e.target); if (!Combo.items.length) return; e.preventDefault(); Combo.idx = (Combo.idx + (k === 40 ? 1 : -1) + Combo.items.length) % Combo.items.length; Combo.pintar(); return; }
+      if (k === 27) { Combo.cerrar(); return; }
+      if (UI.esEnter(e) && abierta) { var o = Combo.idx >= 0 ? Combo.items[Combo.idx] : (Combo.items.length === 1 ? Combo.items[0] : null); if (o) Combo.elegir(o); Combo.cerrar(); }
+    }, true);
+    document.addEventListener('change', function (e) { var t = e.target; if (Combo.inp && t && t.id && Combo.inp.getAttribute('data-region') === t.id && document.activeElement === Combo.inp) Combo.abrir(Combo.inp); }, true);
+    c.addEventListener('mousedown', function (e) { if (e.preventDefault) e.preventDefault(); }, false);
+    c.addEventListener('click', function (e) { var el = U.cerca(e.target, 'data-ci', c); if (!el) return; var o = Combo.items[+el.getAttribute('data-ci')]; if (o) { Combo.elegir(o); Combo.cerrar(); } }, false);
+    var rep = function () { if (Combo.inp && Combo.caja.style.display !== 'none') Combo.ubicar(); };
+    window.addEventListener('scroll', rep, true); window.addEventListener('resize', rep, false);
+  },
+  buscar: function (inp) {
+    var q = Comunas.clave(inp.value), rid = inp.getAttribute('data-region'), rs = rid && U.$(rid) ? U.$(rid).value : '', ini = [], con = [];
+    if (!Comunas.lista.length) return [];
+    U.each(Comunas.lista, function (o) {
+      var k = Comunas.clave(o.c);
+      if (!q) { if (!rs || o.r === rs) ini.push(o); return; }
+      if (k.indexOf(q) === 0) ini.push(o); else if (k.indexOf(q) > 0) con.push(o);
+    });
+    if (rs && q) { var pr = function (a, b) { return (a.r === rs ? 0 : 1) - (b.r === rs ? 0 : 1); }; ini.sort(pr); con.sort(pr); }
+    return ini.concat(con).slice(0, 40);
+  },
+  abrir: function (inp) {
+    Combo.iniciar(); Combo.inp = inp; Combo.items = Combo.buscar(inp);
+    if (!Combo.items.length || (Combo.items.length === 1 && Comunas.clave(Combo.items[0].c) === Comunas.clave(inp.value))) { Combo.cerrar(); return; }
+    Combo.pintar(); Combo.caja.style.display = 'block'; Combo.ubicar();
+  },
+  pintar: function () {
+    Combo.caja.innerHTML = U.map(Combo.items, function (o, i) { return '<div class="ci' + (i === Combo.idx ? ' on' : '') + '" data-ci="' + i + '" role="option"><b>' + U.esc(o.c) + '</b> <span>' + U.esc(o.r) + '</span></div>'; }).join('');
+    var on = Combo.caja.querySelector('.on'); if (on && on.scrollIntoView) { var r = on.getBoundingClientRect(), cr = Combo.caja.getBoundingClientRect(); if (r.bottom > cr.bottom || r.top < cr.top) on.scrollIntoView(false); }
+  },
+  ubicar: function () {
+    var r = Combo.inp.getBoundingClientRect(), h = window.innerHeight || 600, abajo = h - r.bottom, alto = Math.min(240, Math.max(abajo, r.top) - 8);
+    Combo.caja.style.left = Math.round(r.left) + 'px'; Combo.caja.style.width = Math.round(r.width) + 'px'; Combo.caja.style.maxHeight = Math.max(120, alto) + 'px';
+    if (abajo >= 160 || abajo >= r.top) { Combo.caja.style.top = Math.round(r.bottom + 2) + 'px'; Combo.caja.style.bottom = 'auto'; }
+    else { Combo.caja.style.top = 'auto'; Combo.caja.style.bottom = Math.round(h - r.top + 2) + 'px'; }
+  },
+  elegir: function (o) {
+    var inp = Combo.inp; if (!inp) return;
+    inp.value = o.c;
+    var rid = inp.getAttribute('data-region'), rs = rid && U.$(rid);
+    if (rs && REGIONES_CL.indexOf(o.r) >= 0) rs.value = o.r;
+    var ev = function (n) { var x; try { x = new Event(n, { bubbles: true }); } catch (e) { x = document.createEvent('HTMLEvents'); x.initEvent(n, true, false); } inp.dispatchEvent(x); };
+    ev('input'); ev('change');
+  },
+  cerrar: function () { if (Combo.caja) { Combo.caja.style.display = 'none'; Combo.caja.innerHTML = ''; } Combo.idx = -1; Combo.items = []; }
 };
 
 var COT_URL_ERP = { CHILEXPRESS: 'https://www.chilexpress.cl/cotizadordeenvios', STARKEN: 'https://www.starken.cl/cotizador', 'BLUE EXPRESS': 'https://www.blue.cl/', 'CORREOS DE CHILE': 'https://www.correos.cl/', 'PULLMAN CARGO': 'http://www.pullmancargo.cl/' };
@@ -2198,10 +2254,12 @@ var Cotizador = {
     }, function (m) { if (cb) cb(false, m); });
   },
   param: function (c) {
-    var p = Cotizador.datos.couriers[c] || {};
-    return { courier: c, en: p.en !== false && !(p.en == null && /RETIRO/.test(c)), fv: Number(p.fv) || 0, red: p.red || 'ENTERO', min: Number(p.min) || 0, cobro: p.cobro === 'ENVIO' ? 'ENVIO' : 'BULTO',
-      rec: Number(p.rec) || 0, seg: Number(p.seg) || 0, url: p.url || '', urlErp: !p.url && COT_URL_ERP[c] ? COT_URL_ERP[c] : '', fuente: p.fuente || '', desde: p.desde || '', hasta: p.hasta || '',
-      verPor: p.verPor || '', verFecha: p.verFecha || '', notas: p.notas || '', act: p.act || '', usuario: p.usuario || '', existe: !!Cotizador.datos.couriers[c] };
+    var p = Cotizador.datos.couriers[c] || {}, n = function (k) { return Number(p[k]) || 0; };
+    return { courier: c, en: p.en !== false && !(p.en == null && /RETIRO/.test(c)), fv: n('fv'), red: p.red || 'ENTERO', min: n('min'), cobro: p.cobro === 'ENVIO' ? 'ENVIO' : 'BULTO',
+      rec: n('rec'), seg: n('seg'), url: p.url || '', urlErp: !p.url && COT_URL_ERP[c] ? COT_URL_ERP[c] : '', fuente: p.fuente || '', desde: p.desde || '', hasta: p.hasta || '',
+      verPor: p.verPor || '', verFecha: p.verFecha || '', notas: p.notas || '', act: p.act || '', usuario: p.usuario || '', existe: !!Cotizador.datos.couriers[c],
+      volDesde: n('volDesde'), sucFisico: !!p.sucFisico, sdDims: p.sdDims || '', sdKg: n('sdKg'), sdCargo: n('sdCargo'), cargoBulto: n('cargoBulto'), ppSuc: n('ppSuc'), ppDom: n('ppDom'),
+      zePct: n('zePct'), zeLista: p.zeLista || '', retiro: n('retiro'), iva: p.iva === 'MAS_IVA' ? 'MAS_IVA' : 'INCLUIDO', maxKg: n('maxKg'), maxLado: n('maxLado'), maxSuma: n('maxSuma') };
   },
   tarifas: function (c) {
     if (!Cotizador._idx) {
@@ -2233,23 +2291,37 @@ var Cotizador = {
     if (!t) return null;
     return { monto: t.pr + (t.ad > 0 ? t.ad * Math.max(0, Math.ceil(kg - t.de - e)) : 0), pl: t.pl };
   },
-  pesos: function (bultos, p) {
-    var f = p.fv || Number(DB.cfg.factorVol) || 5000, l = [], tr = 0, tv = 0, tb = 0;
+  dims: function (t) { var m = String(t || '').toLowerCase().replace(/\s/g, '').replace(/[×*]/g, 'x').split('x'); if (m.length !== 3) return null; var r = U.map(m, function (v) { return U.num(v); }); for (var i = 0; i < 3; i++) if (!(r[i] > 0)) return null; return r.sort(function (a, b) { return a - b; }); },
+  enLista: function (lista, dest) {
+    var ok = false;
+    U.each(String(lista || '').split(/[,;\n]+/), function (x) { var k = Comunas.clave(x); if (!k || ok) return; if (dest.comuna && k === Comunas.clave(dest.comuna)) ok = true; else if (dest.region && Comunas.region(x) === dest.region && !Comunas.buscar(x, '')) ok = true; });
+    return ok;
+  },
+  pesos: function (bultos, p, op) {
+    op = op || {};
+    var f = p.fv || Number(DB.cfg.factorVol) || 5000, l = [], tr = 0, tv = 0, tb = 0, sdLim = Cotizador.dims(p.sdDims), soloFis = op.modalidad === 'SUCURSAL' && p.sucFisico;
     U.each(bultos, function (b) {
-      var real = Number(b.peso) || 0, vol = (Number(b.ancho) || 0) * (Number(b.alto) || 0) * (Number(b.largo) || 0) / f, base = Math.max(real, vol, p.min), kg = Cotizador.redondear(base, p.red);
+      var a = Number(b.ancho) || 0, al = Number(b.alto) || 0, la = Number(b.largo) || 0, real = Number(b.peso) || 0, ls = [a, al, la].sort(function (x, y) { return x - y; }), maxL = ls[2], suma = a + al + la;
+      var usa = !soloFis && (!p.volDesde || maxL > p.volDesde), vol = usa ? a * al * la / f : 0, base = Math.max(real, vol, p.min), kg = Cotizador.redondear(base, p.red), no = '';
+      if (p.maxKg && real > p.maxKg) no = 'pesa más de ' + p.maxKg + ' kg';
+      else if (p.maxLado && maxL > p.maxLado) no = 'un lado supera ' + p.maxLado + ' cm';
+      else if (p.maxSuma && suma > p.maxSuma) no = 'la suma de lados supera ' + p.maxSuma + ' cm';
+      var sd = (p.sdKg > 0 && real > p.sdKg) || (!!sdLim && (ls[0] > sdLim[0] || ls[1] > sdLim[1] || ls[2] > sdLim[2]));
       tr += real; tv += vol; tb += Math.max(real, vol);
-      l.push({ real: real, vol: Math.round(vol * 100) / 100, kg: kg, dom: vol > real ? 'vol' : 'real' });
+      l.push({ real: real, vol: Math.round(vol * 100) / 100, kg: kg, dom: vol > real ? 'vol' : 'real', usaVol: usa, sd: sd && (p.sdCargo > 0), no: no });
     });
     var kgEnv = Cotizador.redondear(Math.max(tb, p.min), p.red), kgSum = 0;
     U.each(l, function (x) { kgSum += x.kg; });
-    return { factor: f, fOk: !!p.fv, bultos: l, real: Math.round(tr * 100) / 100, vol: Math.round(tv * 100) / 100, kg: p.cobro === 'ENVIO' ? kgEnv : Math.round(kgSum * 100) / 100 };
+    return { factor: f, fOk: !!p.fv, soloFis: soloFis, bultos: l, real: Math.round(tr * 100) / 100, vol: Math.round(tv * 100) / 100, kg: p.cobro === 'ENVIO' ? kgEnv : Math.round(kgSum * 100) / 100 };
   },
   calcular: function (op) {
-    var dest = { comuna: U.norm(op.comuna || ''), region: op.region || '' }, hoy = U.fechaISO(), out = [];
+    var dest = { comuna: U.norm(op.comuna || ''), region: op.region || '' }, hoy = U.fechaISO(), out = [], mod = op.modalidad === 'SUCURSAL' ? 'SUCURSAL' : 'DOMICILIO';
     if (dest.comuna && !dest.region) { var cm = Comunas.buscar(dest.comuna, ''); if (cm) dest.region = cm.r; }
     U.each(Cotizador.couriers(), function (c) {
-      var p = c.p, ps = Cotizador.pesos(op.bultos, p), ts = Cotizador.tarifas(c.v), base = { courier: c.v, nombre: c.n, p: p, pesos: ps, kg: ps.kg, url: p.url || p.urlErp };
-      if (!ts.length) { out.push(U.assign(base, { servicio: '', estado: 'SIN_TARIFA', total: 0, avisos: [] })); return; }
+      var p = c.p, ps = Cotizador.pesos(op.bultos, p, { modalidad: mod }), ts = Cotizador.tarifas(c.v), base = { courier: c.v, nombre: c.n, p: p, pesos: ps, kg: ps.kg, url: p.url || p.urlErp, avisos: [] };
+      var noAd = U.find(ps.bultos, function (x) { return !!x.no; }), idxNo = U.map(ps.bultos, function (x) { return x.no; }).indexOf(noAd ? noAd.no : '#');
+      if (noAd) { out.push(U.assign(base, { servicio: '', estado: 'NO_ADMITE', total: 0, motivo: 'Bulto ' + (idxNo + 1) + ': ' + noAd.no })); return; }
+      if (!ts.length) { out.push(U.assign(base, { servicio: '', estado: 'SIN_TARIFA', total: 0 })); return; }
       var porS = {}, ordS = [];
       U.each(ts, function (t) { if (!porS[t.s]) { porS[t.s] = []; ordS.push(t.s); } porS[t.s].push(t); });
       U.each(ordS, function (s) {
@@ -2260,14 +2332,27 @@ var Cotizador = {
         if (!mejor) { r.estado = 'SIN_DESTINO'; out.push(r); return; }
         var sel = U.filter(rows, function (t) { return Cotizador.nivel(t, dest) === mejor; });
         sel.sort(function (a, b) { return a.de - b.de; });
-        var sub = 0, falla = false, pl = null, kgs = p.cobro === 'ENVIO' ? [ps.kg] : U.map(ps.bultos, function (x) { return x.kg; });
-        U.each(kgs, function (kg) { var q = Cotizador.precio(sel, kg); if (!q) { falla = true; return; } sub += q.monto; if (q.pl != null && (pl == null || q.pl > pl)) pl = q.pl; });
+        var flete = 0, falla = false, pl = null, kgs = p.cobro === 'ENVIO' ? [ps.kg] : U.map(ps.bultos, function (x) { return x.kg; });
+        U.each(kgs, function (kg) { var q = Cotizador.precio(sel, kg); if (!q) { falla = true; return; } flete += q.monto; if (q.pl != null && (pl == null || q.pl > pl)) pl = q.pl; });
         if (falla) { r.estado = 'EXCEDE'; out.push(r); return; }
-        var rec = Math.round(sub * p.rec / 100), seg = op.valor > 0 ? Math.round(op.valor * p.seg / 100) : 0;
-        r.sub = Math.round(sub); r.rec = rec; r.seg = seg; r.total = Math.round(sub) + rec + seg; r.plazo = pl;
+        flete = Math.round(flete);
+        var nSd = U.filter(ps.bultos, function (x) { return x.sd; }).length, d = { flete: flete };
+        d.sobredim = nSd * Math.round(p.sdCargo);
+        d.bultos = Math.max(0, op.bultos.length - 1) * Math.round(p.cargoBulto);
+        d.combustible = Math.round(flete * p.rec / 100);
+        d.zona = p.zePct && Cotizador.enLista(p.zeLista, dest) ? Math.round(flete * p.zePct / 100) : 0;
+        var sub = flete + d.sobredim + d.bultos + d.combustible + d.zona;
+        d.porPagar = op.porPagar ? Math.round(sub * (mod === 'SUCURSAL' ? p.ppSuc : p.ppDom) / 100) : 0;
+        d.retiro = op.retiro ? Math.round(p.retiro) : 0;
+        d.seguro = op.valor > 0 ? Math.round(op.valor * p.seg / 100) : 0;
+        var neto = sub + d.porPagar + d.retiro + d.seguro;
+        d.iva = p.iva === 'MAS_IVA' ? Math.round(neto * 0.19) : 0;
+        r.d = d; r.sub = flete; r.total = neto + d.iva; r.plazo = pl;
         r.estado = p.hasta && p.hasta < hoy ? 'VENCIDA' : (p.desde && p.desde > hoy ? 'FUTURA' : 'OK');
-        if (!ps.fOk) av.push('Factor volumétrico no confirmado para este courier: se usó el general (' + ps.factor + ').');
+        if (!ps.fOk && !ps.soloFis) av.push('Factor volumétrico no confirmado para este courier: se usó el general (' + ps.factor + ').');
         if (!p.fuente) av.push('Tarifa sin fuente registrada.');
+        if (op.porPagar && !(mod === 'SUCURSAL' ? p.ppSuc : p.ppDom)) av.push('Por pagar: este courier no tiene recargo registrado para ' + (mod === 'SUCURSAL' ? 'sucursal' : 'domicilio') + '.');
+        if (op.retiro && !p.retiro) av.push('Retiro: este courier no tiene cargo de retiro registrado.');
         out.push(r);
       });
     });
@@ -2275,7 +2360,14 @@ var Cotizador = {
     out.sort(function (a, b) { var d = rango(a) - rango(b); if (d) return d; if (a.total && b.total) return a.total - b.total; return a.nombre < b.nombre ? -1 : 1; });
     return out;
   },
-  ESTADOS: { OK: ['ABIERTA', 'TARIFA VIGENTE'], VENCIDA: ['ANULADO', 'TARIFA VENCIDA'], FUTURA: ['PENDIENTE', 'AÚN NO VIGENTE'], SIN_TARIFA: ['CERRADA', 'SIN TARIFA CARGADA'], SIN_DESTINO: ['CERRADA', 'SIN TARIFA PARA ESTE DESTINO'], EXCEDE: ['PENDIENTE', 'PESO FUERA DE LA TARIFA'] },
+  ESTADOS: { OK: ['ABIERTA', 'TARIFA VIGENTE'], VENCIDA: ['ANULADO', 'TARIFA VENCIDA'], FUTURA: ['PENDIENTE', 'AÚN NO VIGENTE'], SIN_TARIFA: ['CERRADA', 'SIN TARIFA CARGADA'], SIN_DESTINO: ['CERRADA', 'SIN TARIFA PARA ESTE DESTINO'], EXCEDE: ['PENDIENTE', 'PESO FUERA DE LA TARIFA'], NO_ADMITE: ['ANULADO', 'NO ADMITE ESTE BULTO'] },
+  DESGLOSE: [['flete', 'Flete'], ['sobredim', 'sobredimensión'], ['bultos', 'bultos adicionales'], ['combustible', 'recargo'], ['zona', 'zona extrema'], ['porPagar', 'por pagar'], ['retiro', 'retiro'], ['seguro', 'seguro'], ['iva', 'IVA']],
+  PUBLICADOS: {
+    CHILEXPRESS: { fuente: 'Guía de Servicios Chilexpress (cxpgdastprod.blob.core.windows.net/mdn/documentos/Guia_de_servicios.pdf) y enviafacil.cl/chilexpress/tarifas', v: { fv: 4000, volDesde: 60, sdDims: '80x80x120', sdKg: 50, sdCargo: 3500, ppSuc: 10, ppDom: 15, maxKg: 100, maxLado: 200 },
+      txt: 'Volumétrico = ancho × alto × largo / 4000, si algún lado supera 60 cm · sobredimensión sobre 50 kg u 80×80×120 cm: $3.500 · por pagar +10 % sucursal, +15 % domicilio · máx. 100 kg por caja. Sectores apartados o rurales +20 % (fuente secundaria; complete la lista de comunas).', ze: 20 },
+    'CORREOS DE CHILE': { fuente: 'Jumpseller · Correos de Chile (jumpseller.cl/support/correos-de-chile)', v: { fv: 4000, sucFisico: true, maxKg: 50, maxLado: 200, maxSuma: 300 },
+      txt: 'Contratos empresa: máximo entre peso físico y volumétrico a 250 kg/m³ (= factor 4000) · en sucursal solo cuenta el peso físico · máx. 50 kg, ningún lado sobre 2 m y suma de lados hasta 3 m.' }
+  },
   plantilla: function () {
     return '﻿SERVICIO;DESTINO_TIPO;DESTINO;DESDE_KG;HASTA_KG;PRECIO;KG_ADICIONAL;PLAZO_DIAS\r\nNORMAL;TODO;;0;1;0;0;\r\nNORMAL;REGION;METROPOLITANA;1;;0;0;\r\nNORMAL;COMUNA;CHILLÁN;0;5;0;0;\r\n';
   },
@@ -2332,7 +2424,7 @@ var CotUI = {
     UI.modal({ titulo: 'COTIZADOR DE ENVÍO', html: '<div id="cotRaiz"></div>', botones: [{ txt: 'CERRAR', cls: 'btn-sec' }], alAbrir: function () { CotUI.montar(U.$('cotRaiz'), op || {}); } });
   },
   estado: function (op) {
-    var st = { bultos: [], comuna: '', region: '', valor: 0, ref: op.ref || '', docKey: op.docKey || '', id: '', obs: {}, res: [], aviso: op.aviso || '' };
+    var st = { bultos: [], comuna: '', region: '', valor: 0, modalidad: 'DOMICILIO', porPagar: false, retiro: false, ref: op.ref || '', docKey: op.docKey || '', id: '', obs: {}, res: [], aviso: op.aviso || '' };
     U.each(op.bultos || [], function (b) { var x = { ancho: U.num(b.ancho), alto: U.num(b.alto), largo: U.num(b.largo), peso: U.num(b.peso), desc: b.desc || b.productoDesc || '' }; if (x.ancho > 0 && x.alto > 0 && x.largo > 0 && x.peso > 0) st.bultos.push(x); });
     var d = op.destino || {};
     st.comuna = U.norm(d.comuna || ''); st.region = d.region || '';
@@ -2345,10 +2437,12 @@ var CotUI = {
     var rem = EnvioDatos.remitenteDefecto(), origen = U.trim([rem.comuna, rem.region].filter(function (x) { return !!U.trim(x); }).join(' · '));
     host.innerHTML = (st.ref ? '<div class="tot"><b>' + U.esc(st.ref) + '</b></div>' : '') + (st.aviso ? '<div class="aviso amar" style="font-size:13px">' + U.esc(st.aviso) + '</div>' : '') +
       '<div class="muted">Origen: <b>' + (origen ? U.esc(origen) : 'sin remitente por defecto (Datos)') + '</b> · las tarifas cargadas corresponden a envíos desde la bodega.</div>' +
-      '<div class="fila"><div class="c2"><label class="lbl" for="ctComuna">COMUNA DESTINO</label><input id="ctComuna" class="inp sm" list="dlComunas" autocomplete="off" value="' + U.esc(st.comuna) + '" data-next="ctValor"></div>' +
+      '<div class="fila"><div class="c2"><label class="lbl" for="ctComuna">COMUNA DESTINO</label><input id="ctComuna" class="inp sm" data-combo="comuna" data-region="ctRegion" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Escriba o elija" value="' + U.esc(st.comuna) + '" data-next="ctValor"></div>' +
       '<div class="c2"><label class="lbl" for="ctRegion">REGIÓN</label><select id="ctRegion" class="inp sm"><option value=""></option>' + U.map(REGIONES_CL, function (r) { return '<option' + (st.region === r ? ' selected' : '') + '>' + U.esc(r) + '</option>'; }).join('') + '</select></div></div>' +
       '<div id="ctDestInfo" class="muted"></div>' +
       '<label class="lbl" for="ctValor">VALOR DECLARADO $ <span class="unidad">opcional · para seguro</span></label><input id="ctValor" class="inp sm" type="number" inputmode="numeric" min="0" step="1" value="' + (st.valor || '') + '" data-next="ctA">' +
+      '<div class="fila"><div class="c2"><label class="lbl" for="ctMod">ENTREGA</label><select id="ctMod" class="inp sm"><option value="DOMICILIO"' + (st.modalidad !== 'SUCURSAL' ? ' selected' : '') + '>A domicilio</option><option value="SUCURSAL"' + (st.modalidad === 'SUCURSAL' ? ' selected' : '') + '>Retira en sucursal</option></select></div>' +
+      '<div class="c2"><label class="chk" style="margin-top:22px"><input type="checkbox" id="ctPP"' + (st.porPagar ? ' checked' : '') + '> Por pagar</label><label class="chk"><input type="checkbox" id="ctRet"' + (st.retiro ? ' checked' : '') + '> Con retiro en bodega</label></div></div>' +
       '<h2 style="margin-top:12px">BULTOS</h2><div id="ctBultos"></div>' +
       '<div class="fila num"><div class="c"><label class="lbl">ANCHO cm</label><input id="ctA" class="inp sm" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="ctAl"></div><div class="c"><label class="lbl">ALTO cm</label><input id="ctAl" class="inp sm" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="ctL"></div><div class="c"><label class="lbl">LARGO cm</label><input id="ctL" class="inp sm" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="ctP"></div></div>' +
       '<div class="fila"><div class="c"><label class="lbl">PESO kg</label><input id="ctP" class="inp sm" type="number" step="any" inputmode="decimal" enterkeyhint="done" data-enter="ctAgregar"></div><div class="c"><label class="lbl">CANTIDAD</label><input id="ctN" class="inp sm" type="number" min="1" max="50" step="1" value="1" data-enter="ctAgregar"></div></div>' +
@@ -2356,7 +2450,7 @@ var CotUI = {
       '<label class="lbl" for="ctProd">…O DESDE UN PRODUCTO <span class="unidad">usa las medidas de su ficha</span></label><input id="ctProd" class="inp sm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra o nombre" data-enter="ctProdEnter"><div id="ctProdRes"></div>' +
       '<h2 style="margin-top:12px">RESULTADO POR COURIER</h2><div id="ctRes"></div>' +
       '<div class="btns"><button class="btn btn-ok btn-sm" data-a="ctGuardar">GUARDAR COTIZACIÓN</button><button class="btn btn-sec btn-sm" data-a="ctLimpiar">LIMPIAR BULTOS</button></div><div id="ctMsg" class="muted"></div>';
-    var leerDest = function () { st.comuna = U.norm(U.$('ctComuna').value); st.region = U.$('ctRegion').value; st.valor = Math.max(0, Math.round(U.num(U.$('ctValor').value) || 0)); };
+    var leerDest = function () { st.comuna = U.norm(U.$('ctComuna').value); st.region = U.$('ctRegion').value; st.valor = Math.max(0, Math.round(U.num(U.$('ctValor').value) || 0)); st.modalidad = U.$('ctMod').value; st.porPagar = U.$('ctPP').checked; st.retiro = U.$('ctRet').checked; };
     var infoDest = function () {
       var el = U.$('ctDestInfo'), v = U.$('ctComuna').value;
       if (!Comunas.lista.length) { el.innerHTML = 'Sin lista de comunas cargada: escriba la comuna y elija la región (Datos → Cotizador para cargarla).'; return; }
@@ -2376,7 +2470,7 @@ var CotUI = {
     var pintarRes = function () {
       var el = U.$('ctRes');
       if (!st.bultos.length) { el.innerHTML = ''; st.res = []; return; }
-      st.res = Cotizador.calcular({ bultos: st.bultos, comuna: st.comuna, region: st.region, valor: st.valor });
+      st.res = Cotizador.calcular({ bultos: st.bultos, comuna: st.comuna, region: st.region, valor: st.valor, modalidad: st.modalidad, porPagar: st.porPagar, retiro: st.retiro });
       if (!st.res.length) { el.innerHTML = '<div class="aviso amar">No hay couriers habilitados en el cotizador (Datos → Listas de selección y Cotizador).</div>'; return; }
       var sinDest = !st.comuna && !st.region;
       var conP = [], sinP = [];
@@ -2386,16 +2480,16 @@ var CotUI = {
         U.map(conP, function (i) { return tarjeta(st.res[i], i); }).join('') +
         (sinP.length ? '<div class="card" style="margin-top:8px;padding:8px"><b>SIN PRECIO ESTIMADO</b><div class="muted">Consulte en el sitio; el kg cobrable es referencial.</div>' + U.map(sinP, function (i) {
           var r = st.res[i], e = Cotizador.ESTADOS[r.estado] || ['CERRADA', r.estado];
-          return '<div class="frow" style="padding:6px 0;border-top:1px solid #eee8ef;align-items:center"><span class="fx"><b>' + U.esc(r.nombre) + '</b>' + (r.servicio ? ' · ' + U.esc(r.servicio) : '') + '<br><span class="muted">' + e[1] + ' · ' + r.kg + ' kg cobrables' + (r.pesos.fOk ? '' : ' (factor no confirmado)') + '</span></span>' +
+          return '<div class="frow" style="padding:6px 0;border-top:1px solid #eee8ef;align-items:center"><span class="fx"><b>' + U.esc(r.nombre) + '</b>' + (r.servicio ? ' · ' + U.esc(r.servicio) : '') + '<br><span class="muted">' + e[1] + (r.motivo ? ': ' + U.esc(r.motivo) : ' · ' + r.kg + ' kg cobrables' + (r.pesos.fOk || r.pesos.soloFis ? '' : ' (factor no confirmado)')) + '</span></span>' +
             (r.url ? '<button class="mini" data-a="ctIr" data-x="' + i + '" aria-label="Ir al sitio de ' + U.esc(r.nombre) + '">↗</button>' : '') + '<button class="mini" data-a="ctCopiar" data-x="' + i + '" aria-label="Copiar datos para ' + U.esc(r.nombre) + '">⧉</button></div>';
         }).join('') + '</div>' : '');
     };
     var tarjeta = function (r, i) {
         var e = Cotizador.ESTADOS[r.estado] || ['CERRADA', r.estado], p = r.p, ob = st.obs[r.courier];
-        var kgTxt = r.kg + ' kg cobrables' + (p.cobro === 'ENVIO' ? ' (por envío)' : ' (suma por bulto)') + ' · real ' + U.fx(r.pesos.real, 2) + ' · vol. ' + U.fx(r.pesos.vol, 2) + ' (factor ' + r.pesos.factor + (r.pesos.fOk ? '' : ', no confirmado') + ')';
+        var kgTxt = r.kg + ' kg cobrables' + (p.cobro === 'ENVIO' ? ' (por envío)' : ' (suma por bulto)') + ' · real ' + U.fx(r.pesos.real, 2) + (r.pesos.soloFis ? ' · en sucursal solo cuenta el peso físico' : ' · vol. ' + U.fx(r.pesos.vol, 2) + ' (factor ' + r.pesos.factor + (r.pesos.fOk ? '' : ', no confirmado') + (p.volDesde ? ', si un lado supera ' + p.volDesde + ' cm' : '') + ')') + (U.filter(r.pesos.bultos, function (x) { return x.sd; }).length ? ' · ' + U.filter(r.pesos.bultos, function (x) { return x.sd; }).length + ' bulto(s) sobredimensionado(s)' : '');
         var h = '<div class="doc"><div class="dh"><div><b style="font-size:17px">' + U.esc(r.nombre) + '</b>' + (r.servicio ? ' · ' + U.esc(r.servicio) : '') + '</div><span class="est ' + e[0] + '">' + e[1] + '</span></div>';
         if (r.total > 0) h += '<div style="font-size:24px;font-weight:bold;margin:4px 0">' + U.clp(r.total) + ' <span class="muted" style="font-size:13px;font-weight:normal">estimado</span></div>' +
-          '<div class="s">Flete ' + U.clp(r.sub) + (r.rec ? ' + recargo ' + U.clp(r.rec) : '') + (r.seg ? ' + seguro ' + U.clp(r.seg) : '') + (r.plazo != null ? ' · plazo ' + r.plazo + ' día(s) hábil(es)' : '') + ' · tarifa por ' + (r.nivel === 3 ? 'comuna' : (r.nivel === 2 ? 'región' : 'todo Chile')) + '</div>';
+          '<div class="s">' + U.map(U.filter(Cotizador.DESGLOSE, function (k) { return r.d[k[0]] > 0; }), function (k, n) { return (n ? '+ ' : '') + k[1] + ' ' + U.clp(r.d[k[0]]); }).join(' ') + (r.plazo != null ? ' · plazo ' + r.plazo + ' día(s) hábil(es)' : '') + ' · tarifa por ' + (r.nivel === 3 ? 'comuna' : (r.nivel === 2 ? 'región' : 'todo Chile')) + '</div>';
         h += '<div class="s">' + U.esc(kgTxt) + '</div>';
         if (r.total > 0) h += '<div class="muted">Fuente: ' + U.esc(p.fuente || 'sin registrar') + (p.desde ? ' · vigente desde ' + U.esc(U.fechaCL(p.desde)) : '') + (p.hasta ? ' hasta ' + U.esc(U.fechaCL(p.hasta)) : '') + (p.verPor ? ' · cargada por ' + U.esc(p.verPor) + (p.verFecha ? ' el ' + U.esc(U.fechaCL(p.verFecha)) : '') : '') + '</div>';
         U.each(r.avisos || [], function (a) { h += '<div class="muted" style="color:#9a5b00">⚠ ' + U.esc(a) + '</div>'; });
@@ -2434,7 +2528,7 @@ var CotUI = {
       if (!st.bultos.length) { if (!silencio) UI.toast('Agregue bultos', 'error'); return; }
       if (!Cotizador.activo()) { if (!silencio) UI.toast('Equipo sin conexión a la planilla: la cotización no se guardó', 'warn', 4000); if (cb) cb(null); return; }
       var cot = { id: st.id, referencia: st.ref, docKey: st.docKey, origen: origen, comuna: st.comuna, region: st.region, valorDeclarado: st.valor, bultos: st.bultos,
-        resultado: U.map(st.res, function (r) { return { courier: r.courier, servicio: r.servicio, total: r.total, kg: r.kg, estado: r.estado }; }) };
+        opciones: { modalidad: st.modalidad, porPagar: st.porPagar, retiro: st.retiro }, resultado: U.map(st.res, function (r) { return { courier: r.courier, servicio: r.servicio, total: r.total, kg: r.kg, estado: r.estado }; }) };
       U.$('ctMsg').innerHTML = 'Guardando…';
       Sync.llamar('satCotizacionGuardar', { cot: cot, usuario: DB.cfg.operador || '' }, function (r) {
         st.id = r.cotizacion.id; st.obs = r.cotizacion.observados || {};
@@ -2485,7 +2579,7 @@ var CotUI = {
     host.onchange = function (e) {
       var id = e.target.id;
       if (id === 'ctComuna') { var o = Comunas.buscar(e.target.value, ''); if (o) { e.target.value = o.c; U.$('ctRegion').value = REGIONES_CL.indexOf(o.r) >= 0 ? o.r : ''; } }
-      if (id === 'ctComuna' || id === 'ctRegion' || id === 'ctValor') { leerDest(); infoDest(); pintarRes(); }
+      if (id === 'ctComuna' || id === 'ctRegion' || id === 'ctValor' || id === 'ctMod' || id === 'ctPP' || id === 'ctRet') { leerDest(); infoDest(); pintarRes(); }
     };
     host.onkeydown = function (e) {
       if (!UI.esEnter(e)) return;
@@ -3632,7 +3726,7 @@ var App = {
     DB.cargar();
     StorageManager.iniciarGrande(function () {
       Ubicaciones.cargar(); Medidas.cargar(); Catalogo.cargar(); CorreosSat.cargar(); Comunas.cargar(); Cotizador.cargar();
-      if (App.pantalla && App.pantalla !== 'inicio' && !UI.abierto()) App.ir(App.pantalla, true);
+      if (App.pantalla && App.pantalla !== 'inicio' && !UI.abierto() && !App.escribiendo()) App.ir(App.pantalla, true);
     });
     document.addEventListener('change', function (e) {
       var t = e.target;
@@ -3641,6 +3735,7 @@ var App = {
       if (o) { t.value = o.c; if (r && REGIONES_CL.indexOf(o.r) >= 0) r.value = o.r; }
       else UI.toast('La comuna «' + U.norm(t.value) + '» no está en la lista de comunas: revise la escritura', 'warn', 4000);
     }, true);
+    Combo.iniciar();
     Alta.aplicar();
     U.$('nav').onclick = function (e) { var b = U.cerca(e.target, 'data-p', this); if (b) App.ir(b.getAttribute('data-p')); };
     var integ = Integridad.verificar();
@@ -7137,7 +7232,9 @@ Pantallas.datos = function (m) {
   };
   var ccLeerForm = function () {
     var g = function (id) { var el = U.$(id); return el ? U.trim(String(el.value || '')) : ''; }, n = function (id) { var v = g(id); return v === '' ? null : U.num(v); };
-    return { en: U.$('ccEn').checked, fv: n('ccFv'), red: g('ccRed'), min: n('ccMin'), cobro: g('ccCobro'), rec: n('ccRec'), seg: n('ccSeg'), url: g('ccUrl'), fuente: g('ccFuente'), desde: g('ccDesde'), hasta: g('ccHasta'), notas: g('ccNotas'), verPor: Cotizador.param(ccCual).verPor, verFecha: Cotizador.param(ccCual).verFecha };
+    return { en: U.$('ccEn').checked, fv: n('ccFv'), red: g('ccRed'), min: n('ccMin'), cobro: g('ccCobro'), rec: n('ccRec'), seg: n('ccSeg'), url: g('ccUrl'), fuente: g('ccFuente'), desde: g('ccDesde'), hasta: g('ccHasta'), notas: g('ccNotas'), verPor: Cotizador.param(ccCual).verPor, verFecha: Cotizador.param(ccCual).verFecha,
+      volDesde: n('ccVolDesde'), sucFisico: U.$('ccSucFis').checked, sdDims: g('ccSdDims'), sdKg: n('ccSdKg'), sdCargo: n('ccSdCargo'), cargoBulto: n('ccBultoAd'), retiro: n('ccRetiro'), ppSuc: n('ccPpSuc'), ppDom: n('ccPpDom'),
+      zePct: n('ccZePct'), zeLista: g('ccZeLista'), iva: g('ccIva'), maxKg: n('ccMaxKg'), maxLado: n('ccMaxLado'), maxSuma: n('ccMaxSuma') };
   };
   var ccValidar = function (q) {
     if (q.fv !== null && !(q.fv >= 1000 && q.fv <= 10000)) return 'Factor volumétrico: entre 1000 y 10000, o vacío si no está confirmado.';
@@ -7146,6 +7243,10 @@ Pantallas.datos = function (m) {
     if (q.seg !== null && !(q.seg >= 0 && q.seg <= 20)) return 'Seguro inválido (0 a 20 %).';
     if (q.url && !/^https:\/\//i.test(q.url)) return 'La dirección del cotizador debe empezar con https://';
     if (q.desde && q.hasta && q.hasta < q.desde) return 'La vigencia termina antes de empezar.';
+    var R = [['volDesde', 300, 'Volumétrico desde (cm)'], ['sdKg', 2000, 'Sobredimensión kg'], ['sdCargo', 1000000, 'Cargo por sobredimensión'], ['cargoBulto', 1000000, 'Cargo por bulto adicional'], ['retiro', 1000000, 'Cargo por retiro'], ['ppSuc', 100, 'Por pagar sucursal %'], ['ppDom', 100, 'Por pagar domicilio %'], ['zePct', 200, 'Zona extrema %'], ['maxKg', 5000, 'Peso máximo'], ['maxLado', 1000, 'Lado máximo'], ['maxSuma', 3000, 'Suma de lados']];
+    for (var i = 0; i < R.length; i++) { var v = q[R[i][0]]; if (v !== null && !(v >= 0 && v <= R[i][1])) return R[i][2] + ': valor fuera de rango.'; }
+    if (q.sdDims && !Cotizador.dims(q.sdDims)) return 'Medidas de sobredimensión: use el formato 80x80x120.';
+    if (q.zePct && !U.trim(q.zeLista)) return 'Zona extrema: indique las comunas o regiones a las que aplica.';
     return '';
   };
   var ccResumen = function (c) {
@@ -7171,8 +7272,17 @@ Pantallas.datos = function (m) {
       '<div class="muted">Factor vacío = no confirmado: se usa el general (' + (Number(DB.cfg.factorVol) || 5000) + ') y el cotizador lo advierte. El redondeo es siempre hacia arriba (↑).</div>' +
       '<div class="fila"><div class="c">' + ccFila('REDONDEO DEL PESO', 'ccRed', '<select id="ccRed" class="inp sm">' + U.map(COT_REDONDEO, function (x) { return op(x[0], x[1], p.red); }).join('') + '</select>') + '</div>' +
       '<div class="c">' + ccFila('SE COBRA', 'ccCobro', '<select id="ccCobro" class="inp sm">' + op('BULTO', 'Por cada bulto', p.cobro) + op('ENVIO', 'Por envío (peso sumado)', p.cobro) + '</select>') + '</div></div>' +
-      '<div class="fila"><div class="c">' + ccFila('RECARGO %', 'ccRec', '<input id="ccRec" class="inp sm" type="number" min="0" max="100" step="any" value="' + (p.rec || '') + '">') + '</div>' +
+      '<div class="fila"><div class="c">' + ccFila('COMBUSTIBLE / RECARGO %', 'ccRec', '<input id="ccRec" class="inp sm" type="number" min="0" max="100" step="any" value="' + (p.rec || '') + '">') + '</div>' +
       '<div class="c">' + ccFila('SEGURO % s/valor', 'ccSeg', '<input id="ccSeg" class="inp sm" type="number" min="0" max="20" step="any" value="' + (p.seg || '') + '">') + '</div></div>' +
+      '<h3 style="margin-top:12px">FACTORES DEL ENVÍO</h3>' + (Cotizador.PUBLICADOS[c] ? '<div class="tot" style="font-size:13px;font-weight:normal"><b>Valores publicados:</b> ' + U.esc(Cotizador.PUBLICADOS[c].txt) + '<br><span class="muted" style="word-break:break-all">Fuente: ' + U.esc(Cotizador.PUBLICADOS[c].fuente) + '</span><div class="btns"><button class="btn btn-sec btn-sm" data-a="ccPublicados">USAR VALORES PUBLICADOS</button></div></div>' : '<div class="muted">No encontré factores publicados para este courier: use los de su contrato o tarifario.</div>') +
+      '<div class="fila"><div class="c">' + ccFila('VOL. SI UN LADO &gt; cm', 'ccVolDesde', '<input id="ccVolDesde" class="inp sm" type="number" min="0" max="300" step="any" placeholder="siempre" value="' + (p.volDesde || '') + '">') + '</div><div class="c"><label class="chk" style="margin-top:22px"><input type="checkbox" id="ccSucFis"' + (p.sucFisico ? ' checked' : '') + '> En sucursal solo peso físico</label></div></div>' +
+      '<div class="fila"><div class="c">' + ccFila('SOBREDIM. cm', 'ccSdDims', '<input id="ccSdDims" class="inp sm" type="text" maxlength="20" placeholder="80x80x120" value="' + U.esc(p.sdDims) + '">') + '</div><div class="c">' + ccFila('O SOBRE kg', 'ccSdKg', '<input id="ccSdKg" class="inp sm" type="number" min="0" step="any" value="' + (p.sdKg || '') + '">') + '</div><div class="c">' + ccFila('CARGO $', 'ccSdCargo', '<input id="ccSdCargo" class="inp sm" type="number" min="0" step="any" value="' + (p.sdCargo || '') + '">') + '</div></div>' +
+      '<div class="fila"><div class="c">' + ccFila('$ POR BULTO ADICIONAL', 'ccBultoAd', '<input id="ccBultoAd" class="inp sm" type="number" min="0" step="any" value="' + (p.cargoBulto || '') + '">') + '</div><div class="c">' + ccFila('$ RETIRO EN BODEGA', 'ccRetiro', '<input id="ccRetiro" class="inp sm" type="number" min="0" step="any" value="' + (p.retiro || '') + '">') + '</div></div>' +
+      '<div class="fila"><div class="c">' + ccFila('POR PAGAR SUCURSAL %', 'ccPpSuc', '<input id="ccPpSuc" class="inp sm" type="number" min="0" step="any" value="' + (p.ppSuc || '') + '">') + '</div><div class="c">' + ccFila('POR PAGAR DOMICILIO %', 'ccPpDom', '<input id="ccPpDom" class="inp sm" type="number" min="0" step="any" value="' + (p.ppDom || '') + '">') + '</div></div>' +
+      '<div class="fila"><div class="c">' + ccFila('ZONA EXTREMA %', 'ccZePct', '<input id="ccZePct" class="inp sm" type="number" min="0" step="any" value="' + (p.zePct || '') + '">') + '</div><div class="c2">' + ccFila('APLICA A (comunas o regiones)', 'ccZeLista', '<input id="ccZeLista" class="inp sm" type="text" maxlength="1000" placeholder="AYSÉN, MAGALLANES, ISLA DE PASCUA" value="' + U.esc(p.zeLista) + '">') + '</div></div>' +
+      '<div class="fila"><div class="c">' + ccFila('MÁX. kg BULTO', 'ccMaxKg', '<input id="ccMaxKg" class="inp sm" type="number" min="0" step="any" value="' + (p.maxKg || '') + '">') + '</div><div class="c">' + ccFila('MÁX. LADO cm', 'ccMaxLado', '<input id="ccMaxLado" class="inp sm" type="number" min="0" step="any" value="' + (p.maxLado || '') + '">') + '</div><div class="c">' + ccFila('MÁX. SUMA cm', 'ccMaxSuma', '<input id="ccMaxSuma" class="inp sm" type="number" min="0" step="any" value="' + (p.maxSuma || '') + '">') + '</div></div>' +
+      ccFila('LOS PRECIOS DE LA TARIFA', 'ccIva', '<select id="ccIva" class="inp sm">' + op('INCLUIDO', 'Incluyen IVA', p.iva) + op('MAS_IVA', 'Son netos: sumar IVA 19 %', p.iva) + '</select>') +
+      '<div class="muted">Vacío = no aplica. El cálculo: flete por tramo + sobredimensión + bultos adicionales + recargo y zona extrema (sobre el flete) + por pagar + retiro + seguro, y al final el IVA si la tarifa es neta.</div>' +
       ccFila('DIRECCIÓN DEL COTIZADOR DEL COURIER', 'ccUrl', '<input id="ccUrl" class="inp sm" type="url" autocapitalize="off" spellcheck="false" placeholder="' + U.esc(p.urlErp || 'https://') + '" value="' + U.esc(p.url) + '">') +
       (p.urlErp ? '<div class="muted">Vacío = se usa la dirección que tenía el ERP: ' + U.esc(p.urlErp) + '</div>' : '') +
       ccFila('FUENTE DE LA TARIFA <span class="unidad">obligatoria para cargar tarifas</span>', 'ccFuente', '<input id="ccFuente" class="inp sm" maxlength="120" placeholder="Ej.: Tarifario convenio 2026 enviado por ejecutivo" value="' + U.esc(p.fuente) + '">') +
@@ -7233,6 +7343,15 @@ Pantallas.datos = function (m) {
     cmPlantilla: function () { UI.descargar('plantilla_comunas.csv', Comunas.plantilla(), 'text/csv'); },
     cmExportar: function () { if (!Comunas.lista.length) { UI.toast('No hay comunas cargadas', 'warn'); return; } UI.descargar('comunas_' + U.sello() + '.csv', Comunas.exportar(), 'text/csv'); },
     ccPlantilla: function () { UI.descargar('plantilla_tarifas.csv', Cotizador.plantilla(), 'text/csv'); },
+    ccPublicados: function () {
+      var pu = Cotizador.PUBLICADOS[ccCual]; if (!pu) return;
+      var M = { fv: 'ccFv', volDesde: 'ccVolDesde', sdDims: 'ccSdDims', sdKg: 'ccSdKg', sdCargo: 'ccSdCargo', ppSuc: 'ccPpSuc', ppDom: 'ccPpDom', maxKg: 'ccMaxKg', maxLado: 'ccMaxLado', maxSuma: 'ccMaxSuma' }, k;
+      for (k in M) { var el = U.$(M[k]); if (el) el.value = pu.v[k] != null ? pu.v[k] : el.value; }
+      U.$('ccSucFis').checked = !!pu.v.sucFisico;
+      if (pu.ze && !U.trim(U.$('ccZePct').value)) U.$('ccZePct').value = pu.ze;
+      var nt = U.$('ccNotas'); if (nt.value.indexOf(pu.fuente) < 0) nt.value = U.trim((nt.value ? nt.value + ' · ' : '') + 'Factores: ' + pu.fuente).substr(0, 300);
+      U.$('ccMsg').innerHTML = '<div class="aviso amar" style="font-size:13px">Valores publicados cargados en el formulario. Revíselos contra su contrato y presione GUARDAR PARÁMETROS.' + (pu.ze ? ' Para aplicar zona extrema, indique a qué comunas o regiones aplica.' : '') + '</div>';
+    },
     ccExportar: function () { UI.descargar('tarifas_' + U.sinAcentos(ccCual).replace(/[^A-Z0-9]+/g, '_') + '_' + U.sello() + '.csv', Cotizador.exportar(ccCual), 'text/csv'); },
     ccGuardar: function () {
       var c = ccCual, q = ccLeerForm(), e = ccValidar(q);
