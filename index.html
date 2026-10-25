@@ -464,7 +464,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.26.0', build: '2026-10-24', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.28.0', build: '2026-10-25', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -2373,7 +2373,7 @@ var Cotizador = {
   calcular: function (op) {
     var dest = { comuna: U.norm(op.comuna || ''), region: op.region || '' }, hoy = U.fechaISO(), out = [], mod = op.modalidad === 'SUCURSAL' ? 'SUCURSAL' : 'DOMICILIO';
     if (dest.comuna && !dest.region) { var cm = Comunas.buscar(dest.comuna, ''); if (cm) dest.region = cm.r; }
-    var ori = Cotizador.origen();
+    var ori = op.origen && op.origen.region ? op.origen : Cotizador.origen();
     var cargos = function (r, flete, p, ps) {
       var nSd = U.filter(ps.bultos, function (x) { return x.sd; }).length, d = { flete: flete };
       d.sobredim = nSd * Math.round(p.sdCargo);
@@ -2851,7 +2851,7 @@ function entrarDatos(fn) {
 
 var Sync = {
   _t: null, _enCurso: false, _cola: [],
-  FUNCIONES: ['satInfo','satListasLeer','satListasGuardar','satComunasLeer','satComunasGuardar','satCotizadorLeer','satCotizadorGuardar','satCotizacionGuardar','satCotizacionesListar','satCotizacionPrecio','satFormatosLeer','satFormatosGuardar','satSubir','satBajar','satCatalogo','satMedidas','satUbicaciones','satUbicacionesImportar','satUbicacionesGuardar','satCatalogoImportar','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
+  FUNCIONES: ['satInfo','satIAEstado','satIAPreguntar','satListasLeer','satListasGuardar','satComunasLeer','satComunasGuardar','satCotizadorLeer','satCotizadorGuardar','satCotizacionGuardar','satCotizacionesListar','satCotizacionPrecio','satFormatosLeer','satFormatosGuardar','satSubir','satBajar','satCatalogo','satMedidas','satUbicaciones','satUbicacionesImportar','satUbicacionesGuardar','satCatalogoImportar','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar'],
   gas: function () { try { return typeof google !== 'undefined' && !!google.script && !!google.script.run; } catch (e) { return false; } },
   urlServidor: function () {
     var u = U.trim((DB.cfg && DB.cfg.sync && DB.cfg.sync.url) || '');
@@ -5972,6 +5972,316 @@ Pantallas.seguimiento = function (m) {
   CorreosSat.actualizar(function (hubo) { if (hubo && App.pantalla === 'seguimiento' && U.$('sgLista')) { todos = Seguimiento.indice(); render(); } });
 };
 
+var AsisX = {
+  CIUDADES: { ARICA: 'ARICA Y PARINACOTA', IQUIQUE: 'TARAPACÁ', 'ALTO HOSPICIO': 'TARAPACÁ', ANTOFAGASTA: 'ANTOFAGASTA', CALAMA: 'ANTOFAGASTA', COPIAPO: 'ATACAMA', VALLENAR: 'ATACAMA', 'LA SERENA': 'COQUIMBO', COQUIMBO: 'COQUIMBO', OVALLE: 'COQUIMBO',
+    VALPARAISO: 'VALPARAÍSO', 'VINA DEL MAR': 'VALPARAÍSO', QUILPUE: 'VALPARAÍSO', 'SAN ANTONIO': 'VALPARAÍSO', 'LOS ANDES': 'VALPARAÍSO', SANTIAGO: 'METROPOLITANA', PROVIDENCIA: 'METROPOLITANA', MAIPU: 'METROPOLITANA', 'PUENTE ALTO': 'METROPOLITANA', 'LAS CONDES': 'METROPOLITANA',
+    RANCAGUA: "LIBERTADOR B. O'HIGGINS", 'SAN FERNANDO': "LIBERTADOR B. O'HIGGINS", TALCA: 'MAULE', CURICO: 'MAULE', LINARES: 'MAULE', CHILLAN: 'ÑUBLE', 'CHILLAN VIEJO': 'ÑUBLE', 'SAN CARLOS': 'ÑUBLE', CONCEPCION: 'BIOBÍO', TALCAHUANO: 'BIOBÍO', 'LOS ANGELES': 'BIOBÍO', CORONEL: 'BIOBÍO',
+    TEMUCO: 'LA ARAUCANÍA', VILLARRICA: 'LA ARAUCANÍA', PUCON: 'LA ARAUCANÍA', ANGOL: 'LA ARAUCANÍA', VALDIVIA: 'LOS RÍOS', OSORNO: 'LOS LAGOS', 'PUERTO MONTT': 'LOS LAGOS', 'PUERTO VARAS': 'LOS LAGOS', CASTRO: 'LOS LAGOS', ANCUD: 'LOS LAGOS',
+    COYHAIQUE: 'AYSÉN', 'PUERTO AYSEN': 'AYSÉN', 'PUNTA ARENAS': 'MAGALLANES', 'PUERTO NATALES': 'MAGALLANES' },
+  AMBIGUAS: { ALTO: 1, PICA: 1, TOME: 1, LOTA: 1, LAJA: 1, CALERA: 1, VICTORIA: 1, 'LA CRUZ': 1, 'EL MONTE': 1, CANELA: 1, PAINE: 1, 'LA UNION': 1, 'LA ESTRELLA': 1, 'SAN PEDRO': 1, 'EL BOSQUE': 1, 'LA GRANJA': 1, MOSTAZAL: 1, 'LA REINA': 1, 'LOS VILOS': 1, 'SAN PABLO': 1, 'SAN JOSE': 1, CABRERO: 1, MOLINA: 1, PEMUCO: 1, QUILACO: 1, PURRANQUE: 1, TORTEL: 1, 'RIO BUENO': 1 },
+  PRE_DEST: { A: 1, HASTA: 1, PARA: 1, HACIA: 1, DESTINO: 1, EN: 1, AL: 1 },
+  COURIERS: [['CORREOS DE CHILE', ['CORREOS DE CHILE', 'CORREOSCHILE', 'CORREOS']], ['BLUE EXPRESS', ['BLUE EXPRESS', 'BLUEXPRESS', 'BLUEX', 'BLUE']], ['STARKEN', ['STARKEN']], ['CHILEXPRESS', ['CHILEXPRESS', 'CHILE EXPRESS']], ['PULLMAN CARGO', ['PULLMAN CARGO', 'PULLMAN']], ['99MINUTOS', ['99MINUTOS', '99 MINUTOS']], ['ENVIA', ['POR ENVIA', 'ENVIA COM']]],
+  num: function (s) { return Number(String(s).replace(',', '.')); },
+  lugar: function (K, rol) {
+    var cands = [], pre = function (idx) { var a = K.substr(0, idx).replace(/\s+$/, '').split(' '); return a[a.length - 1] || ''; };
+    var add = function (nombre, region, comuna) {
+      var k = ' ' + nombre + ' ', from = 0, idx;
+      while ((idx = K.indexOf(k, from)) >= 0) { var p = pre(idx + 1); cands.push({ comuna: comuna, region: region, len: nombre.length, idx: idx, rol: p === 'DESDE' ? 'O' : (AsisX.PRE_DEST[p] ? 'D' : (p === 'DE' ? 'd' : '')), nombre: nombre }); from = idx + 1; }
+    };
+    U.each(Comunas.lista, function (o) { add(Comunas.clave(o.c), o.r, o.c); });
+    var k;
+    for (k in AsisX.CIUDADES) if (!Comunas.lista.length || !Comunas.buscar(k, '')) add(k, AsisX.CIUDADES[k], k);
+    U.each(Comunas.CLAVES, function (c) { add(c[0], c[1], ''); });
+    U.each(['REGION METROPOLITANA', 'RM', 'REGION DE NUBLE', 'NUBLE', 'BIOBIO', 'ARAUCANIA', 'AYSEN', 'MAGALLANES'], function (n) { add(n, Comunas.region(n), ''); });
+    cands = U.filter(cands, function (c) { return !U.find(cands, function (o) { return o !== c && o.len > c.len && c.idx >= o.idx && c.idx + c.len <= o.idx + o.len; }); });
+    var r = { origen: null, destino: null }, mejor = function (l) { l.sort(function (a, b) { return (b.comuna ? 1 : 0) - (a.comuna ? 1 : 0) || b.len - a.len; }); return l[0] || null; };
+    r.origen = mejor(U.filter(cands, function (c) { return c.rol === 'O'; }));
+    r.destino = mejor(U.filter(cands, function (c) { return c.rol === 'D'; }));
+    if (!r.destino) r.destino = mejor(U.filter(cands, function (c) { return (c.rol === '' || c.rol === 'd') && (!r.origen || c.idx !== r.origen.idx) && c.len >= 5 && !AsisX.AMBIGUAS[c.nombre]; }));
+    return r;
+  },
+  fechas: function (t) {
+    var hoy = new Date(), f = function (d) { return U.fechaISO(d); }, dia = function (n) { var d = new Date(hoy.getTime()); d.setDate(d.getDate() + n); return d; }, m;
+    if (/\bantes de ayer\b|\banteayer\b/.test(t)) return { desde: f(dia(-2)), hasta: f(dia(-2)), txt: 'anteayer' };
+    if (/\bayer\b/.test(t)) return { desde: f(dia(-1)), hasta: f(dia(-1)), txt: 'ayer' };
+    if (/\bhoy\b/.test(t)) return { desde: f(hoy), hasta: f(hoy), txt: 'hoy' };
+    if (/\bsemana pasada\b/.test(t)) { var lp = dia(-((hoy.getDay() + 6) % 7) - 7); var dp = new Date(lp.getTime()); dp.setDate(dp.getDate() + 6); return { desde: f(lp), hasta: f(dp), txt: 'la semana pasada' }; }
+    if (/\b(esta semana|la semana|semana)\b/.test(t)) return { desde: f(dia(-((hoy.getDay() + 6) % 7))), hasta: f(hoy), txt: 'esta semana' };
+    if (/\bmes pasado\b/.test(t)) { var a = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1), b = new Date(hoy.getFullYear(), hoy.getMonth(), 0); return { desde: f(a), hasta: f(b), txt: 'el mes pasado' }; }
+    if (/\b(este mes|el mes)\b/.test(t)) return { desde: f(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), hasta: f(hoy), txt: 'este mes' };
+    if ((m = t.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/))) {
+      var y = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : hoy.getFullYear(), d0 = new Date(y, Number(m[2]) - 1, Number(m[1]));
+      if (!isNaN(d0.getTime()) && Number(m[2]) <= 12) return { desde: f(d0), hasta: f(d0), txt: 'el ' + U.fechaCL(f(d0)), frag: m[0] };
+    }
+    return null;
+  },
+  extraer: function (txt) {
+    var raw = String(txt || ''), low = U.sinAcentos(raw).toLowerCase(), t = Asistente.norm(raw), r = { limpio: low }, m;
+    var quitar = function (s) { r.limpio = r.limpio.replace(s, ' '); };
+    if ((m = low.match(/(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*(cms?|mm|mts?|m)?\b/))) {
+      var fx = m[4] === 'mm' ? 0.1 : (/^m/.test(m[4] || '') && m[4] !== 'mm' ? 100 : 1);
+      r.dims = [AsisX.num(m[1]) * fx, AsisX.num(m[2]) * fx, AsisX.num(m[3]) * fx]; quitar(m[0]);
+    }
+    if ((m = r.limpio.match(/(\d+(?:[.,]\d+)?)\s*(kgs?|kilos?|kilogramos?|k)\b/))) { r.kg = AsisX.num(m[1]); quitar(m[0]); }
+    else if ((m = r.limpio.match(/(\d+(?:[.,]\d+)?)\s*(g|gr|grs|gramos?)\b/))) { r.kg = AsisX.num(m[1]) / 1000; quitar(m[0]); }
+    if ((m = r.limpio.match(/(\d+)\s*(bultos?|cajas?|paquetes?|unidades?|piezas?|uds?|un)\b/))) { r.cant = Math.max(1, Math.min(50, Number(m[1]))); quitar(m[0]); }
+    r.fecha = AsisX.fechas(t); if (r.fecha && r.fecha.frag) quitar(r.fecha.frag);
+    var K = ' ' + Comunas.clave(raw).replace(/\b\d+(?:\s*X\s*\d+){2}\b/g, ' ') + ' ';
+    U.each(AsisX.COURIERS, function (c) { if (r.courier) return; U.each(c[1], function (a) { if (!r.courier && K.indexOf(' ' + a + ' ') >= 0) r.courier = c[0]; }); });
+    if (!r.courier) U.each(Listas.get('COURIER'), function (x) { var k = Comunas.clave(x.v); if (!r.courier && k.length >= 4 && k !== 'ENVIA' && K.indexOf(' ' + k + ' ') >= 0) r.courier = x.v; });
+    var lg = AsisX.lugar(K);
+    if (lg.origen) r.origen = { comuna: lg.origen.comuna, region: lg.origen.region };
+    if (lg.destino) r.destino = { comuna: lg.destino.comuna, region: lg.destino.region };
+    U.each([lg.origen, lg.destino], function (x) { if (x) r.limpio = (' ' + Comunas.clave(r.limpio) + ' ').replace(' ' + x.nombre + ' ', ' ').toLowerCase(); });
+    if (/\bsucursal|\bpunto (de )?retiro|\bretira en/.test(t)) r.modalidad = 'SUCURSAL';
+    if (/\bpor pagar\b/.test(t)) r.porPagar = true;
+    var tds = TiposDoc.nombres();
+    U.each(tds, function (n) { var k = Asistente.norm(n), w = k.split(' ')[0].replace(/[^a-z]/g, ''); if (!r.tipoDoc && w.length >= 4 && ['orden', 'ticket', 'cotizacion', 'nota', 'pedido'].indexOf(w) < 0 && (new RegExp('\\b' + w + '(s|es)?\\b')).test(t)) r.tipoDoc = n; });
+    if (/\bpendiente|sin despachar|por despachar|falta(n)? despachar/.test(t)) r.etapa = 'PENDIENTE';
+    else if (/\bentregad/.test(t)) r.etapa = 'ENTREGADO';
+    else if (/\bcancelad|anulad/.test(t)) r.etapa = 'CANCELADO';
+    else if (/\bverificad/.test(t)) r.etapa = 'VERIFICADO';
+    else if (/\ben packing|empacad|embalad/.test(t)) r.etapa = 'EN PACKING';
+    else if (/\bcubicad/.test(t)) r.etapa = 'CUBICADO';
+    else if (/\bdespachad|\benviad|\bsalier|\bsalio\b|\bse fue/.test(t)) r.etapa = 'DESPACHADO';
+    r.evento = /\bdespach|\benvi|\bsali|\bmanifiesto/.test(t) ? 'despacho' : (/\bcubic/.test(t) ? 'cubicacion' : 'pedido');
+    r.claves = Asistente.claves(r.limpio);
+    return r;
+  },
+  esCotizar: function (t) {
+    if (/^(como|que es|para que|donde)\b/.test(t)) return false;
+    if (/\bcotiz/.test(t)) return true;
+    var costo = /\b(cuanto|costo|costaria|cuesta|cobra|sale|saldria|vale|valor|precio|tarifa|flete)\b/.test(t), envio = /\b(envi|mand|despach|flete|courier|currier|correos|starken|chilexpress|blue|pullman)/.test(t);
+    return costo && envio;
+  },
+  esConsulta: function (t, x) {
+    var filtro = !!(x.fecha || x.tipoDoc || x.etapa || x.courier || x.destino);
+    var lista = /\b(cuant[oa]s|cuales|lista|listado|muestrame|mostrar|ver|que (pedidos|facturas|boletas|documentos|ordenes|despachos|envios|guias)|que se (despacho|envio)|que salio|se despacharon|se enviaron|hay)\b/.test(t);
+    var objeto = /\b(pedido|factura|boleta|guia|documento|orden|despacho|envio|bulto|ticket|cotizacion|oc)/.test(t);
+    return filtro && (lista || objeto);
+  },
+  bultosDe: function (x, prod, doc) {
+    if (doc) {
+      var xs = Asistente.bultosDoc(doc);
+      return { bultos: U.map(xs, function (y) { return { ancho: y.b.ancho, alto: y.b.alto, largo: y.b.largo, peso: y.b.peso }; }), desc: (doc.orden || '') + (doc.numeroDocumento ? ' · ' + doc.tipoDocumento + ' ' + doc.numeroDocumento : '') + ' · ' + xs.length + ' bulto(s)' };
+    }
+    var n = x.cant || 1;
+    if (prod) {
+      var f = Productos.ficha(prod.codigo) || prod, m = f.med;
+      if (!m || !Medidas.tiene(m)) return { error: '<b>' + U.esc(f.descripcion || f.codigo) + '</b> no tiene medidas registradas. Indícame las medidas y el peso (ej. <i>40x30x20 cm 3 kg</i>).' };
+      var nb = Math.max(1, Number(m.bultos) || 1), l = [];
+      for (var i = 0; i < n; i++) for (var j = 0; j < nb; j++) l.push({ ancho: m.ancho, alto: m.alto, largo: m.largo, peso: m.peso || 0 });
+      return { bultos: l, desc: (n > 1 ? n + ' × ' : '') + U.esc(f.descripcion || f.codigo) + ' (' + U.esc(f.codigo) + ')' + (nb > 1 ? ' · va en ' + nb + ' bultos' : '') + (Medidas.estimado(m) ? ' · medidas estimadas' : ''), sinPeso: !m.peso };
+    }
+    if (x.dims || x.kg) {
+      var b = { ancho: x.dims ? x.dims[0] : 0, alto: x.dims ? x.dims[1] : 0, largo: x.dims ? x.dims[2] : 0, peso: x.kg || 0 }, l2 = [];
+      for (var k = 0; k < n; k++) l2.push(U.clone(b));
+      return { bultos: l2, desc: (n > 1 ? n + ' bultos de ' : '1 bulto de ') + (x.dims ? x.dims.join(' × ') + ' cm' : 'medidas sin indicar') + (x.kg ? ' · ' + String(U.red ? U.red(x.kg, 2) : x.kg).replace('.', ',') + ' kg' : ' · sin peso'), sinPeso: !x.kg, sinDims: !x.dims };
+    }
+    return null;
+  },
+  cot: null,
+  cotizar: function (c) {
+    AsisX.cot = c; Asistente.ult = Asistente.ult || null;
+    if (!c.bultos || !c.bultos.length) { Asistente.modo = 'cotizar'; Asistente.dice('¿Qué vas a enviar? Escribe el producto (nombre o código), el N° de orden o documento, o las medidas y el peso. Ej.: <i>40x30x20 cm 3 kg</i>.'); return; }
+    if (!c.destino || !c.destino.region) { Asistente.modo = 'cotizar'; Asistente.dice('¿A qué comuna o región va? Ej.: <i>Temuco</i>, <i>Puerto Montt</i> o <i>Región de Aysén</i>.' + (Comunas.lista.length ? '' : '<br><small>Sin lista de comunas cargada reconozco las capitales regionales y ciudades principales.</small>')); return; }
+    Asistente.modo = '';
+    var ori = c.origen && c.origen.region ? c.origen : Cotizador.origen();
+    var bs = U.map(c.bultos, function (b) { var x = U.clone(b); if (!(x.peso > 0)) x.peso = 0.1; if (!(x.ancho > 0 && x.alto > 0 && x.largo > 0)) { x.ancho = 1; x.alto = 1; x.largo = 1; } return x; });
+    var res = Cotizador.calcular({ bultos: bs, comuna: c.destino.comuna || '', region: c.destino.region, valor: 0, modalidad: c.modalidad, porPagar: c.porPagar, origen: ori });
+    var con = U.filter(res, function (r) { return r.total > 0; }), sel = c.courier ? U.filter(con, function (r) { return r.courier === c.courier; }) : con;
+    var dTxt = (c.destino.comuna ? U.esc(c.destino.comuna) + ' · ' : '') + U.esc(c.destino.region), oTxt = ori.region ? (ori.comuna ? U.esc(ori.comuna) + ' · ' : '') + U.esc(ori.region) : 'origen sin indicar (se asume Región Metropolitana)';
+    var h = '🚚 <b>Envío estimado</b><br>Desde ' + oTxt + ' a <b>' + dTxt + '</b>' + (c.modalidad === 'SUCURSAL' ? ' (retiro en sucursal)' : '') + (c.porPagar ? ' · por pagar' : '') + '<br>' + c.desc;
+    if (c.sinPeso) h += '<br><small>⚠ Sin peso: se calculó solo con el peso volumétrico. Indica el peso para afinar.</small>';
+    if (c.sinDims) h += '<br><small>⚠ Sin medidas: se calculó solo con el peso real.</small>';
+    var fila = function (r) { var cc = r.conf >= 85 ? '#0a7d24' : (r.conf >= 70 ? '#0b4fb3' : (r.conf >= 50 ? '#9a5b00' : '#c00000')); return '<tr><td><b>' + U.esc(r.nombre) + '</b>' + (r.servicio && r.fuente === 'TARIFA' ? '<br><small>' + U.esc(r.servicio) + '</small>' : '') + '</td><td><b>' + U.clp(r.total) + '</b><br><small>' + U.clp(r.min) + '–' + U.clp(r.max) + '</small></td><td style="color:' + cc + '"><b>' + r.conf + ' %</b><br><small>' + (r.fuente === 'TARIFA' ? 'tarifa' : 'referencia') + '</small></td></tr>'; };
+    if (c.courier && !sel.length) {
+      var no = U.find(res, function (r) { return r.courier === c.courier; });
+      h += '<br>' + (no ? '⚠ ' + U.esc(no.nombre) + ': ' + U.esc((Cotizador.ESTADOS[no.estado] || ['', no.estado])[1].toLowerCase()) + (no.motivo ? ' (' + U.esc(no.motivo) + ')' : '') + '.' : '⚠ ' + U.esc(c.courier) + ' no está habilitado en el cotizador (Datos → Listas de selección).');
+      sel = con.slice(0, 3); if (sel.length) h += '<br>Alternativas:';
+    }
+    if (sel.length) {
+      h += '<table class="tb"><tr><td><small>Courier</small></td><td><small>Estimado</small></td><td><small>Confianza</small></td></tr>' + U.map(sel.slice(0, 8), fila).join('') + '</table>';
+      var r0 = sel[0];
+      if (sel.length === 1) {
+        h += '<small>' + U.map(U.filter(Cotizador.DESGLOSE, function (k) { return r0.d && r0.d[k[0]] > 0; }), function (k, i) { return (i ? '+ ' : '') + k[1] + ' ' + U.clp(r0.d[k[0]]); }).join(' ') + ' · ' + r0.kg + ' kg cobrables' + (r0.plazo != null ? ' · plazo ' + (r0.fuente === 'REFERENCIA' ? '≈ ' : '') + r0.plazo + ' día(s)' : '') + '</small>';
+        if (c.courier && con.length > 1) { var bar = con[0]; if (bar.courier !== r0.courier && bar.total < r0.total) h += '<br>💡 Más económico estimado: <b>' + U.esc(bar.nombre) + '</b> ' + U.clp(bar.total) + ' (confianza ' + bar.conf + ' %).'; }
+      } else h += '<small>Ordenado de menor a mayor precio. ' + (U.find(sel, function (r) { return r.fuente === 'REFERENCIA'; }) ? 'Sin tarifa cargada se estima con referencias públicas 2026.' : '') + '</small>';
+    } else if (!c.courier) h += '<br>No pude estimar ningún courier: ' + U.esc(U.map(U.filter(res, function (r) { return r.motivo; }).slice(0, 3), function (r) { return r.nombre + ': ' + r.motivo; }).join(' · ') || 'revise los couriers activos en Datos') + '.';
+    var ops = [['Abrir en el Cotizador →', 'cz:abrir', 'mor']];
+    if (c.courier) ops.push(['Ver todos los couriers', 'cz:todos']);
+    ops.push(['Otro destino', 'cz:destino'], Asistente.OP_MENU);
+    Asistente.dice(h, ops);
+  },
+  ctxDe: function (x, prod, doc) {
+    var b = AsisX.bultosDe(x, prod, doc);
+    if (b && b.error) return { error: b.error };
+    var dest = x.destino || null;
+    if (!dest && doc && doc.pedido && doc.pedido.envio && doc.pedido.envio.destinatario) { var de = doc.pedido.envio.destinatario; if (de.region || de.comuna) { var cm = de.comuna ? Comunas.buscar(de.comuna, de.region) : null; dest = { comuna: de.comuna || '', region: de.region || (cm ? cm.r : '') }; } }
+    return { bultos: b ? b.bultos : null, desc: b ? b.desc : '', sinPeso: b && b.sinPeso, sinDims: b && b.sinDims, destino: dest, origen: x.origen || null, courier: x.courier || '', modalidad: x.modalidad || '', porPagar: !!x.porPagar, cant: x.cant || 0 };
+  },
+  fusionar: function (c, x) {
+    if (x.destino) c.destino = x.destino;
+    if (x.origen) c.origen = x.origen;
+    if (x.courier) c.courier = x.courier;
+    if (x.modalidad) c.modalidad = x.modalidad;
+    if (x.porPagar) c.porPagar = true;
+    return c;
+  },
+  consulta: function (x) {
+    var l = Seguimiento.indice(), out = [], f = x.fecha, fd = function (d) {
+      if (x.evento === 'despacho') { var m = ''; U.each(d.ots, function (o) { if (o.manifiesto && o.manifiesto.generado && o.manifiesto.fecha) { var z = Seguimiento._f(o.manifiesto.fecha); if (z > m) m = z; } }); return m; }
+      if (x.evento === 'cubicacion') { var c = ''; U.each(d.cub, function (y) { var z = Seguimiento._f(y.fecha); if (z > c) c = z; }); return c; }
+      return d.fecha;
+    };
+    U.each(l, function (d) {
+      if (x.tipoDoc && U.norm(d.tipoDocumento) !== U.norm(x.tipoDoc)) return;
+      if (x.courier && d.couriers.indexOf(x.courier) < 0 && !(x.courier === 'CORREOS DE CHILE' && (d.correos || []).length)) return;
+      if (x.etapa === 'PENDIENTE') { if (d.etapa === 'DESPACHADO' || d.etapa === 'ENTREGADO' || d.etapa === 'CANCELADO') return; }
+      else if (x.etapa === 'DESPACHADO') { if (d.etapa !== 'DESPACHADO' && d.etapa !== 'ENTREGADO') return; }
+      else if (x.etapa && d.etapa !== x.etapa) return;
+      if (x.destino) { var de = d.pedido && d.pedido.envio && d.pedido.envio.destinatario; if (!de) return; if (x.destino.comuna ? Comunas.clave(de.comuna) !== Comunas.clave(x.destino.comuna) : (de.region !== x.destino.region)) return; }
+      var fe = fd(d);
+      if (f && (!fe || fe < f.desde || fe > f.hasta)) return;
+      d._fe = fe; out.push(d);
+    });
+    out.sort(function (a, b) { return (a._fe || '') < (b._fe || '') ? 1 : -1; });
+    var desc = [x.tipoDoc ? x.tipoDoc.toLowerCase() + 's' : (x.evento === 'despacho' ? 'documentos despachados' : 'documentos'), x.etapa && x.etapa !== 'DESPACHADO' ? (x.etapa === 'PENDIENTE' ? 'pendientes de despacho' : 'en etapa ' + x.etapa.toLowerCase()) : '', x.courier ? 'por ' + Listas.etq('COURIER', x.courier) : '', x.destino ? 'a ' + (x.destino.comuna || x.destino.region) : '', f ? (x.evento === 'despacho' ? 'despachados ' : (x.evento === 'cubicacion' ? 'cubicados ' : 'de ')) + f.txt : ''].filter(function (s) { return !!s; }).join(' ');
+    var h = '🔎 <b>' + out.length + '</b> ' + U.esc(desc) + '.';
+    if (out.length) {
+      var tb = 0; U.each(out, function (d) { tb += Math.max(d.bultos.length, d.cub.length); });
+      h += ' Total ' + tb + ' bulto(s).<table class="tb">' + U.map(out.slice(0, 10), function (d) { return '<tr><td><b>' + U.esc(d.orden || '—') + '</b><br><small>' + U.esc(d.numeroDocumento ? d.tipoDocumento + ' ' + d.numeroDocumento : 'sin documento') + '</small></td><td><small>' + U.esc(d.etapa) + (d._fe ? '<br>' + U.esc(U.fechaCL(d._fe)) : '') + '</small></td><td><small>' + U.esc(d.couriers.join(', ') || ((d.correos || []).length ? 'CORREOS DE CHILE' : '—')) + '</small></td></tr>'; }).join('') + '</table>' + (out.length > 10 ? '<small>… y ' + (out.length - 10) + ' más: ábrelos en Seguimiento.</small>' : '');
+    }
+    AsisX.ultConsulta = x;
+    Asistente.cand = out.slice(0, 6); Asistente.intento = '';
+    var ops = U.map(Asistente.cand, function (d, i) { return [(d.orden || '—') + ' · ' + (d.numeroDocumento ? d.tipoDocumento + ' ' + d.numeroDocumento : 'sin doc'), 'd:' + i]; });
+    Asistente.dice(h, (out.length ? [['Ver en Seguimiento →', 'cz:seg', 'mor']] : []).concat(ops.slice(0, 4)).concat(AsisIA.habilitado() ? [['✨ Analizar con Gemini', 'ia:q', 'mor']] : []).concat([Asistente.OP_MENU]));
+  },
+  ultConsulta: null,
+  accion: function (a) {
+    var c = AsisX.cot;
+    if (a === 'cz:abrir' && c) {
+      Asistente.msj('Abrir en el Cotizador', 'yo'); Asistente.cerrar();
+      CotUI.abrir({ bultos: U.map(c.bultos, function (b) { var x = U.clone(b); if (!(x.peso > 0)) x.peso = 0.1; return x; }), ref: c.desc.replace(/<[^>]+>/g, ''), destino: c.destino || {} });
+      return true;
+    }
+    if (a === 'cz:todos' && c) { Asistente.msj('Ver todos los couriers', 'yo'); c.courier = ''; AsisX.cotizar(c); return true; }
+    if (a === 'cz:destino' && c) { Asistente.msj('Otro destino', 'yo'); c.destino = null; AsisX.cotizar(c); return true; }
+    if (a === 'cz:seg' && AsisX.ultConsulta) {
+      var x = AsisX.ultConsulta;
+      Seguimiento.filtro = { campo: 'TODOS', valor: '', etapa: x.etapa && x.etapa !== 'PENDIENTE' ? (x.etapa === 'DESPACHADO' ? 'DESPACHADO' : x.etapa) : 'TODAS', courier: x.courier || 'TODOS', desde: x.fecha ? x.fecha.desde : '', hasta: x.fecha ? x.fecha.hasta : '' };
+      Seguimiento.kpi = ''; Asistente.cerrar(); App.ir('seguimiento'); return true;
+    }
+    return false;
+  },
+  manejar: function (t, it) {
+    var tn = Asistente.norm(t), x = AsisX.extraer(t), u = Asistente.ult;
+    if (/^(como|que es|para que)\b/.test(tn) && /\bcotiz|\bcuanto cuesta un envio|\bprecio de(l)? envio/.test(tn)) { var fz = U.find(Asistente.FAQ, function (f) { return f.id === 'cotizador'; }); if (fz) { Asistente.modo = ''; Asistente.responderFaq(fz); return true; } }
+    if (Asistente.modo === 'consulta') { Asistente.modo = ''; if (x.fecha || x.tipoDoc || x.etapa || x.courier || x.destino) { AsisX.consulta(x); return true; } Asistente.modo = 'consulta'; Asistente.dice(Asistente.guias.consulta); return true; }
+    if (Asistente.modo === 'cotizar' && AsisX.cot) {
+      var c0 = AsisX.fusionar(AsisX.cot, x);
+      if (!c0.bultos || !c0.bultos.length) {
+        var dsX = x.claves.length ? Asistente.buscarDocs(x.claves) : [], b0 = null;
+        if (dsX.length === 1) b0 = AsisX.bultosDe(x, null, dsX[0]);
+        else { var ps0 = Asistente.buscarProd(x.limpio, x.claves); if (ps0.length === 1) b0 = AsisX.bultosDe(x, ps0[0], null); else if (ps0.length > 1) { Asistente.modo = ''; Asistente.elegir(ps0, 'prod', 'cotizar'); return true; } else b0 = AsisX.bultosDe(x, null, null); }
+        if (b0 && b0.error) { Asistente.dice(b0.error); return true; }
+        if (b0) { c0.bultos = b0.bultos; c0.desc = b0.desc; c0.sinPeso = b0.sinPeso; c0.sinDims = b0.sinDims; }
+      }
+      AsisX.cotizar(c0); return true;
+    }
+    if (!(it === 'cotizar' || AsisX.esCotizar(tn))) {
+      if (!x.claves.length && AsisX.esConsulta(tn, x) && !/^(como|que es|para que)\b/.test(tn)) { AsisX.consulta(x); return true; }
+      return false;
+    }
+    var ctx = null;
+    if (x.dims || x.kg) ctx = AsisX.ctxDe(x, null, null);
+    else if (x.claves.length) {
+      var ds = Asistente.buscarDocs(x.claves);
+      if (ds.length === 1) ctx = AsisX.ctxDe(x, null, ds[0]);
+      else if (ds.length > 1) { AsisX.cot = AsisX.ctxDe(x, null, null); Asistente.elegir(ds, 'doc', 'cotizar'); return true; }
+      else { var pc = U.map(x.claves, function (k) { return Productos.ficha(k); }).filter(function (p) { return !!p; }); if (pc.length) ctx = AsisX.ctxDe(x, pc[0], null); }
+    }
+    if (!ctx) {
+      var w = U.filter(Asistente.palabras(x.limpio), function (p) { return !/^(envi|mand|despach|cotiz|cost|cuest|cobr|sal|vale|valor|precio|tarifa|flete|desde|hasta|hacia|sucursal|domicilio|pagar|seria|saldria|costaria|courier|currier|blue|correos|starken|chilexpress|pullman|bodega|chile|region)/.test(p); });
+      if (w.length) {
+        var ps = Asistente.buscarProd(w.join(' '), []);
+        if (ps.length === 1) ctx = AsisX.ctxDe(x, ps[0], null);
+        else if (ps.length > 1) { AsisX.cot = AsisX.ctxDe(x, null, null); Asistente.elegir(ps, 'prod', 'cotizar'); return true; }
+      }
+    }
+    if (!ctx && u && /\b(enviarlo|enviarla|mandarlo|mandarla|despacharlo|despacharla|lo|la|este|esta|ese|esa|eso)\b/.test(tn)) ctx = AsisX.ctxDe(x, u.tipo === 'prod' ? u.p : null, u.tipo === 'doc' ? u.d : null);
+    if (!ctx) ctx = AsisX.ctxDe(x, null, null);
+    if (ctx.error) { AsisX.cot = AsisX.ctxDe(x, null, null); AsisX.cot.bultos = null; Asistente.modo = 'cotizar'; Asistente.dice(ctx.error); return true; }
+    AsisX.cotizar(ctx); return true;
+  }
+};
+
+var AsisIA = {
+  hist: [], ult: null,
+  habilitado: function () { return !!DB.cfg.iaAsistente && typeof Cotizador !== 'undefined' && Cotizador.activo(); },
+  CAMPOS: { o: 'orden/ticket', td: 'tipo de documento', n: 'N° documento', f: 'fecha del pedido o documento', et: 'etapa logística', cou: 'couriers', ocu: 'órdenes del courier', b: 'bultos', kg: 'peso total kg', can: 'canal de venta', ep: 'estado del pedido', des: 'comuna de destino', reg: 'región de destino', mto: 'monto $', fd: 'fecha de despacho (manifiesto)', ot: 'OT internas', cor: 'envíos Correos de Chile' },
+  contexto: function (preg) {
+    var x = AsisX.extraer(preg), tn = Asistente.norm(preg), hoy = U.fechaISO(), d0 = new Date(); d0.setDate(d0.getDate() - 90);
+    var desde = x.fecha ? x.fecha.desde : U.fechaISO(d0), hasta = x.fecha ? x.fecha.hasta : hoy, docs = [];
+    U.each(Seguimiento.indice(), function (d) {
+      var abierto = d.etapa !== 'DESPACHADO' && d.etapa !== 'ENTREGADO' && d.etapa !== 'CANCELADO', fd = '';
+      U.each(d.ots, function (o) { if (o.manifiesto && o.manifiesto.generado && o.manifiesto.fecha) { var z = Seguimiento._f(o.manifiesto.fecha); if (z > fd) fd = z; } });
+      var enRango = (d.fecha && d.fecha >= desde && d.fecha <= hasta) || (fd && fd >= desde && fd <= hasta);
+      if (!enRango && !(abierto && !x.fecha)) return;
+      var xs = Asistente.bultosDoc(d), kg = 0, pe = d.pedido, de = pe && pe.envio && pe.envio.destinatario, r = { o: d.orden, td: d.tipoDocumento, n: d.numeroDocumento, f: d.fecha, et: d.etapa, b: xs.length };
+      U.each(xs, function (y) { kg += Number(y.b.peso) || 0; });
+      if (kg) r.kg = Math.round(kg * 100) / 100;
+      if (d.couriers.length) r.cou = d.couriers.join(', ');
+      if (d.ordenesCourier.length) r.ocu = d.ordenesCourier.join(', ');
+      if (pe) { r.can = pe.origen; r.ep = pe.estado; if (U.num(pe.monto)) r.mto = U.num(pe.monto); }
+      if (de) { if (de.comuna) r.des = de.comuna; if (de.region) r.reg = de.region; }
+      if (fd) r.fd = fd;
+      if (d.ots.length) r.ot = U.map(d.ots, function (o) { return o.numero; }).join(', ');
+      if ((d.correos || []).length) r.cor = CorreosSat.ids(d.correos).join(', ');
+      docs.push(r);
+    });
+    docs = docs.slice(0, 600);
+    var datos = { campos: AsisIA.CAMPOS, hoy: hoy, documentos: docs }, prods = [];
+    if (/\b(producto|productos|stock|ubic|medida|mide|pesa|peso|catalogo|codigo|sku|marca|precio|bodega|donde)/.test(tn)) {
+      var w = U.filter(Asistente.palabras(x.limpio), function (p) { return p.length >= 3; });
+      prods = (w.length ? Asistente.buscarProd(w.join(' '), x.claves) : []).slice(0, 150);
+      if (!prods.length && w.length) U.each(w, function (p) { if (prods.length < 150) U.each(Productos.buscar(p, '').slice(0, 40), function (f) { if (prods.length < 150 && !U.find(prods, function (y) { return y.codigo === f.codigo; })) prods.push(f); }); });
+      datos.productos = U.map(prods, function (p) { var f = Productos.ficha(p.codigo) || p, m = f.med, o = { c: f.codigo, d: f.descripcion, m: f.marca || '', u: U.trim(f.ubicacion || '') }; if (m && Medidas.tiene(m)) o.med = m.ancho + 'x' + m.alto + 'x' + m.largo + ' cm ' + (m.peso || '?') + ' kg' + (m.bultos > 1 ? ' en ' + m.bultos + ' bultos' : ''); if (f.precio) o.pr = f.precio; return o; });
+    }
+    if (/\b(cotiz|courier|envi|despach|flete|tarifa|costo)/.test(tn)) {
+      var cs = {}; U.each(Cotizador.couriers(), function (c) { cs[c.v] = Cotizador.tarifas(c.v).length ? 'tarifa cargada' : 'referencia pública'; });
+      datos.couriersCotizador = cs;
+    }
+    var alcance = docs.length + ' documento(s) entre ' + U.fechaCL(desde) + ' y ' + U.fechaCL(hasta) + (x.fecha ? '' : ' más los pendientes') + (prods.length ? ' y ' + prods.length + ' producto(s)' : '') + ' (sin nombres, RUT, teléfonos, correos ni direcciones)';
+    return { contexto: JSON.stringify(datos), alcance: alcance };
+  },
+  preguntar: function (q) {
+    q = U.trim(q || '');
+    if (!q) { Asistente.modo = 'ia'; Asistente.dice('✨ Escribe la solicitud para Gemini.'); return; }
+    if (!AsisIA.habilitado()) { Asistente.dice('El análisis con IA no está habilitado en este equipo (Datos → Asistente con IA) o el equipo no está conectado a la planilla.', [Asistente.OP_MENU]); return; }
+    var c = AsisIA.contexto(q);
+    Asistente.modo = 'ia';
+    Asistente.dice('✨ Consultando a Gemini… <small>(' + U.esc(c.alcance) + ')</small>');
+    Sync.llamar('satIAPreguntar', { pregunta: q, contexto: c.contexto, alcance: c.alcance, historial: AsisIA.hist.slice(-6), usuario: DB.cfg.operador || '', dispositivo: DB.cfg.sync.dispositivo || '' }, function (r) {
+      AsisIA.hist.push({ rol: 'u', texto: q }); AsisIA.hist.push({ rol: 'b', texto: r.respuesta });
+      AsisIA.hist = AsisIA.hist.slice(-12); AsisIA.ult = r;
+      var h = '✨ ' + U.esc(r.respuesta).replace(/\n/g, '<br>');
+      if (r.tabla && r.tabla.columnas) h += '<table class="tb"><tr>' + U.map(r.tabla.columnas, function (x) { return '<td><b>' + U.esc(x) + '</b></td>'; }).join('') + '</tr>' + U.map(r.tabla.filas || [], function (f) { return '<tr>' + U.map(f, function (x) { return '<td>' + U.esc(x) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+      h += '<br><small>Gemini analizó ' + U.esc(c.alcance) + '. Respuesta generada por IA: verifique los datos importantes. Consultas hoy: ' + r.usadasHoy + ' de ' + r.tope + '.</small>';
+      var docs = [], ops = [];
+      U.each(r.ids || [], function (id) { var ds = Asistente.buscarDocs([U.norm(id)]); if (ds.length && docs.indexOf(ds[0]) < 0 && docs.length < 4) docs.push(ds[0]); });
+      Asistente.cand = docs; Asistente.intento = '';
+      U.each(docs, function (d, i) { ops.push([(d.orden || '—') + ' · ' + (d.numeroDocumento ? d.tipoDocumento + ' ' + d.numeroDocumento : 'sin doc'), 'd:' + i]); });
+      U.each(r.sugerencias || [], function (s, i) { ops.push(['✨ ' + s, 'ia:s' + i, 'mor']); });
+      ops.push(['Salir del análisis con IA', 'menu']);
+      Asistente.dice(h, ops);
+    }, function (m) {
+      Asistente.modo = '';
+      Asistente.dice('No se pudo consultar a Gemini: ' + U.esc(m), [['✨ Reintentar', 'ia:q', 'mor'], Asistente.OP_MENU]);
+    });
+  }
+};
+
 var Asistente = {
   modo: '', intento: '', ult: null, cand: [], rec: null, escuchando: false,
   STOP: ['el','la','los','las','un','una','unos','unas','de','del','al','a','en','y','o','que','cual','cuales','cuantos','cuantas','cuanto','cuando','donde','como','es','son','esta','estan','fue','iba','iban','va','van','se','me','mi','por','para','con','sin','su','sus','lo','le','hay','tiene','tienen','tenia','x','numero','nro','n','favor','porfa','hola','dime','saber','quiero','necesito','busco','producto','articulo','item','orden','ordenes','ticket','factura','boleta','guia','despacho','documento','doc','oc','compra','pedido','web','ot','courier','currier','bulto','bultos','codigo','id','sku','ubicado','ubicada','ubicacion','ubicaciones','medida','medidas','precio','valor','despacharon','envio','enviado','envie','salio','llevaba','lleva','tracking','seguimiento','estado','etapa','dimension','dimensiones','peso','pesa','mide','tamano','barra','barras','cuesta','vale','queda','encuentra','etiqueta','etiquetas','rotulo','rotulos','pegar','pega','pego','correos','chile','starken','chilexpress','informacion','info','datos','tiene','asociada','asociadas','asociado','mandante','mandantes','embalaje','caja','cajas','y','e','ingreso','ingresos'],
@@ -5985,8 +6295,10 @@ var Asistente = {
     if (/^(preguntas|preguntas frecuentes|faq|ayuda|temas)$/.test(t)) return 'faq';
     if (/^(gracias|grax|genial|perfecto|listo|excelente|ok|vale)( .*)?$/.test(t) && t.split(' ').length <= 3) return 'gracias';
     if (/^(hola|buenas|buenos dias|buenas tardes|buenas noches|alo)$/.test(t)) return 'hola';
+    if (AsisX.esCotizar(t)) return 'cotizar';
     if (h(t, ['etiqueta', 'rotul', 'pare', 'pegar', 'pego', 'pega ', 'pegada', 'va pegad'])) return 'etiqueta';
     if (h(t, ['resumen', 'pendientes', 'como vamos', 'como estamos', 'cuantos pedidos', 'cuantas ot', 'que falta'])) return 'resumen';
+    if (h(t, ['destino', 'a donde va', 'adonde va', 'direccion', 'destinatario', 'cliente', 'monto', 'canal', 'datos del pedido'])) return 'pedido';
     if (h(t, ['medida', 'dimension', 'tamano', 'mide', 'peso', 'pesa', 'cubica', 'kilos'])) return 'medida';
     if (h(t, ['donde', 'ubica', 'pasillo', 'estante', 'rack', 'gondola'])) return 'ubicacion';
     if (h(t, ['precio', 'cuesta', 'vale ', 'valor'])) return 'precio';
@@ -6100,6 +6412,8 @@ var Asistente = {
         c.appendChild(d);
       }
       c.scrollTop = c.scrollHeight;
+      var tr = t.getBoundingClientRect(), cr = c.getBoundingClientRect();
+      if (tr.top < cr.top) c.scrollTop = Math.max(0, c.scrollTop - (cr.top - tr.top) - 8);
     }, 450);
   },
   OP_MENU: ['↩ Menú inicial', 'menu'],
@@ -6108,11 +6422,13 @@ var Asistente = {
   opsMenu: function () {
     return [['1. ¿Dónde está un producto?', 'g:ubicacion'], ['2. Medidas y peso de un producto', 'g:medida'], ['3. Código o ID de un producto', 'g:codigo'],
       ['4. Órdenes del courier de un documento', 'g:courier'], ['5. ¿Qué etiqueta va en cada bulto?', 'g:etiqueta'], ['6. ¿Cuándo se despachó una orden?', 'g:despacho'],
-      ['7. ¿Cuántos bultos iban en una orden?', 'g:bultos'], ['8. Preguntas frecuentes', 'faq', 'mor'], ['9. Hablar con una persona', 'humano', 'verde']];
+      ['7. ¿Cuántos bultos iban en una orden?', 'g:bultos'], ['8. ¿Cuánto cuesta un envío?', 'g:cotizar'], ['9. Consultar pedidos y despachos', 'g:consulta']].concat(AsisIA.habilitado() ? [['10. ✨ Analizar con IA (Gemini)', 'ia:modo', 'mor'], ['11. Preguntas frecuentes', 'faq', 'mor'], ['12. Hablar con una persona', 'humano', 'verde']] : [['10. Preguntas frecuentes', 'faq', 'mor'], ['11. Hablar con una persona', 'humano', 'verde']]);
   },
   guias: { ubicacion: 'Escribe el nombre, marca o código del producto.', medida: 'Escribe el nombre, marca o código del producto (o el N° de orden si buscas las medidas de un envío).', codigo: 'Escribe el nombre o la marca del producto.', despacho: 'Escribe el N° de orden, ticket, factura, boleta, guía u OT courier.', ot: 'Escribe el N° de ticket, orden, factura o boleta.', bultos: 'Escribe el N° de orden, ticket, factura o boleta.',
     courier: 'Escribe el N° de orden, ticket, factura o boleta. Te muestro, bulto por bulto, el courier, su orden y el seguimiento de Correos.',
-    etiqueta: 'Escribe el N° de orden, factura o boleta, o el N° de seguimiento / orden que aparece en la etiqueta del courier. Te digo en qué bulto va cada una.' },
+    etiqueta: 'Escribe el N° de orden, factura o boleta, o el N° de seguimiento / orden que aparece en la etiqueta del courier. Te digo en qué bulto va cada una.',
+    cotizar: 'Dime qué vas a enviar y a dónde. Ej.: <i>«cuánto sale enviar el ACC-48 a Temuco por Starken»</i>, <i>«40x30x20 cm 3 kg a Coyhaique»</i> o <i>«cuánto costaría despachar la factura 89312»</i>.',
+    consulta: 'Dime qué buscas con fecha, tipo, courier, estado o destino. Ej.: <i>«facturas despachadas hoy»</i>, <i>«pedidos pendientes»</i>, <i>«qué se envió ayer por Starken»</i> o <i>«boletas a Temuco esta semana»</i>.' },
   FAQ: [
     { id: 'pareo', t: 'Asociar el rótulo interno con la etiqueta del courier', k: ['pare', 'asociar', 'asociacion', 'asocio', 'emparej', 'etiqueta del courier', 'etiqueta de correos', 'etiqueta courier', 'rotulo interno', 'pegar', 'equivoc', 'confund', 'cual etiqueta', 'que etiqueta'],
       r: 'Cada bulto lleva <b>dos etiquetas</b> que deben coincidir:<br>1. <b>Rótulo interno</b> (Cubicación → ETIQUETAS): orden, documento y <b>BULTO n DE N</b>. Se pega al cubicar.<br>2. <b>Etiqueta del courier</b>: llega después.<br><br><b>Correos de Chile</b>: un envío = un bulto. La extensión escribe la marca <i>ORDEN TIPO N° Bn/N</i> en «Detalle del envío». Después del pago, en «Mi historial de envíos» pulse <b>Registrar</b>: el seguimiento queda junto al bulto. En bodega use <b>Rotulado → PAREO CORREOS</b> y escanee la etiqueta: le dice «PEGAR EN BULTO n/N».<br><b>Otros couriers</b>: en <b>Despacho</b> escanee la orden del courier sobre cada bulto; Satélite avisa si no corresponde.<br><br>También puede escribirme el N° de seguimiento u orden del courier y le digo en qué bulto va.', ir: ['Ir a Pareo Correos', 'ir:pareo'] },
@@ -6132,7 +6448,7 @@ var Asistente = {
       r: 'El <b>Manifiesto</b> resume la OT despachada: courier, documentos y bultos. Se genera al cerrar el despacho; si después cambia algo en la OT, queda marcado como desactualizado y se puede regenerar.', ir: ['Ir a Manifiesto', 'ir:manifiesto'] },
     { id: 'correos', t: 'Extensión de Correos de Chile', k: ['extension', 'portal de correos', 'transferir', 'vincular', 'registrar', 'historial de envios', 'correlativo', 'filtro por dia', 'pagar'],
       r: 'La extensión trabaja en el portal de Correos (en Chrome de computador):<br>1. Busque el documento y pulse <b>Transferir medidas y peso</b> (un envío por bulto); también transfiere destinatario y remitente.<br>2. Antes de pagar, <b>Vincular</b> deja el ID de Correos junto al bulto.<br>3. Después de pagar, en «Mi historial de envíos» pulse <b>Registrar</b>: guarda el N° de seguimiento.<br>«Historial por día» filtra los envíos del día y los numera #01, #02… La extensión nunca confirma ni paga: eso lo hace usted.' },
-    { id: 'cotizador', t: 'Cotizar un envío por courier', k: ['cotizar', 'cotizador', 'tarifa', 'precio envio', 'cuanto cuesta', 'peso volumetrico', 'comunas'],
+    { id: 'cotizador', t: 'Cotizar un envío por courier', k: ['cotiz', 'cotizar', 'cotizador', 'tarifa', 'precio envio', 'cuanto cuesta', 'peso volumetrico', 'comunas'],
       r: 'En <b>Cubicación</b> use <b>COTIZAR</b> en la línea del documento (toma sus bultos y el destino del pedido) o junto a REPETIR MEDIDAS (incluye lo que está digitando, sin agregarlo). También está la pantalla <b>COTIZADOR</b> para cotizar sin cubicar. El precio sale de las tarifas reales cargadas en <b>Datos → Cotizador de envíos</b>; si un courier no tiene tarifa, solo se muestra su peso cobrable y el acceso a su sitio. Registre el precio que muestra el sitio para comparar lo estimado con lo real.', ir: ['Ir al Cotizador', 'ir:cotizador'] },
     { id: 'envio', t: 'Datos de envío: destinatario y remitente', k: ['destinatario', 'remitente', 'direccion', 'datos de envio', 'comuna', 'region'],
       r: 'Son opcionales. En <b>Pedidos</b> (botón DATOS ENVÍO) o en <b>Cubicación</b> (DATOS DE ENVÍO) se registran nombre, región, comuna, calle, número, referencia, teléfono y correo. El remitente por defecto se configura en <b>Datos</b>. Todo queda en la nube y la extensión lo traspasa al formulario de Correos.', ir: ['Ir a Pedidos', 'ir:pedidos'] },
@@ -6180,7 +6496,7 @@ var Asistente = {
   },
   inicio: function () {
     U.$('wspChat').innerHTML = ''; Asistente.modo = ''; Asistente.intento = ''; Asistente.ult = null;
-    Asistente.dice('¡Hola! 👋 Soy el asistente del Satélite. Te digo dónde está un producto y sus medidas, las órdenes del courier de un documento, qué etiqueta va en cada bulto y cuándo se despachó. También respondo dudas sobre cómo usar el Satélite. Elige una opción o escribe tu pregunta.', Asistente.opsMenu());
+    Asistente.dice('¡Hola! 👋 Soy el asistente del Satélite. Te digo dónde está un producto y sus medidas, las órdenes del courier de un documento, qué etiqueta va en cada bulto, cuándo se despachó y cuánto cuesta enviar algo por cada courier. También busco pedidos y despachos por fecha, tipo, courier, estado o destino, y respondo dudas sobre cómo usar el Satélite. Elige una opción o escribe tu pregunta.', Asistente.opsMenu());
   },
   abrir: function () {
     U.$('wspPanel').style.display = ''; Asistente.ocultarPop();
@@ -6221,6 +6537,13 @@ var Asistente = {
     var man = U.filter(d.ots, function (o) { return o.manifiesto && o.manifiesto.generado; }), ver = '';
     U.each(d.bultos, function (x) { if (x.b.verificadoCourierAt && x.b.verificadoCourierAt > ver) ver = x.b.verificadoCourierAt; });
     var cou = (d.couriers.join(', ') || 'sin courier asignado') + (d.ordenesCourier.length ? ' · orden courier: <b>' + U.esc(d.ordenesCourier.join(', ')) + '</b>' : '');
+    var pe = d.pedido, de = pe && pe.envio && pe.envio.destinatario;
+    if (it === 'pedido') {
+      if (!pe) return h + '<br>No hay un pedido registrado en Satélite para este documento.';
+      return h + '<br>🧾 Pedido: canal <b>' + U.esc(Listas.etq('CANAL', pe.origen) || '—') + '</b>' + (pe.tipo ? ' · ' + U.esc(pe.tipo) : '') + (pe.fecha ? ' · fecha <b>' + U.esc(U.fechaCL(Seguimiento._f(pe.fecha))) + '</b>' : '') +
+        '<br>Estado del pedido: <b>' + U.esc(Listas.etq('ESTADO', pe.estado)) + '</b>' + (U.num(pe.monto) ? '<br>Monto: <b>' + U.clp(U.num(pe.monto)) + '</b>' : '') +
+        (de && EnvioDatos.tieneDatos(de) ? '<br>📍 Destino: ' + U.esc(EnvioDatos.resumen(de)) : '<br>📍 Sin datos de destino registrados.') + (pe.observacion ? '<br>Obs.: ' + U.esc(pe.observacion) : '');
+    }
     if (it === 'despacho') {
       if (d.etapa === 'DESPACHADO' || d.etapa === 'ENTREGADO') h += '<br>🚚 Despachado: <b>' + U.map(man, function (o) { return U.esc(Asistente.fh('', o.manifiesto.fecha, o.manifiesto.hora)) + ' (manifiesto ' + U.esc(o.numero) + ')'; }).join(', ') + '</b>';
       else if (d.bultos.length) h += '<br>Aún no se despacha.' + (d.verificados ? ' Verificados ' + d.verificados + ' de ' + d.bultos.length + ' bultos' + (ver ? ', último el ' + U.esc(Asistente.fh(ver)) : '') + '.' : ' Ningún bulto verificado todavía.');
@@ -6250,17 +6573,17 @@ var Asistente = {
       U.each(xs, function (x) { var b = x.b; tp += Number(b.peso) || 0; tb += '<tr><td>' + x.pos + '/' + x.tot + '</td><td>' + U.esc(b.ancho + '×' + b.alto + '×' + b.largo) + ' cm</td><td>' + U.fx(b.peso, 2) + ' kg</td></tr>'; });
       return h + '<br>📦 <b>' + xs.length + ' bulto(s)</b> · ' + U.fx(tp, 2) + ' kg en total' + (d.bultos.length ? '' : ' (cubicados, aún sin OT)') + '<table class="tb">' + tb + '</table>';
     }
-    return h + (ots ? '<br>OT interna: <b>' + U.esc(ots) + '</b>' : '') + '<br>Bultos: <b>' + xs.length + '</b>' + (d.bultos.length ? ' · verificados ' + d.verificados + '/' + d.bultos.length : '') + (d.couriers.length ? '<br>Courier: ' + cou : '') +
+    return h + (pe ? '<br>Pedido: ' + U.esc(Listas.etq('CANAL', pe.origen) || '') + (pe.fecha ? ' del ' + U.esc(U.fechaCL(Seguimiento._f(pe.fecha))) : '') + ' · ' + U.esc(Listas.etq('ESTADO', pe.estado)) + (de && (de.comuna || de.region) ? ' · destino ' + U.esc(de.comuna || de.region) : '') : '') + (ots ? '<br>OT interna: <b>' + U.esc(ots) + '</b>' : '') + '<br>Bultos: <b>' + xs.length + '</b>' + (d.bultos.length ? ' · verificados ' + d.verificados + '/' + d.bultos.length : '') + (d.couriers.length ? '<br>Courier: ' + cou : '') +
       (d.correos && d.correos.length ? '<br>Correos: ' + U.esc(CorreosSat.ids(d.correos).join(', ')) : '') +
       (man.length ? '<br>Manifiesto: ' + U.map(man, function (o) { return U.esc(Asistente.fh('', o.manifiesto.fecha, o.manifiesto.hora)); }).join(', ') : '');
   },
   responderDoc: function (d, it) {
     Asistente.ult = { tipo: 'doc', d: d };
-    Asistente.dice(Asistente.docHtml(d, it), [['Ver en Seguimiento →', 'verseg', 'mor'], ['Courier por bulto', 'r:courier'], ['¿Qué etiqueta va en cada bulto?', 'r:etiqueta'], ['¿Cuántos bultos?', 'r:bultos'], ['¿Cuándo se despachó?', 'r:despacho'], Asistente.OP_MENU]);
+    Asistente.dice(Asistente.docHtml(d, it), [['Ver en Seguimiento →', 'verseg', 'mor'], ['Courier por bulto', 'r:courier'], ['¿Qué etiqueta va en cada bulto?', 'r:etiqueta'], ['¿Cuántos bultos?', 'r:bultos'], ['¿Cuándo se despachó?', 'r:despacho'], ['Datos del pedido y destino', 'r:pedido'], ['¿Cuánto cuesta enviarlo?', 'r:cotizar'], Asistente.OP_MENU]);
   },
   responderProd: function (p, it) {
     Asistente.ult = { tipo: 'prod', p: p };
-    Asistente.dice(Asistente.prodHtml(p, it), [['¿Dónde está?', 'r:ubicacion'], ['Medidas y peso', 'r:medida'], ['Código y datos', 'r:codigo'], ['Ver ficha →', 'verficha', 'mor'], Asistente.OP_MENU]);
+    Asistente.dice(Asistente.prodHtml(p, it), [['¿Dónde está?', 'r:ubicacion'], ['Medidas y peso', 'r:medida'], ['Código y datos', 'r:codigo'], ['¿Cuánto cuesta enviarlo?', 'r:cotizar'], ['Ver ficha →', 'verficha', 'mor'], Asistente.OP_MENU]);
   },
   responderEtiqueta: function (r) {
     Asistente.ult = { tipo: 'doc', d: r.d };
@@ -6276,10 +6599,13 @@ var Asistente = {
   texto: function (t) {
     if (Asistente.modo === 'humano') { Asistente.enviarWsp(t); return; }
     var it = Asistente.intencion(t);
+    Asistente.ultPregunta = t;
+    if (Asistente.modo === 'ia' && it !== 'menu' && it !== 'humano' && it !== 'faq') { AsisIA.preguntar(t); return; }
     if (it === 'humano') { Asistente.humano(); return; }
     if (it === 'menu' || it === 'hola') { Asistente.modo = ''; Asistente.dice('¿En qué te ayudo?', Asistente.opsMenu()); return; }
     if (it === 'faq') { Asistente.modo = ''; Asistente.listaFaq(); return; }
     if (it === 'gracias') { Asistente.dice('¡De nada! 😊 Si necesitas algo más, aquí estoy.', [Asistente.OP_MENU]); return; }
+    if (AsisX.manejar(t, it)) return;
     var modoPrev = Asistente.modo;
     if (!it && modoPrev) it = modoPrev;
     Asistente.modo = '';
@@ -6309,10 +6635,14 @@ var Asistente = {
     }
     if (fq) { Asistente.responderFaq(fq.f); return; }
     if (it && Asistente.guias[it] && !cl.length) { Asistente.modo = it; Asistente.dice(Asistente.guias[it]); return; }
-    Asistente.dice('No encontré ' + (cl.length ? 'documentos, productos ni etiquetas con <b>' + U.esc(cl.join(', ')) + '</b>' : 'lo que buscas') + '. Revisa el número o el nombre, prueba otra opción o revisa las preguntas frecuentes.' + (Sync.modo() !== 'local' ? '' : '<br><small>Este equipo no está sincronizado: solo consulto sus datos locales.</small>'), [Asistente.OP_FAQ, Asistente.OP_MENU, Asistente.OP_HUMANO]);
+    Asistente.dice('No encontré ' + (cl.length ? 'documentos, productos ni etiquetas con <b>' + U.esc(cl.join(', ')) + '</b>' : 'lo que buscas') + '. Revisa el número o el nombre, prueba otra opción o revisa las preguntas frecuentes.' + (Sync.modo() !== 'local' ? '' : '<br><small>Este equipo no está sincronizado: solo consulto sus datos locales.</small>'), (AsisIA.habilitado() ? [['✨ Preguntar a Gemini', 'ia:q', 'mor']] : []).concat([Asistente.OP_FAQ, Asistente.OP_MENU, Asistente.OP_HUMANO]));
   },
   accion: function (a) {
     var u = Asistente.ult;
+    if (AsisX.accion(a)) return;
+    if (a === 'ia:modo') { Asistente.msj('✨ Analizar con IA', 'yo'); Asistente.modo = 'ia'; Asistente.dice('✨ Escribe tu solicitud y Gemini la analiza con los datos operativos de este equipo (pedidos, documentos, bultos, despachos, couriers y, si la pides, el catálogo). No se envían nombres, RUT, teléfonos, correos ni direcciones. Ej.: <i>«¿qué pedidos llevan más días sin despachar y por qué etapa van?»</i>', [['Salir del análisis con IA', 'menu']]); setTimeout(function () { U.$('wspIn').focus(); }, 400); return; }
+    if (a === 'ia:q') { Asistente.msj('✨ Preguntar a Gemini', 'yo'); AsisIA.preguntar(Asistente.ultPregunta); return; }
+    if (/^ia:s\d$/.test(a)) { var sg = AsisIA.ult && AsisIA.ult.sugerencias && AsisIA.ult.sugerencias[+a.substr(4)]; if (sg) { Asistente.msj(U.esc(sg), 'yo'); Asistente.ultPregunta = sg; AsisIA.preguntar(sg); } return; }
     if (a === 'menu') { Asistente.msj('Menú inicial', 'yo'); Asistente.modo = ''; Asistente.dice('¿En qué más te ayudo?', Asistente.opsMenu()); return; }
     if (a === 'faq') { Asistente.msj('Preguntas frecuentes', 'yo'); Asistente.modo = ''; Asistente.listaFaq(); return; }
     if (a === 'humano') { Asistente.msj('Hablar con una persona', 'yo'); Asistente.humano(); return; }
@@ -6330,17 +6660,25 @@ var Asistente = {
     if (a === 'verficha' && u && u.tipo === 'prod') { Asistente.cerrar(); App.ir('catalogo'); CatUI.ficha(u.p.codigo); return; }
     if (a.indexOf('g:') === 0) {
       var g = a.substr(2), op = U.find(Asistente.opsMenu(), function (o) { return o[1] === a; });
+      if (g === 'cotizar') AsisX.cot = AsisX.ctxDe({}, null, null);
       Asistente.msj(U.esc(op ? op[0].replace(/^\d+\.\s*/, '') : g), 'yo'); Asistente.modo = g;
       Asistente.dice(Asistente.guias[g]); setTimeout(function () { U.$('wspIn').focus(); }, 500); return;
     }
     if (a.indexOf('r:') === 0 && u) {
       var it = a.substr(2), b = U.$('wspChat').querySelector('[data-bot="' + a + '"]');
       Asistente.msj(U.esc(b ? b.textContent : it), 'yo');
+      if (it === 'cotizar') { var cz = AsisX.ctxDe({}, u.tipo === 'prod' ? u.p : null, u.tipo === 'doc' ? u.d : null); if (cz.error) { AsisX.cot = AsisX.ctxDe({}, null, null); Asistente.modo = 'cotizar'; Asistente.dice(cz.error); } else AsisX.cotizar(cz); return; }
       if (u.tipo === 'doc') Asistente.responderDoc(u.d, it); else Asistente.responderProd(u.p, it);
       return;
     }
     if (a.indexOf('d:') === 0 || a.indexOf('p:') === 0) {
       var x = Asistente.cand[parseInt(a.substr(2), 10)]; if (!x) return;
+      if (Asistente.intento === 'cotizar') {
+        var bc = AsisX.cot || {}, cx = AsisX.ctxDe({ cant: bc.cant, destino: bc.destino, origen: bc.origen, courier: bc.courier, modalidad: bc.modalidad, porPagar: bc.porPagar }, a.charAt(0) === 'p' ? x : null, a.charAt(0) === 'd' ? x : null);
+        Asistente.msj(U.esc(a.charAt(0) === 'd' ? x.orden : (x.descripcion || x.codigo)), 'yo'); Asistente.intento = '';
+        if (cx.error) { AsisX.cot = AsisX.ctxDe({ destino: bc.destino, courier: bc.courier }, null, null); Asistente.modo = 'cotizar'; Asistente.dice(cx.error); } else AsisX.cotizar(cx);
+        return;
+      }
       if (a.charAt(0) === 'd') { Asistente.msj(U.esc(x.orden), 'yo'); Asistente.responderDoc(x, Asistente.intento); }
       else { Asistente.msj(U.esc(x.descripcion || x.codigo), 'yo'); Asistente.responderProd(x, Asistente.intento); }
     }
@@ -7225,6 +7563,9 @@ Pantallas.datos = function (m) {
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="cmPlantilla">PLANTILLA</button><button class="btn btn-sec btn-sm" data-a="cmExportar">DESCARGAR LISTA</button></div>' +
     '<h3 style="margin-top:12px">COURIER</h3><div class="muted">Los couriers salen de «Listas de selección». Aquí se registran sus parámetros y tarifas.</div><label class="lbl" for="ccSel">COURIER</label><select id="ccSel" class="inp sm">' + U.map(Listas.get('COURIER'), function (x) { return '<option value="' + U.esc(x.v) + '">' + U.esc(Listas.etq('COURIER', x.v)) + (x.on === false ? ' (inactivo)' : '') + (Cotizador.tarifas(x.v).length ? ' · con tarifa' : '') + '</option>'; }).join('') + '</select>' +
     '<div id="ccForm"></div></div>';
+  h += '<div class="card"><h2>Asistente con IA (Gemini)</h2><div class="muted">Agrega «✨ Analizar con IA» al asistente. La consulta la hace la planilla con la clave guardada en Apps Script → Configuración del proyecto → Propiedades del script → <b>GEMINI_API_KEY</b> (opcionales: <b>GEMINI_MODELO</b>, si no se indica se usa el modelo Flash estable más reciente disponible para la clave, y <b>GEMINI_TOPE_DIA</b>, por defecto 50 consultas al día). Se envían solo datos operativos: órdenes, documentos, fechas, etapas, couriers, comunas, bultos, pesos y montos; nunca nombres, RUT, teléfonos, correos ni direcciones. Cada consulta queda en la hoja <b>SAT_IA_Log</b>.</div>' +
+    '<label class="chk"><input type="checkbox" id="cfIA"' + (c.iaAsistente ? ' checked' : '') + '> Permitir «Analizar con IA» en este equipo</label>' +
+    '<button class="btn btn-sec btn-sm" data-a="iaProbar">PROBAR CONEXIÓN CON GEMINI</button><div id="iaMsg"></div></div>';
   h += '<div class="card"><h2>Remitente por defecto (envíos)</h2><div class="muted">Se usa en los datos de envío de cada pedido, salvo que el pedido indique otro. Se comparte con todos los equipos y con la extensión de Correos.</div>' +
     EnvioDatos.formulario('rmD_', EnvioDatos.remitenteDefecto()) +
     '<button class="btn btn-ok" data-a="guardarRem">GUARDAR REMITENTE</button></div>';
@@ -7283,6 +7624,7 @@ Pantallas.datos = function (m) {
   m.onchange = function (e) {
     if (e.target && e.target.id === 'lsSel') { lsCargar(e.target.value); return; }
     if (e.target && e.target.id === 'ccSel') { ccCargar(e.target.value); return; }
+    if (e.target && e.target.id === 'cfIA') { DB.cfg.iaAsistente = e.target.checked; DB.guardarCfg(); UI.toast(e.target.checked ? 'Análisis con IA habilitado en este equipo' : 'Análisis con IA deshabilitado en este equipo', 'ok'); return; }
     if (e.target && e.target.id === 'cmFile') { cmArchivo(e.target.files && e.target.files[0]); return; }
     if (e.target && e.target.id === 'ccFile') { ccTarifasArchivo(e.target.files && e.target.files[0]); return; }
     if (e.target && e.target.id === 'cfPag') { DB.cfg.paginaImpresion = e.target.value; DB.guardarCfg(); UI.toast('Tamaño de página guardado', 'ok'); }
@@ -7448,6 +7790,12 @@ Pantallas.datos = function (m) {
   lsCargar('TIPO_DOC');
   cmEstado(); ccCargar(U.$('ccSel') ? U.$('ccSel').value : '');
   UI.delegar(m, {
+    iaProbar: function () {
+      var el = U.$('iaMsg');
+      if (!Cotizador.activo()) { el.innerHTML = '<div class="aviso amar" style="font-size:13px">Este equipo no está conectado a la planilla.</div>'; return; }
+      el.innerHTML = '<div class="muted">Consultando la planilla…</div>';
+      Sync.llamar('satIAEstado', {}, function (r) { el.innerHTML = '<div class="aviso ' + (r.tieneApiKey ? 'verde' : 'rojo') + '" style="font-size:13px">Clave de Gemini: ' + (r.tieneApiKey ? 'configurada' : 'FALTA (GEMINI_API_KEY)') + ' · modelo ' + U.esc(r.modelo) + (r.modeloFijo ? ' (fijado en GEMINI_MODELO)' : ' (detectado automáticamente)') + ' · consultas hoy ' + r.usadasHoy + ' de ' + r.tope + '</div>'; }, function (m) { el.innerHTML = '<div class="aviso rojo" style="font-size:13px">' + U.esc(m) + '</div>'; });
+    },
     cmPlantilla: function () { UI.descargar('plantilla_comunas.csv', Comunas.plantilla(), 'text/csv'); },
     cmExportar: function () { if (!Comunas.lista.length) { UI.toast('No hay comunas cargadas', 'warn'); return; } UI.descargar('comunas_' + U.sello() + '.csv', Comunas.exportar(), 'text/csv'); },
     ccPlantilla: function () { UI.descargar('plantilla_tarifas.csv', Cotizador.plantilla(), 'text/csv'); },
