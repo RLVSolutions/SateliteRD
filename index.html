@@ -464,7 +464,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.29.1', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.30.0', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1245,7 +1245,7 @@ var EnvioDatos = {
     }).join('');
   },
   leerForm: function (pref) { var o = {}; U.each(CAMPOS_DIRECCION, function (c) { var el = U.$(pref + c.k); o[c.k] = el ? el.value : ''; }); return EnvioDatos.limpiar(o); },
-  abrir: function (ref, alGuardar) {
+  abrir: function (ref, alGuardar, man) {
     var p = ref.pedidoId ? Pedidos.porId(ref.pedidoId) : null;
     if (!p) p = EnvioDatos.buscarPedido(ref.orden, ref.tipoDocumento, ref.numeroDocumento);
     var orden = p ? p.numero : U.trim(ref.orden);
@@ -1255,6 +1255,7 @@ var EnvioDatos = {
     var docTxt = p ? (p.tipoDocumento ? p.tipoDocumento + ' ' + (p.numeroDocumento || 'sin número') : 'sin documento') : ((ref.tipoDocumento || '') + ' ' + (ref.numeroDocumento || 'sin número'));
     var html = '<div class="muted">Orden <b>' + U.esc(orden) + '</b> · ' + U.esc(docTxt) + (p ? '' : ' · <b>se registrará como pedido</b>') + '</div>' +
       '<div class="muted">Todos los campos son opcionales. La extensión los traspasa al formulario de Correos.</div>' +
+      (man && man.length ? '<div class="aviso amar" style="font-size:13px">Este documento ya está en el manifiesto de ' + U.esc(man.join(', ')) + '. Si cambia la dirección, reimprímalo.</div>' : '') +
       '<div class="btns" style="margin-top:8px"><button type="button" class="btn btn-ok btn-sm" data-tab="ed">DESTINATARIO</button><button type="button" class="btn btn-sec btn-sm" data-tab="er">REMITENTE</button></div>' +
       '<div id="edPanel">' + EnvioDatos.formulario('edD_', dest) + '</div>' +
       '<div id="erPanel" style="display:none"><label class="chk"><input type="checkbox" id="edRemDef"' + (remP ? '' : ' checked') + '> Usar remitente por defecto (Datos)</label>' +
@@ -1286,6 +1287,29 @@ var EnvioDatos = {
       };
       host.onchange = function (e) { if (e.target.id === 'edRemDef') U.$('edRemCampos').style.display = e.target.checked ? 'none' : ''; };
     } });
+  },
+  pedidoDeBultos: function (bs) {
+    var pid = '';
+    U.each(bs || [], function (b) { if (pid) return; if (b.pedidoId && Pedidos.porId(b.pedidoId)) pid = b.pedidoId; else if (b.origenCubicacionId) { var c = U.find(CubPool.lista, function (x) { return x.id === b.origenCubicacionId; }); if (c && c.pedidoId && Pedidos.porId(c.pedidoId)) pid = c.pedidoId; } });
+    return pid;
+  },
+  ref: function (orden, tipo, num, bs, pedidoId) { return { pedidoId: (pedidoId && Pedidos.porId(pedidoId) ? pedidoId : '') || EnvioDatos.pedidoDeBultos(bs), orden: U.trim(orden || ''), tipoDocumento: tipo || '', numeroDocumento: num || '' }; },
+  refOT: function (ot, d) { return EnvioDatos.ref(d.orden, OT.tipoDoc(d), OT.numeroDoc(d), OT.bultosDoc(ot, d.key)); },
+  pedidoDe: function (r) { return (r.pedidoId && Pedidos.porId(r.pedidoId)) || EnvioDatos.buscarPedido(r.orden, r.tipoDocumento, r.numeroDocumento); },
+  destDe: function (r) { var p = EnvioDatos.pedidoDe(r), d = p && p.envio && p.envio.destinatario; return d && EnvioDatos.tieneDatos(d) ? d : null; },
+  linea: function (r) { var d = EnvioDatos.destDe(r); return d ? '<div class="s env-lin">📍 ' + U.esc(EnvioDatos.resumen(d)) + '</div>' : '<div class="s env-lin" style="color:#b35c00"><b>📍 Sin datos de envío</b></div>'; },
+  boton: function (accion, x, r) { return '<button class="btn btn-sec btn-sm" data-a="' + accion + '" data-x="' + U.esc(x) + '">' + (EnvioDatos.destDe(r) ? '✓ DATOS DE ENVÍO' : '+ DATOS DE ENVÍO') + '</button>'; },
+  otsConManifiesto: function (r) {
+    var k = OT.docKey(r.orden, r.tipoDocumento || 'FACTURA', r.numeroDocumento), l = [];
+    U.each(OT.lista, function (o) { if (o.manifiesto && o.manifiesto.generado && U.find(o.documentos || [], function (d) { return d.key === k; })) l.push(o.numero); });
+    return l;
+  },
+  editar: function (r, cb) {
+    var man = EnvioDatos.otsConManifiesto(r);
+    EnvioDatos.abrir(r, function (p) {
+      if (man.length) setTimeout(function () { UI.toast('Datos de envío actualizados. Reimprima el manifiesto de ' + man.join(', ') + ' para que salga la nueva dirección.', 'warn', 7000); }, 50);
+      if (cb) cb(p);
+    }, man);
   },
   guardar: function (p, ref, envio, cb) {
     if (!p) {
@@ -4463,7 +4487,8 @@ Pantallas.cubicacion = function (m) {
     U.each(pc.items, function (k) {
       var g = grupos[k], b0 = g[0], tot = CubUI.bultosDoc(k).length;
       hh += '<div class="dochead"><div style="font-size:16px"><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s)</div>' +
-        '<div class="btns"><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button><button class="btn btn-sec btn-sm" data-a="cotDoc" data-x="' + U.esc(k) + '">COTIZAR</button></div></div>';
+        EnvioDatos.linea(EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) +
+        '<div class="btns"><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button><button class="btn btn-sec btn-sm" data-a="cotDoc" data-x="' + U.esc(k) + '">COTIZAR</button>' + EnvioDatos.boton('envDoc', k, EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) + '</div></div>';
       U.each(g, function (b) { hh += CubUI.filaBulto(b); });
     });
     U.$('cuLista').innerHTML = hh;
@@ -4637,6 +4662,11 @@ Pantallas.cubicacion = function (m) {
     },
     vouDoc: function (k) { CubUI.voucherDocs([k]); },
     etqDoc: function (k) { CubUI.imprimirDocs([k]); },
+    envDoc: function (k) {
+      var l = CubUI.bultosDoc(k), b0 = l[0];
+      if (!b0) return;
+      EnvioDatos.editar(EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, l), function () { if (U.$('cuLista')) { pintar(); envioRes(); } });
+    },
     cotDoc: function (k) {
       var l = CubUI.bultosDoc(k), b0 = l[0];
       if (!b0) return;
@@ -5192,6 +5222,7 @@ Pantallas.packing = function (m) {
     if (!ot.bultos.length) sh += '<div class="muted" style="padding:10px 0">Esta OT aún no tiene bultos.</div>';
     var avP = Plantillas.avisosCourier(ot);
     if (avP.sinCourier.length) sh += '<div class="aviso rojo" style="font-size:14px">⚠ ' + avP.sinCourier.length + ' documento(s) sin courier asociado: ' + U.esc(U.map(avP.sinCourier, function (x) { return x.doc.orden; }).join(', ')) + '. El manifiesto se imprime uno por courier: asígnelo con COURIER.</div>';
+    if (avP.sinDireccion.length) sh += '<div class="aviso amar" style="font-size:14px">⚠ Sin dirección de envío: ' + U.esc(U.map(avP.sinDireccion, function (x) { return x.orden; }).join(', ')) + '. Ingrésela con DATOS DE ENVÍO en cada documento.</div>';
     var docsOT = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
     var pk = Pag.cortar('packOT', docsOT);
     sh += '<div id="pkPag">' + Pag.html('packOT', pk, 'documento(s)') + '</div><div class="lista-int">';
@@ -5199,13 +5230,13 @@ Pantallas.packing = function (m) {
       var bs2 = OT.bultosDoc(ot, d.key); if (!bs2.length) return;
       sh += '<div class="doc"><div class="dh"><div><div style="font-size:20px;font-weight:900">' + U.esc(d.orden) + '</div>' +
         '<div style="font-size:18px;font-weight:800">' + U.esc(OT.etiquetaDoc(d)) + '</div></div></div>' +
-        '<div class="s" style="font-size:15px">' + bs2.length + ' bulto(s) · ' + Packing.lineaCourier(OT.couriersDoc(ot, d.key)) + '</div>' +
+        '<div class="s" style="font-size:15px">' + bs2.length + ' bulto(s) · ' + Packing.lineaCourier(OT.couriersDoc(ot, d.key)) + '</div>' + EnvioDatos.linea(EnvioDatos.refOT(ot, d)) +
         '<div class="btns">' +
         '<button class="btn btn-sec btn-sm" data-a="editarDoc" data-x="' + U.esc(d.key) + '">EDITAR / LIBERAR</button>' +
         '<button class="btn btn-sec btn-sm" data-a="voucher" data-x="' + U.esc(d.key) + '">VOUCHER</button>' +
         '<button class="btn btn-ok btn-sm" data-a="etiquetas" data-x="' + U.esc(d.key) + '">ETIQUETAS</button>' +
         '<button class="btn btn-sec btn-sm" data-a="etiquetasRapidas" data-x="' + U.esc(d.key) + '">IMPRIMIR TODAS</button>' +
-        '<button class="btn btn-ok btn-sm" data-a="courierRapido" data-x="' + U.esc(d.key) + '">COURIER</button></div></div>';
+        '<button class="btn btn-ok btn-sm" data-a="courierRapido" data-x="' + U.esc(d.key) + '">COURIER</button>' + EnvioDatos.boton('pkEnvio', d.key, EnvioDatos.refOT(ot, d)) + '</div></div>';
     });
     sh += '</div>';
     sh += '<div class="accbar">' + (docsOT.length > 1 ? '<div class="btns"><button class="btn btn-ok" data-a="pkEtq">ETIQUETAS DE VARIOS</button><button class="btn btn-sec" data-a="vouVarios">VOUCHER DE VARIOS</button></div>' : '');
@@ -5238,6 +5269,7 @@ Pantallas.packing = function (m) {
       ots: PackingUI.elegirOT,
       editarDoc: function (k) { PackingUI.editarDocumento(ot, k); },
       courierRapido: function (k) { PackingUI.courierRapido(ot, k); },
+      pkEnvio: function (k) { var d = U.find(ot.documentos, function (x) { return x.key === k; }); if (d) EnvioDatos.editar(EnvioDatos.refOT(ot, d), function () { if (App.pantalla === 'packing') App.ir('packing'); }); },
       courierToda: function () { PackingUI.courierRapido(ot, null); },
       editarOT: function () { PackingUI.editarOT(ot); },
       manif: function () { App.ir('manifiesto'); }
@@ -5362,7 +5394,7 @@ var DespachoGrupo = {
     if (esCorreos) CorreosSat.actualizar(function () {}, true);
     var ultimoCodigoUsado = '';
     var h = '<div class="msg"><b style="font-size:20px">' + U.esc(g.orden) + '</b><br>' + U.esc(g.tipoDocumento) + ' <b>' + U.esc(g.numeroDocumento) + '</b><br>OT interna: <b>' + U.esc(ot.numero) + '</b>' +
-      '<br>Courier: <b>' + U.esc(g.courier || 'SIN ASIGNAR') + '</b>' + (esCorreos ? ' <span class="est COMPLETO">VALIDA ETIQUETA CORREOS</span>' : '') + '<br>N° courier registradas: <b id="dgEsp">' + U.esc(g.ordenes.length ? g.ordenes.join(', ') : 'SE DEFINEN CON LA PRIMERA LECTURA') + '</b></div>' +
+      EnvioDatos.linea(EnvioDatos.ref(g.orden, g.tipoDocumento, g.numeroDocumento, g.bultos)) + '<button type="button" class="btn btn-sec btn-sm" id="dgEnv">' + (EnvioDatos.destDe(EnvioDatos.ref(g.orden, g.tipoDocumento, g.numeroDocumento, g.bultos)) ? '✓ DATOS DE ENVÍO' : '+ DATOS DE ENVÍO') + '</button>' + '<br>Courier: <b>' + U.esc(g.courier || 'SIN ASIGNAR') + '</b>' + (esCorreos ? ' <span class="est COMPLETO">VALIDA ETIQUETA CORREOS</span>' : '') + '<br>N° courier registradas: <b id="dgEsp">' + U.esc(g.ordenes.length ? g.ordenes.join(', ') : 'SE DEFINEN CON LA PRIMERA LECTURA') + '</b></div>' +
       '<label class="lbl">ESCANEE ETIQUETA / OT DEL COURIER</label><input id="dgScan" class="inp" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="font-size:25px;font-weight:900" data-enter="dgRegistrar">' +
       '<button class="btn btn-ok btn-xl" id="dgReg">REGISTRAR LECTURA</button><button class="btn btn-sec" id="dgCam">📷 CÁMARA / CÓDIGO</button><div id="dgMsg"></div><div id="dgCnt"></div><div id="dgLista"></div>';
     UI.modal({ titulo: 'Control de despacho', html: h, botones: [
@@ -5370,6 +5402,7 @@ var DespachoGrupo = {
       { txt: 'REINICIAR CONTEO', cls: 'btn-warn', fn: function () { UI.confirmar('¿Borrar las lecturas de este grupo?', function () { DespachoGrupo.limpiarGrupo(g); UI.cerrarModal(); DespachoGrupo.abrir(ot, key); }, { si: 'REINICIAR', peligro: true }); return false; } },
       { txt: 'CERRAR', cls: 'btn-sec', fn:function(){setTimeout(function(){App.ir('despacho');},0);} }
     ] });
+    if (U.$('dgEnv')) U.$('dgEnv').onclick = function () { EnvioDatos.editar(EnvioDatos.ref(g.orden, g.tipoDocumento, g.numeroDocumento, g.bultos), function () { DespachoGrupo.abrir(OT.porId(ot.id) || ot, key); }); };
     function pintar() {
       var hechos = DespachoGrupo.hechos(g), pct = total ? Math.round(hechos * 100 / total) : 0, ls = '';
       U.each(g.bultos, function (b) {
@@ -5961,7 +5994,17 @@ var Seguimiento = {
       });
       h += '</table>';
     }
+    var envRef = EnvioDatos.ref(d.orden, d.tipoDocumento, d.numeroDocumento, U.map(d.bultos, function (x) { return x.b; }).concat(d.cub || []), d.pedido && d.pedido.id);
+    h = h.replace('</div>' + Seguimiento.barra(d.etapa), EnvioDatos.linea(envRef) + '</div>' + Seguimiento.barra(d.etapa));
     var abierta = U.find(d.ots, function (o) { return o.estado === 'ABIERTA'; }), bt = [];
+    if (U.trim(d.orden)) bt.push({ txt: EnvioDatos.destDe(envRef) ? '✓ DATOS DE ENVÍO' : '+ DATOS DE ENVÍO', cls: 'btn-sec', fn: function () {
+      EnvioDatos.editar(envRef, function () {
+        if (App.pantalla === 'seguimiento') App.ir('seguimiento');
+        var n = U.find(Seguimiento.indice(), function (x) { return U.norm(x.orden) === U.norm(d.orden) && U.norm(x.tipoDocumento) === U.norm(d.tipoDocumento) && U.norm(x.numeroDocumento) === U.norm(d.numeroDocumento); });
+        if (n) Seguimiento.detalle(n);
+      });
+      return false;
+    } });
     if (abierta) bt.push({ txt: 'IR A PACKING', cls: 'btn-ok', fn: function () { OT.setActiva(abierta.id); UI.cerrarModal(); App.ir('packing'); return false; } });
     else if (d.ots.length) bt.push({ txt: 'IR A MANIFIESTO', cls: 'btn-ok', fn: function () { Manif.otId = d.ots[d.ots.length - 1].id; UI.cerrarModal(); App.ir('manifiesto'); return false; } });
     else if (d.pedido && !d.cub.length) bt.push({ txt: 'CUBICAR →', cls: 'btn-ok', fn: function () { CubUI.pedidoId = d.pedido.id; UI.cerrarModal(); App.ir('cubicacion'); return false; } });
@@ -6813,8 +6856,14 @@ var Manif = { otId: null, vista: 'vigentes', cour: '*',
     var gs = Plantillas.gruposCourier(ot), av = Plantillas.avisosCourier(ot), h = '<div class="card"><h2>Couriers de esta OT</h2><div class="muted">El manifiesto se imprime uno por courier, con la dirección de envío de cada documento.</div>';
     h += U.map(gs, function (g) { return '<div class="frow"><span class="fx"><b>' + (g.courier ? U.esc(g.courier) : '<span style="color:#c00000">SIN COURIER</span>') + '</b></span><span>' + g.t.documentos + ' doc. · ' + g.t.bultos + ' bulto(s) · ' + U.fx(g.t.peso, 1) + ' kg</span></div>'; }).join('');
     if (av.sinCourier.length) h += '<div class="aviso rojo" style="font-size:14px;margin-top:8px">⚠ ' + av.sinCourier.length + ' documento(s) sin courier asociado: ' + U.esc(U.map(av.sinCourier, function (x) { return x.doc.orden + ' (' + x.n + ' de ' + x.de + ' bulto/s)'; }).join(', ')) + '. Asígnelo en Packing (botón COURIER).</div>';
-    if (av.sinDireccion.length) h += '<div class="aviso amar" style="font-size:14px;margin-top:8px">⚠ Sin dirección de envío: ' + U.esc(U.map(av.sinDireccion, function (d) { return d.orden; }).join(', ')) + '. Complétela en Pedidos o Cubicación (DATOS DE ENVÍO).</div>';
+    if (av.sinDireccion.length) h += '<div class="aviso amar" style="font-size:14px;margin-top:8px">⚠ Sin dirección de envío: ' + U.esc(U.map(av.sinDireccion, function (d) { return d.orden; }).join(', ')) + '. Ingrésela abajo, en «Direcciones de envío».</div>';
     return h + '</div>';
+  },
+  direcciones: function (ot) {
+    var docs = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
+    if (!docs.length) return '';
+    return '<div class="card"><h2>Direcciones de envío</h2><div class="muted">Dirección del documento mandante que sale en la OT y en el manifiesto. Puede ingresarla o modificarla aquí.</div><div class="lista-int">' +
+      U.map(docs, function (d) { var r = EnvioDatos.refOT(ot, d); return '<div class="doc"><div><b>' + U.esc(d.orden) + '</b> · ' + U.esc(OT.etiquetaDoc(d)) + '</div>' + EnvioDatos.linea(r) + '<div class="btns">' + EnvioDatos.boton('mfEnvio', d.key, r) + '</div></div>'; }).join('') + '</div></div>';
   },
   selectorCourier: function (ot, id, val) {
     var gs = Plantillas.gruposCourier(ot);
@@ -6849,7 +6898,7 @@ Pantallas.manifiesto = function (m) {
   if (mf.desactualizado) h += '<div class="aviso rojo">La OT se modificó después de generar el manifiesto. Debe REGENERARLO antes de imprimir.</div>';
   h += '<div class="card tot">DOCUMENTOS: <b>' + t.documentos + '</b> · BULTOS: <b>' + t.bultos + '</b><br>PESO REAL TOTAL: <b>' + U.fx(t.peso, 2) + ' kg</b><br>' +
     'VOLUMEN TOTAL: <b>' + U.fx(t.volumen, 3) + ' m³</b><br>PESO VOLUMÉTRICO TOTAL: <b>' + U.fx(t.pesoVol, 2) + ' kg</b></div>';
-  h += Manif.resumenCouriers(ot);
+  h += Manif.resumenCouriers(ot) + Manif.direcciones(ot);
   h += '<div class="card"><table class="tbl"><thead><tr><th>Orden</th><th>Fact.</th><th>Bulto</th><th>Medidas</th><th>Kg</th></tr></thead><tbody>';
   U.each(Plantillas._porDoc(ot), function (g) {
     U.each(g.bultos, function (b) { var pb = Plantillas._posBulto(ot, b); h += '<tr><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + pb.pos + '/' + pb.tot + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td>' + U.fx(b.peso, 1) + '</td></tr>'; });
@@ -6892,6 +6941,7 @@ Pantallas.manifiesto = function (m) {
   UI.delegar(m, {
     mfVig: function () { Manif.vista = 'vigentes'; Manif.otId = null; App.ir('manifiesto'); },
     mfHist: function () { Manif.vista = 'historico'; Manif.otId = null; App.ir('manifiesto'); },
+    mfEnvio: function (k) { var d = U.find(ot.documentos, function (x) { return x.key === k; }); if (d) EnvioDatos.editar(EnvioDatos.refOT(ot, d), function () { if (App.pantalla === 'manifiesto') App.ir('manifiesto'); }); },
     generar: function () {
       tr.transportista = U.trim(U.$('mfTr').value); tr.patente = U.norm(U.$('mfPat').value); tr.conductor = U.trim(U.$('mfCond').value);
       var av = Plantillas.avisosCourier(ot);
