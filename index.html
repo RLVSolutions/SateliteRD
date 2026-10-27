@@ -464,7 +464,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.29.0', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.29.1', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -528,14 +528,27 @@ var StorageManager = (function () {
   var disponible = (function () {
     try { localStorage.setItem('rdm__t', '1'); localStorage.removeItem('rdm__t'); return true; } catch (e) { return false; }
   })();
-  var GRANDES = { rdm_catalogo: 1, rdm_medidas: 1, rdm_ubicaciones: 1, rdm_correos: 1, rdm_archivados: 1, rdm_cotizador: 1 };
+  var GRANDES = { rdm_catalogo: 1, rdm_medidas: 1, rdm_ubicaciones: 1, rdm_correos: 1, rdm_archivados: 1, rdm_cotizador: 1, rdm_ordenes_transporte: 1, rdm_cubicaciones: 1, rdm_pedidos: 1 };
   var big = {}, pend = {}, idb = null, idbOk = null, esperas = [];
+  var sucio = {}, prog = null;
   function idbPut(k, v) { try { var tx = idb.transaction('kv', 'readwrite'); if (v == null) tx.objectStore('kv')['delete'](k); else tx.objectStore('kv').put(v, k); } catch (e) {} }
+  function vaciar() {
+    if (prog) { clearTimeout(prog); prog = null; }
+    if (!idb) return;
+    var ks = [], k; for (k in sucio) ks.push(k); sucio = {};
+    if (!ks.length) return;
+    try {
+      var st = idb.transaction('kv', 'readwrite').objectStore('kv');
+      for (var i = 0; i < ks.length; i++) { if (big.hasOwnProperty(ks[i]) && big[ks[i]] != null) st.put(big[ks[i]], ks[i]); else st['delete'](ks[i]); }
+    } catch (e) {}
+  }
+  function encolar(k) { sucio[k] = 1; if (!prog) prog = setTimeout(vaciar, 40); }
+  (function () { if (typeof window === 'undefined' || !window.addEventListener) return; window.addEventListener('pagehide', vaciar); window.addEventListener('beforeunload', vaciar); document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') vaciar(); }); })();
   function quitarLS(k) { try { if (disponible) localStorage.removeItem(k); } catch (e) {} }
   function _setTxt(clave, txt) {
     if (GRANDES[clave] && idbOk !== false) {
       big[clave] = txt;
-      if (idb) idbPut(clave, txt); else pend[clave] = 1;
+      if (idb) encolar(clave); else pend[clave] = 1;
       quitarLS(clave);
       return;
     }
@@ -602,7 +615,7 @@ var StorageManager = (function () {
     try { return JSON.parse(txt); } catch (e) { return porDefecto; }
   }
   function eliminar(clave) {
-    if (GRANDES[clave]) { delete big[clave]; if (idb) idbPut(clave, null); }
+    if (GRANDES[clave]) { delete big[clave]; if (idb) encolar(clave); }
     try { if (disponible) localStorage.removeItem(clave); else delete memoria[clave]; } catch (e) {}
   }
 
@@ -3880,12 +3893,13 @@ var App = {
       if (RDM_ERRORES.length > 20) RDM_ERRORES.shift();
       try { UI.toast('Error: ' + msg, 'error', 5000); } catch (e) {}
     };
+    StorageManager.iniciarGrande(function () { App.arrancar(); });
+  },
+  arrancar: function () {
+    if (App._arrancado) return;
+    App._arrancado = true;
     StorageManager.backupLegacy();
-    DB.cargar();
-    StorageManager.iniciarGrande(function () {
-      Ubicaciones.cargar(); Medidas.cargar(); Catalogo.cargar(); CorreosSat.cargar(); Comunas.cargar(); Cotizador.cargar();
-      if (App.pantalla && App.pantalla !== 'inicio' && !UI.abierto() && !App.escribiendo()) App.ir(App.pantalla, true);
-    });
+    DB.cargar(); Comunas.cargar(); Cotizador.cargar();
     document.addEventListener('change', function (e) {
       var t = e.target;
       if (!t || !t.hasAttribute || !t.hasAttribute('data-comuna') || !U.trim(t.value) || !Comunas.lista.length) return;
@@ -7668,7 +7682,7 @@ Pantallas.datos = function (m) {
     '<div class="muted">Equipo: ' + U.esc(sy.dispositivo) + '</div></div>';
   h += '<div class="card"><h2>Respaldo</h2>' +
     '<div class="tot">OT: <b>' + OT.lista.length + '</b> · Bultos: <b>' + nb + '</b> · Productos: <b>' + Catalogo.lista.length + '</b> · Formatos: <b>' + DB.formatos.length + '</b><br>' +
-    (function () { var d = StorageManager.detalle(); return '<span class="muted">Almacenamiento: ' + U.fx(d.local / 1024, 0) + ' KB en el espacio rápido (límite ≈ 5000 KB)' + (d.idb ? ' · ' + U.fx(d.grande / 1024, 0) + ' KB de catálogo, medidas, ubicaciones y Correos en la base ampliada del navegador' : ' · base ampliada no disponible en este navegador') + '</span>'; })() + '</div>' +
+    (function () { var d = StorageManager.detalle(); return '<span class="muted">Almacenamiento: ' + U.fx(d.local / 1024, 0) + ' KB en el espacio rápido (límite ≈ 5000 KB)' + (d.idb ? ' · ' + U.fx(d.grande / 1024, 0) + ' KB de OT, cubicaciones, pedidos, catálogo, medidas, ubicaciones, Correos y cotizador en la base ampliada del navegador' : ' · base ampliada no disponible en este navegador') + '</span>'; })() + '</div>' +
     '<button class="btn" data-a="exportar">EXPORTAR RESPALDO</button>' +
     (function () { var a = StorageManager.leer(CLAVES.archivados, []); return U.esArray(a) && a.length ? '<button class="btn btn-sec" data-a="verArchivados">DESCARGAR ARCHIVADOS (' + a.length + ')</button><div class="muted">Registros antiguos de este equipo que no estaban en la nube y no se subieron. Se guardan aquí por seguridad.</div>' : ''; })() +
     '<button class="btn btn-sec" data-a="verRespaldo">VER RESPALDO</button>' +
