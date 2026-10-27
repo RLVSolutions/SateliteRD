@@ -464,7 +464,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.28.1', build: '2026-10-25', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.29.0', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -3558,51 +3558,101 @@ var Plantillas = {
     return '<div class="' + cls + '">' + f('TRANSPORTISTA', tr.transportista) + f('PATENTE', tr.patente) + f('CONDUCTOR', tr.conductor) +
       '<div>FIRMA ENTREGA: ________________</div><div>FIRMA RECEPCIÓN: ______________</div></div>';
   },
-  manifiesto58: function (ot, keys) {
-    OT.recalcular(ot);
-    var t = Plantillas._totSel(ot, keys), m = ot.manifiesto, h = '<div class="hoja vo">', sel = Plantillas._selTxt(ot, keys);
-    h += '<div class="sep"></div><div class="c h1">' + U.esc(DB.cfg.empresa) + '</div><div class="c h1">MANIFIESTO DE TRANSPORTE</div><div class="sep"></div>';
-    h += '<div class="dest">' + U.esc(ot.numero) + '</div>';
-    h += '<div>OT creada: ' + U.fechaCL(ot.fecha) + ' ' + U.esc(ot.hora) + '</div>';
-    h += '<div>Manifiesto: ' + U.fechaCL(m.fecha) + ' ' + U.esc(m.hora) + (m.version > 1 ? ' (v' + m.version + ')' : '') + '</div>' + (sel ? '<div><b>' + sel + '</b></div>' : '') + '<div class="sep"></div>';
-    U.each(Plantillas._porDoc(ot, keys), function (g) {
-      h += '<div class="b"><div class="t">' + U.esc(g.doc.orden) + ' | ' + U.esc(OT.etiquetaDoc(g.doc)) + '</div>';
-      U.each(g.bultos, function (b) {
-        var pb = Plantillas._posBulto(ot, b);
-        h += '<div>' + pb.pos + '/' + pb.tot + '  ' + b.ancho + 'x' + b.alto + 'x' + b.largo + '  ' + U.fx(b.peso, 1) + 'kg  ' + U.fx(b.volumen, 3) + 'm3' +
-          (b.ordenCourier ? '<br>&nbsp;&nbsp;' + U.esc((b.courier || '') + ' ' + b.ordenCourier) : '') + '</div>';
-      });
-      h += '</div>';
-    });
-    h += '<div class="sep"></div>';
-    h += '<div class="r"><span class="l">DOCUMENTOS:</span><span class="rr">' + t.documentos + '</span></div>';
-    h += '<div class="r"><span class="l">BULTOS:</span><span class="rr">' + t.bultos + '</span></div>';
-    h += '<div class="r"><span class="l">PESO REAL:</span><span class="rr">' + U.fx(t.peso, 2) + ' kg</span></div>';
-    h += '<div class="r"><span class="l">VOLUMEN:</span><span class="rr">' + U.fx(t.volumen, 3) + ' m3</span></div>';
-    h += '<div class="r"><span class="l">PESO VOL.:</span><span class="rr">' + U.fx(t.pesoVol, 2) + ' kg</span></div>';
-    h += '<div class="sep"></div>' + Plantillas._firmas(ot, 'firma') + '<div class="sep"></div></div>';
-    return h;
+  destinoDoc: function (ot, d) {
+    var pid = '', p = null;
+    U.each(OT.bultosDoc(ot, d.key), function (b) { if (pid) return; if (b.pedidoId) pid = b.pedidoId; else if (b.origenCubicacionId) { var c = U.find(CubPool.lista, function (x) { return x.id === b.origenCubicacionId; }); if (c && c.pedidoId) pid = c.pedidoId; } });
+    if (pid) p = Pedidos.porId(pid);
+    if (!p) p = EnvioDatos.buscarPedido(d.orden, OT.tipoDoc(d), OT.numeroDoc(d));
+    var de = p && p.envio && p.envio.destinatario;
+    if (!de || !EnvioDatos.tieneDatos(de)) return { ok: false, nombre: '', txt: '', tel: '' };
+    var l = U.filter([U.trim([de.calle, de.numero].join(' ')), de.referencia, de.comuna, de.region], function (x) { return !!U.trim(x); });
+    return { ok: !!(U.trim(de.calle) && U.trim(de.comuna)), nombre: U.trim(de.nombre || ''), txt: l.join(', '), tel: U.trim(de.telefono || '') };
   },
-  manifiestoA4: function (ot, keys) {
-    OT.recalcular(ot);
-    var t = Plantillas._totSel(ot, keys), m = ot.manifiesto, h = '<div class="hoja ma">', sel = Plantillas._selTxt(ot, keys);
-    h += '<h1>MANIFIESTO DE TRANSPORTE</h1>';
-    h += '<div class="enc"><b>' + U.esc(DB.cfg.empresa) + '</b><br>N° OT: <b>' + U.esc(ot.numero) + '</b> &nbsp; Fecha: <b>' + U.fechaCL(ot.fecha) +
-      '</b> &nbsp; Hora: <b>' + U.esc(ot.hora) + '</b><br>Manifiesto generado: ' + U.fechaCL(m.fecha) + ' ' + U.esc(m.hora) + (m.version > 1 ? ' (versión ' + m.version + ')' : '') + (sel ? '<br><b>' + sel + '</b>' : '') + '</div>';
-    h += '<table><thead><tr><th>Orden/Ticket</th><th>Factura</th><th>Bulto</th><th>Courier</th><th>N° Courier</th><th>Medidas (cm)</th><th>Peso (kg)</th><th>Vol. (m³)</th><th>P.Vol (kg)</th></tr></thead><tbody>';
+  gruposCourier: function (ot, keys, solo) {
+    var mapa = {}, orden = [];
     U.each(Plantillas._porDoc(ot, keys), function (g) {
       U.each(g.bultos, function (b) {
-        var pb = Plantillas._posBulto(ot, b);
-        h += '<tr><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + pb.pos + '/' + pb.tot + '</td><td>' +
-          U.esc(b.courier || '') + '</td><td>' + U.esc(b.ordenCourier || '') + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td class="n">' + U.fx(b.peso, 2) + '</td><td class="n">' + U.fx(b.volumen, 3) +
-          '</td><td class="n">' + U.fx(b.pesoVol, 2) + '</td></tr>';
+        var c = U.norm(b.courier || '');
+        if (!mapa[c]) { mapa[c] = { courier: c, docs: [], porKey: {}, t: { documentos: 0, bultos: 0, peso: 0, volumen: 0, pesoVol: 0 } }; orden.push(c); }
+        var gr = mapa[c];
+        if (!gr.porKey[g.doc.key]) { gr.porKey[g.doc.key] = { doc: g.doc, bultos: [], destino: Plantillas.destinoDoc(ot, g.doc) }; gr.docs.push(gr.porKey[g.doc.key]); gr.t.documentos++; }
+        gr.porKey[g.doc.key].bultos.push(b);
+        gr.t.bultos++; gr.t.peso += Number(b.peso) || 0; gr.t.volumen += Number(b.volumen) || 0; gr.t.pesoVol += Number(b.pesoVol) || 0;
       });
     });
-    h += '</tbody></table>';
-    h += '<div class="res">DOCUMENTOS: <b>' + t.documentos + '</b> &nbsp;&nbsp; BULTOS: <b>' + t.bultos + '</b><br>PESO REAL TOTAL: <b>' + U.fx(t.peso, 2) +
-      ' kg</b> &nbsp;&nbsp; VOLUMEN TOTAL: <b>' + U.fx(t.volumen, 3) + ' m³</b> &nbsp;&nbsp; PESO VOLUMÉTRICO TOTAL: <b>' + U.fx(t.pesoVol, 2) + ' kg</b></div>';
-    h += Plantillas._firmas(ot, 'fir') + '</div>';
-    return h;
+    orden.sort(function (a, b) { if (a === '') return 1; if (b === '') return -1; return a < b ? -1 : (a > b ? 1 : 0); });
+    var out = U.map(orden, function (c) { return mapa[c]; });
+    return solo != null ? U.filter(out, function (g) { return g.courier === solo; }) : out;
+  },
+  avisosCourier: function (ot) {
+    var sin = [], sinDir = [];
+    U.each(ot.documentos, function (d) {
+      var bs = OT.bultosDoc(ot, d.key); if (!bs.length) return;
+      var n = U.filter(bs, function (b) { return !U.trim(b.courier); }).length;
+      if (n) sin.push({ doc: d, n: n, de: bs.length });
+      if (!Plantillas.destinoDoc(ot, d).ok) sinDir.push(d);
+    });
+    return { sinCourier: sin, sinDireccion: sinDir };
+  },
+  _tituloDoc: function (op) { return op && op.tipo === 'OT' ? 'ORDEN DE TRANSPORTE (OT)' : 'MANIFIESTO DE TRANSPORTE'; },
+  _firmasOT: function (cls) { return '<div class="' + cls + '"><div>PREPARÓ: ____________________</div><div>REVISÓ: _____________________</div><div>FECHA Y HORA: _______________</div></div>'; },
+  manifiesto58: function (ot, keys, op) {
+    OT.recalcular(ot); op = op || {};
+    var m = ot.manifiesto || {}, esOT = op.tipo === 'OT', sel = Plantillas._selTxt(ot, keys), gs = Plantillas.gruposCourier(ot, keys, op.courier), h = '';
+    U.each(gs, function (gr, gi) {
+      var t = gr.t;
+      h += '<div class="hoja vo"><div class="sep"></div><div class="c h1">' + U.esc(DB.cfg.empresa) + '</div><div class="c h1">' + Plantillas._tituloDoc(op) + '</div><div class="sep"></div>';
+      h += '<div class="dest">' + (gr.courier ? 'COURIER: ' + U.esc(gr.courier) : '⚠ SIN COURIER ASIGNADO') + '</div>';
+      h += '<div><b>' + U.esc(ot.numero) + '</b> · OT creada: ' + U.fechaCL(ot.fecha) + ' ' + U.esc(ot.hora) + '</div>';
+      if (!esOT && m.generado) h += '<div>Manifiesto: ' + U.fechaCL(m.fecha) + ' ' + U.esc(m.hora) + (m.version > 1 ? ' (v' + m.version + ')' : '') + '</div>';
+      if (esOT) h += '<div>Estado OT: <b>' + U.esc(ot.estado) + '</b> · documento interno</div>';
+      if (gs.length > 1) h += '<div>Hoja ' + (gi + 1) + ' de ' + gs.length + ' (una por courier)</div>';
+      if (sel) h += '<div><b>' + sel + '</b></div>';
+      if (!gr.courier) h += '<div><b>Asigne el courier antes de despachar.</b></div>';
+      h += '<div class="sep"></div>';
+      U.each(gr.docs, function (g) {
+        var de = g.destino;
+        h += '<div class="b"><div class="t">' + U.esc(g.doc.orden) + ' | ' + U.esc(OT.etiquetaDoc(g.doc)) + '</div>';
+        h += '<div>' + (de.txt ? 'Destino: ' + (de.nombre ? '<b>' + U.esc(de.nombre) + '</b>, ' : '') + U.esc(de.txt) + (de.tel ? ' · ' + U.esc(de.tel) : '') : '<b>⚠ SIN DIRECCIÓN DE ENVÍO</b>') + '</div>';
+        U.each(g.bultos, function (b) {
+          var pb = Plantillas._posBulto(ot, b);
+          h += '<div>' + pb.pos + '/' + pb.tot + '  ' + b.ancho + 'x' + b.alto + 'x' + b.largo + '  ' + U.fx(b.peso, 1) + 'kg  ' + U.fx(b.volumen, 3) + 'm3' + (b.ordenCourier ? '<br>&nbsp;&nbsp;N° courier ' + U.esc(b.ordenCourier) : '') + '</div>';
+        });
+        h += '</div>';
+      });
+      h += '<div class="sep"></div>';
+      h += '<div class="r"><span class="l">DOCUMENTOS:</span><span class="rr">' + t.documentos + '</span></div>';
+      h += '<div class="r"><span class="l">BULTOS:</span><span class="rr">' + t.bultos + '</span></div>';
+      h += '<div class="r"><span class="l">PESO REAL:</span><span class="rr">' + U.fx(t.peso, 2) + ' kg</span></div>';
+      h += '<div class="r"><span class="l">VOLUMEN:</span><span class="rr">' + U.fx(t.volumen, 3) + ' m3</span></div>';
+      h += '<div class="r"><span class="l">PESO VOL.:</span><span class="rr">' + U.fx(t.pesoVol, 2) + ' kg</span></div>';
+      h += '<div class="sep"></div>' + (esOT ? Plantillas._firmasOT('firma') : Plantillas._firmas(ot, 'firma')) + '<div class="sep"></div></div>';
+    });
+    return h || '<div class="hoja vo"><div class="c">Sin bultos para imprimir.</div></div>';
+  },
+  manifiestoA4: function (ot, keys, op) {
+    OT.recalcular(ot); op = op || {};
+    var m = ot.manifiesto || {}, esOT = op.tipo === 'OT', sel = Plantillas._selTxt(ot, keys), gs = Plantillas.gruposCourier(ot, keys, op.courier), h = '';
+    U.each(gs, function (gr, gi) {
+      var t = gr.t;
+      h += '<div class="hoja ma"><h1>' + Plantillas._tituloDoc(op) + '</h1>';
+      h += '<div class="enc"><div style="font-size:15pt;margin-bottom:1mm">' + (gr.courier ? 'COURIER: <b>' + U.esc(gr.courier) + '</b>' : '<b>⚠ SIN COURIER ASIGNADO</b> · asigne el courier antes de despachar') + (gs.length > 1 ? '<span style="float:right;font-size:10pt">Hoja ' + (gi + 1) + ' de ' + gs.length + ' (una por courier)</span>' : '') + '</div>' +
+        '<b>' + U.esc(DB.cfg.empresa) + '</b><br>N° OT: <b>' + U.esc(ot.numero) + '</b> &nbsp; Fecha: <b>' + U.fechaCL(ot.fecha) + '</b> &nbsp; Hora: <b>' + U.esc(ot.hora) + '</b>' +
+        (esOT ? '<br>Estado de la OT: <b>' + U.esc(ot.estado) + '</b> · documento interno de preparación' : (m.generado ? '<br>Manifiesto generado: ' + U.fechaCL(m.fecha) + ' ' + U.esc(m.hora) + (m.version > 1 ? ' (versión ' + m.version + ')' : '') : '')) + (sel ? '<br><b>' + sel + '</b>' : '') + '</div>';
+      h += '<table><thead><tr><th>Orden/Ticket</th><th>Documento</th><th>Dirección de envío</th><th>Bulto</th><th>N° Courier</th><th>Medidas (cm)</th><th>Peso (kg)</th><th>Vol. (m³)</th><th>P.Vol (kg)</th></tr></thead><tbody>';
+      U.each(gr.docs, function (g) {
+        var de = g.destino, n = g.bultos.length;
+        U.each(g.bultos, function (b, i) {
+          var pb = Plantillas._posBulto(ot, b);
+          h += '<tr>' + (i ? '' : '<td rowspan="' + n + '">' + U.esc(g.doc.orden) + '</td><td rowspan="' + n + '">' + U.esc(OT.etiquetaDoc(g.doc)) + '</td><td rowspan="' + n + '">' + (de.txt ? (de.nombre ? '<b>' + U.esc(de.nombre) + '</b><br>' : '') + U.esc(de.txt) + (de.tel ? '<br>Tel. ' + U.esc(de.tel) : '') : '<b>⚠ SIN DIRECCIÓN</b>') + '</td>') +
+            '<td>' + pb.pos + '/' + pb.tot + '</td><td>' + U.esc(b.ordenCourier || '') + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td class="n">' + U.fx(b.peso, 2) + '</td><td class="n">' + U.fx(b.volumen, 3) + '</td><td class="n">' + U.fx(b.pesoVol, 2) + '</td></tr>';
+        });
+      });
+      h += '</tbody></table>';
+      h += '<div class="res">DOCUMENTOS: <b>' + t.documentos + '</b> &nbsp;&nbsp; BULTOS: <b>' + t.bultos + '</b><br>PESO REAL TOTAL: <b>' + U.fx(t.peso, 2) + ' kg</b> &nbsp;&nbsp; VOLUMEN TOTAL: <b>' + U.fx(t.volumen, 3) + ' m³</b> &nbsp;&nbsp; PESO VOLUMÉTRICO TOTAL: <b>' + U.fx(t.pesoVol, 2) + ' kg</b></div>';
+      h += (esOT ? Plantillas._firmasOT('fir') : Plantillas._firmas(ot, 'fir')) + '</div>';
+    });
+    return h || '<div class="hoja ma"><h1>' + Plantillas._tituloDoc(op) + '</h1><div>Sin bultos para imprimir.</div></div>';
   },
   valorProducto: function (p, k, c) {
     if (k === 'precio') return p.precio ? U.clp(p.precio) : '';
@@ -5126,6 +5176,8 @@ Pantallas.packing = function (m) {
     var sh = '<div class="card"><div class="dh"><div><h2 style="font-size:22px;margin:0">' + U.esc(ot.numero) + '</h2>' +
       '<div class="muted">' + U.esc(ot.estado) + ' · Despacho: ' + U.esc(r.despachoEstado) + ' · ' + ot.documentos.length + ' doc. · ' + ot.bultos.length + ' bulto(s) · ' + r.pendientes + ' pendiente(s)</div></div></div>';
     if (!ot.bultos.length) sh += '<div class="muted" style="padding:10px 0">Esta OT aún no tiene bultos.</div>';
+    var avP = Plantillas.avisosCourier(ot);
+    if (avP.sinCourier.length) sh += '<div class="aviso rojo" style="font-size:14px">⚠ ' + avP.sinCourier.length + ' documento(s) sin courier asociado: ' + U.esc(U.map(avP.sinCourier, function (x) { return x.doc.orden; }).join(', ')) + '. El manifiesto se imprime uno por courier: asígnelo con COURIER.</div>';
     var docsOT = U.filter(ot.documentos, function (d) { return OT.bultosDoc(ot, d.key).length > 0; });
     var pk = Pag.cortar('packOT', docsOT);
     sh += '<div id="pkPag">' + Pag.html('packOT', pk, 'documento(s)') + '</div><div class="lista-int">';
@@ -5147,12 +5199,24 @@ Pantallas.packing = function (m) {
     sh += '<button class="btn btn-ok" data-a="courierToda">COURIER TODA LA OT</button>';
     if (ot.estado !== 'ABIERTA') sh += '<button class="btn btn-warn" data-a="reabrir">REABRIR / EDITAR OT</button>';
     sh += '<button class="btn btn-sec" data-a="editarOT">EDITAR OT</button><button class="btn btn-sec" data-a="ots">OTs</button>';
+    if (ot.bultos.length) sh += '<button class="btn btn-sec" data-a="pkImpOT">IMPRIMIR OT</button>';
     if (ot.bultos.length) sh += '<button class="btn btn-ok" data-a="manif">GENERAR MANIFIESTO →</button>';
     sh += '</div></div></div>';
     sec.innerHTML = sh; m.appendChild(sec);
     UI.delegar(sec, {
       voucher: function (k) { PackingUI.voucherPreview(ot, k); },
       vouVarios: function () { PackingUI.voucherVarios(ot); },
+      pkImpOT: function () {
+        var av = Plantillas.avisosCourier(ot), cour = '*';
+        UI.modal({ titulo: 'Imprimir ' + ot.numero, html: '<div class="muted">Mismo formato del manifiesto de transporte: una hoja por courier, con la dirección de envío de cada documento. Es un documento interno: no reemplaza al manifiesto.</div>' +
+          (av.sinCourier.length ? '<div class="aviso rojo" style="font-size:14px">⚠ Sin courier: ' + U.esc(U.map(av.sinCourier, function (x) { return x.doc.orden; }).join(', ')) + '</div>' : '') +
+          (av.sinDireccion.length ? '<div class="aviso amar" style="font-size:14px">⚠ Sin dirección de envío: ' + U.esc(U.map(av.sinDireccion, function (d) { return d.orden; }).join(', ')) + '</div>' : '') +
+          Manif.selectorCourier(ot, 'pkOtCour', '*'),
+          botones: [{ txt: '58 mm', cls: 'btn-sec', fn: function () { cour = U.$('pkOtCour').value; Impresion.imprimir(Plantillas.manifiesto58(ot, null, { tipo: 'OT', courier: Manif.opCourier(cour) }), { tipo: 'rollo', ancho: 58, margen: 2 }); } },
+            { txt: '80 mm', cls: 'btn-sec', fn: function () { cour = U.$('pkOtCour').value; Impresion.imprimir(Plantillas.manifiesto58(ot, null, { tipo: 'OT', courier: Manif.opCourier(cour) }), { tipo: 'rollo', ancho: 80, margen: 3 }); } },
+            { txt: 'A4', cls: 'btn-ok', fn: function () { cour = U.$('pkOtCour').value; Impresion.imprimir(Plantillas.manifiestoA4(ot, null, { tipo: 'OT', courier: Manif.opCourier(cour) }), { tipo: 'a4' }); } },
+            { txt: 'CERRAR', cls: 'btn-sec' }] });
+      },
       pkEtq: function () { PackingUI.voucherVarios(ot, 'etiquetas'); },
       etiquetas: function(k){PackingUI.etiquetasDocumento(ot,k);},
       etiquetasRapidas: function(k){PackingUI.elegirFormatoBulto(ot,OT.bultosDoc(ot,k));},
@@ -6730,7 +6794,20 @@ var Asistente = {
   }
 };
 
-var Manif = { otId: null, vista: 'vigentes' };
+var Manif = { otId: null, vista: 'vigentes', cour: '*',
+  resumenCouriers: function (ot) {
+    var gs = Plantillas.gruposCourier(ot), av = Plantillas.avisosCourier(ot), h = '<div class="card"><h2>Couriers de esta OT</h2><div class="muted">El manifiesto se imprime uno por courier, con la dirección de envío de cada documento.</div>';
+    h += U.map(gs, function (g) { return '<div class="frow"><span class="fx"><b>' + (g.courier ? U.esc(g.courier) : '<span style="color:#c00000">SIN COURIER</span>') + '</b></span><span>' + g.t.documentos + ' doc. · ' + g.t.bultos + ' bulto(s) · ' + U.fx(g.t.peso, 1) + ' kg</span></div>'; }).join('');
+    if (av.sinCourier.length) h += '<div class="aviso rojo" style="font-size:14px;margin-top:8px">⚠ ' + av.sinCourier.length + ' documento(s) sin courier asociado: ' + U.esc(U.map(av.sinCourier, function (x) { return x.doc.orden + ' (' + x.n + ' de ' + x.de + ' bulto/s)'; }).join(', ')) + '. Asígnelo en Packing (botón COURIER).</div>';
+    if (av.sinDireccion.length) h += '<div class="aviso amar" style="font-size:14px;margin-top:8px">⚠ Sin dirección de envío: ' + U.esc(U.map(av.sinDireccion, function (d) { return d.orden; }).join(', ')) + '. Complétela en Pedidos o Cubicación (DATOS DE ENVÍO).</div>';
+    return h + '</div>';
+  },
+  selectorCourier: function (ot, id, val) {
+    var gs = Plantillas.gruposCourier(ot);
+    return '<label class="lbl" for="' + id + '">COURIER A IMPRIMIR</label><select id="' + id + '" class="inp sm"><option value="*"' + (val === '*' ? ' selected' : '') + '>Todos · un manifiesto por courier (' + gs.length + ')</option>' + U.map(gs, function (g) { var v = g.courier || '-'; return '<option value="' + U.esc(v) + '"' + (val === v ? ' selected' : '') + '>' + (g.courier ? U.esc(g.courier) : 'SIN COURIER') + ' · ' + g.t.bultos + ' bulto(s)</option>'; }).join('') + '</select>';
+  },
+  opCourier: function (v) { return v === '*' || v == null ? undefined : (v === '-' ? '' : v); }
+};
 
 Pantallas.manifiesto = function (m) {
   var todas = OT.ordenadas(), l = U.filter(todas, function (o) {
@@ -6758,6 +6835,7 @@ Pantallas.manifiesto = function (m) {
   if (mf.desactualizado) h += '<div class="aviso rojo">La OT se modificó después de generar el manifiesto. Debe REGENERARLO antes de imprimir.</div>';
   h += '<div class="card tot">DOCUMENTOS: <b>' + t.documentos + '</b> · BULTOS: <b>' + t.bultos + '</b><br>PESO REAL TOTAL: <b>' + U.fx(t.peso, 2) + ' kg</b><br>' +
     'VOLUMEN TOTAL: <b>' + U.fx(t.volumen, 3) + ' m³</b><br>PESO VOLUMÉTRICO TOTAL: <b>' + U.fx(t.pesoVol, 2) + ' kg</b></div>';
+  h += Manif.resumenCouriers(ot);
   h += '<div class="card"><table class="tbl"><thead><tr><th>Orden</th><th>Fact.</th><th>Bulto</th><th>Medidas</th><th>Kg</th></tr></thead><tbody>';
   U.each(Plantillas._porDoc(ot), function (g) {
     U.each(g.bultos, function (b) { var pb = Plantillas._posBulto(ot, b); h += '<tr><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + pb.pos + '/' + pb.tot + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td>' + U.fx(b.peso, 1) + '</td></tr>'; });
@@ -6778,7 +6856,7 @@ Pantallas.manifiesto = function (m) {
     h += '<h2>Documentos a imprimir</h2><div class="muted">Marque los documentos que van en el manifiesto impreso. Los totales impresos corresponden solo a lo marcado.</div>' +
       '<div class="btns"><button class="btn btn-sec btn-sm" data-a="mfTodos">MARCAR TODOS</button><button class="btn btn-sec btn-sm" data-a="mfNinguno">QUITAR TODOS</button></div>' +
       U.map(ot.documentos, function (d) { var x = OT.totalesDoc(ot, d.key); return '<label class="chk"><input type="checkbox" class="mfDoc" value="' + U.esc(d.key) + '"' + (Manif.sel.keys.indexOf(d.key) >= 0 ? ' checked' : '') + '> ' + U.esc(d.orden + ' · ' + OT.etiquetaDoc(d)) + ' <span class="muted">(' + x.bultos + ' bulto/s · ' + U.fx(x.peso, 1) + ' kg)</span></label>'; }).join('') +
-      '<div class="muted" id="mfSelTxt"></div>' +
+      '<div class="muted" id="mfSelTxt"></div>' + Manif.selectorCourier(ot, 'mfCour', Manif.cour) +
       ZoomImp.html() + '<div class="btns"><button class="btn" data-a="imp58">IMPRIMIR 58 mm</button><button class="btn" data-a="imp80">IMPRIMIR 80 mm</button><button class="btn" data-a="impA4">IMPRIMIR A4</button></div>' +
       '<button class="btn btn-warn" data-a="reabrir">REABRIR OT</button>';
   }
@@ -6790,7 +6868,8 @@ Pantallas.manifiesto = function (m) {
   var keysImp = function () { if (!Manif.sel.keys.length) { UI.toast('Marque al menos un documento', 'error'); return null; } return Manif.sel.keys.length === ot.documentos.length ? null : Manif.sel.keys.slice(); };
   m.onchange = function (e) {
     if (e.target.className === 'mfDoc') { Manif.sel.keys = U.map(U.filter(U.qa(m, '.mfDoc'), function (x) { return x.checked; }), function (x) { return x.value; }); selTxt(); return; }
-    if (e.target.id === 'mfSel') { Manif.otId = e.target.value; App.ir('manifiesto'); return; }
+    if (e.target.id === 'mfSel') { Manif.otId = e.target.value; Manif.cour = '*'; App.ir('manifiesto'); return; }
+    if (e.target.id === 'mfCour') { Manif.cour = e.target.value; return; }
     if (e.target.id === 'mfTr' || e.target.id === 'mfPat' || e.target.id === 'mfCond') {
       tr.transportista = U.trim(U.$('mfTr').value); tr.patente = U.norm(U.$('mfPat').value); tr.conductor = U.trim(U.$('mfCond').value);
       ot.actualizado = new Date().toISOString(); OT.guardar(ot);
@@ -6801,6 +6880,11 @@ Pantallas.manifiesto = function (m) {
     mfHist: function () { Manif.vista = 'historico'; Manif.otId = null; App.ir('manifiesto'); },
     generar: function () {
       tr.transportista = U.trim(U.$('mfTr').value); tr.patente = U.norm(U.$('mfPat').value); tr.conductor = U.trim(U.$('mfCond').value);
+      var av = Plantillas.avisosCourier(ot);
+      if (av.sinCourier.length && !Manif._confSin) {
+        UI.confirmar('Hay ' + av.sinCourier.length + ' documento(s) sin courier asociado:\n' + U.map(av.sinCourier, function (x) { return '• ' + x.doc.orden + ' · ' + OT.etiquetaDoc(x.doc); }).join('\n') + '\n\nSus bultos saldrán en un manifiesto «SIN COURIER». ¿Generar de todas formas?', function () { Manif._confSin = true; try { U.$('modalHost') && UI.cerrarModal(); m.querySelector('[data-a=generar]').click(); } finally { Manif._confSin = false; } }, { titulo: 'Documentos sin courier', si: 'GENERAR IGUAL' });
+        return;
+      }
       var err = OT.generarManifiesto(ot);
       if (err) { UI.toast(err, 'error'); return; }
       Manif.vista = 'historico'; Manif.otId = ot.id;
@@ -6810,9 +6894,9 @@ Pantallas.manifiesto = function (m) {
     },
     mfTodos: function () { Manif.sel.keys = U.map(ot.documentos, function (d) { return d.key; }); U.each(U.qa(m, '.mfDoc'), function (x) { x.checked = true; }); selTxt(); },
     mfNinguno: function () { Manif.sel.keys = []; U.each(U.qa(m, '.mfDoc'), function (x) { x.checked = false; }); selTxt(); },
-    imp58: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiesto58(ot, keysImp()), { tipo: 'rollo', ancho: 58, margen: 2 }); },
-    imp80: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiesto58(ot, keysImp()), { tipo: 'rollo', ancho: 80, margen: 3 }); },
-    impA4: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiestoA4(ot, keysImp()), { tipo: 'a4' }); },
+    imp58: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiesto58(ot, keysImp(), { courier: Manif.opCourier(Manif.cour) }), { tipo: 'rollo', ancho: 58, margen: 2 }); },
+    imp80: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiesto58(ot, keysImp(), { courier: Manif.opCourier(Manif.cour) }), { tipo: 'rollo', ancho: 80, margen: 3 }); },
+    impA4: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiestoA4(ot, keysImp(), { courier: Manif.opCourier(Manif.cour) }), { tipo: 'a4' }); },
     reabrir: function () { Seguridad.admin('Reabrir ' + ot.numero, function (aut) { OT.reabrir(ot, aut); OT.setActiva(ot.id); App.ir('packing'); }); },
     todas: function () { Packing.imprimirTodas(ot); },
     activar: function () { OT.setActiva(ot.id); App.ir('packing'); },
