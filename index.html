@@ -483,9 +483,53 @@ html.dv-escritorio ::-webkit-scrollbar-thumb,html.dv-tablet ::-webkit-scrollbar-
 html.dv-escritorio ::-webkit-scrollbar-thumb:hover{background-color:#a99fae}
 html.dv-escritorio ::-webkit-scrollbar-track{background:transparent}
 .calc:empty{display:none}
-html.dv-escritorio #main.p-cubicacion{display:-ms-grid;display:grid;grid-template-columns:minmax(380px,470px) minmax(0,1fr);-webkit-column-gap:16px;column-gap:16px;-webkit-align-items:start;align-items:start}
-html.dv-escritorio #main.p-cubicacion>.otbar,html.dv-escritorio #main.p-cubicacion>#cfBan,html.dv-escritorio #main.p-cubicacion>.aviso{grid-column:1/-1}
-html.dv-escritorio #main.p-cubicacion>.card:nth-of-type(n+2){position:-webkit-sticky;position:sticky;top:0}
+html.dv-escritorio .cub-form .cf-tit,html.dv-tablet .cub-form .cf-tit{font-size:12px;font-weight:600;letter-spacing:.5px;color:var(--pri-osc);margin:2px 0 2px;padding-bottom:4px;border-bottom:1px solid var(--linea)}
+.cub-form .cf-tit{font-size:12px;font-weight:600;letter-spacing:.5px;color:var(--pri-osc);margin:4px 0 0}
+html.dv-escritorio .cub-form .cf-sec,html.dv-tablet .cub-form .cf-sec{display:-ms-grid;display:grid;-webkit-column-gap:12px;column-gap:12px;row-gap:2px;-webkit-align-items:end;align-items:end;margin-bottom:10px}
+html.dv-escritorio .cub-form .cf-doc{grid-template-columns:minmax(220px,1.4fr) minmax(150px,1.1fr) minmax(150px,1fr) minmax(140px,1fr) auto}
+html.dv-tablet .cub-form .cf-doc{grid-template-columns:1fr 1fr}
+html.dv-escritorio .cub-form .cf-doc .muted{min-height:16px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.dv-escritorio .cub-form .cf-ord,html.dv-escritorio .cub-form .cf-tipo,html.dv-escritorio .cub-form .cf-num,html.dv-escritorio .cub-form .cf-env{-webkit-align-self:start;align-self:start}
+html.dv-escritorio .cub-form .cf-env{padding-top:22px}
+html.dv-escritorio .cub-form .cf-env .btns{margin:0}html.dv-escritorio .cub-form .cf-env .btn{margin:0;min-height:36px}
+html.dv-escritorio .cub-form .cf-envres,html.dv-tablet .cub-form .cf-envres{grid-column:1/-1}
+html.dv-escritorio .cub-form #cuOrden,html.dv-escritorio .cub-form #cuDoc{height:36px;font-size:16px}
+html.dv-escritorio .cub-form .cf-med{grid-template-columns:minmax(240px,1.6fr) minmax(300px,2fr) minmax(110px,.7fr) minmax(180px,1fr)}
+html.dv-tablet .cub-form .cf-med{grid-template-columns:1fr 1fr}
+html.dv-escritorio .cub-form .cf-prod{position:relative;-webkit-align-self:start;align-self:start}
+html.dv-escritorio .cub-form .cf-prod #cuProdRes .prs{position:absolute;left:0;right:0;z-index:30;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+html.dv-escritorio .cub-form .cf-dims{margin:0}
+html.dv-escritorio .cub-form .num .inp{height:40px;font-size:20px}
+html.dv-escritorio .cub-form .cf-add .btn{margin:0;min-height:40px;font-size:14px}
+html.dv-escritorio .cub-form .cf-calc,html.dv-tablet .cub-form .cf-calc{grid-column:1/-1;background:none;color:var(--txt2);padding:2px 0 0;margin:0;font-size:13px}
+html.dv-escritorio .cub-form .cf-calc b{color:var(--tinta)}
+html.dv-escritorio .cub-form .cf-acc{border-top:1px solid var(--linea);padding-top:4px}
+html.dv-escritorio .cub-form .cf-acc .btn{margin-top:6px}
+html.dv-escritorio #main.p-cubicacion .lista-int{max-height:calc(100vh - 330px);min-height:220px;overflow-y:auto;border:1px solid var(--borde);border-radius:8px;padding:4px 8px;background:#fff}
+html.dv-escritorio .accbar,html.dv-tablet .accbar{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;-webkit-align-items:center;align-items:center;margin:0}
+html.dv-escritorio .accbar>.btns,html.dv-tablet .accbar>.btns{display:contents}
+html.dv-escritorio .accbar .btn,html.dv-tablet .accbar .btn{-webkit-flex:0 0 auto;flex:0 0 auto;width:auto;min-width:0;margin:6px 8px 0 0;white-space:nowrap}
+html.dv-escritorio .pk-top .pk-f,html.dv-tablet .pk-top .pk-f{display:-ms-grid;display:grid;grid-template-columns:minmax(200px,1fr) minmax(320px,2fr) minmax(180px,1fr);-webkit-column-gap:12px;column-gap:12px;-webkit-align-items:end;align-items:end}
+html.dv-escritorio .pk-top #paMand,html.dv-tablet .pk-top #paMand{height:36px;font-size:14px!important}
+html.dv-escritorio .pk-top .pk-acc,html.dv-tablet .pk-top .pk-acc{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between;margin-top:6px;border-top:1px solid var(--linea)}
+html.dv-escritorio .pk-top .pk-acc .btns,html.dv-tablet .pk-top .pk-acc .btns{margin:0;-webkit-flex-wrap:nowrap;flex-wrap:nowrap}
+.pe-fil{-webkit-flex-wrap:wrap;flex-wrap:wrap}.pe-fil>.c2{-webkit-flex-basis:100%;flex-basis:100%}
+html.dv-escritorio .pe-fil,html.dv-tablet .pe-fil{-webkit-flex-wrap:nowrap;flex-wrap:nowrap}html.dv-escritorio .pe-fil>.c2,html.dv-tablet .pe-fil>.c2{-webkit-flex-basis:auto;flex-basis:auto}
+html.dv-escritorio .lista-int>.doc,html.dv-escritorio .lista-int .doc:not(.seg-doc){padding:10px 14px}
+html.dv-escritorio .lista-int .doc .dh{padding:0 0 4px}
+html.dv-escritorio .lista-int .doc .db{margin:6px -14px -10px;padding:8px 14px}
+html.dv-escritorio #main.p-manifiesto{display:-ms-grid;display:grid;grid-template-columns:auto minmax(0,1fr);-webkit-column-gap:14px;column-gap:14px;-webkit-align-items:stretch;align-items:stretch}
+html.dv-escritorio #main.p-manifiesto>*{grid-column:1/-1}
+html.dv-escritorio #main.p-manifiesto>.card:nth-child(1),html.dv-escritorio #main.p-manifiesto>.card:nth-child(2){grid-column:auto}
+html.dv-escritorio #main.p-manifiesto>.card:nth-child(1) .btns{-webkit-flex-wrap:nowrap;flex-wrap:nowrap}
+html.dv-escritorio #main.p-datos{display:-ms-grid;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);-webkit-column-gap:14px;column-gap:14px;-webkit-align-items:start;align-items:start}
+html.dv-escritorio #main.p-datos>#cfBan,html.dv-escritorio #main.p-datos>.otbar{grid-column:1/-1}
+html.dv-escritorio .cub-lista .cl-head,html.dv-tablet .cub-lista .cl-head{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-flex-wrap:wrap;flex-wrap:wrap;margin-bottom:8px}
+html.dv-escritorio .cub-lista .cl-head .btns,html.dv-tablet .cub-lista .cl-head .btns{margin:0 8px 0 -4px;-webkit-flex-wrap:nowrap;flex-wrap:nowrap}
+html.dv-escritorio .cub-lista .cl-head .btn,html.dv-tablet .cub-lista .cl-head .btn{margin-top:0}
+html.dv-escritorio .cub-lista .cl-head h2,html.dv-tablet .cub-lista .cl-head h2{margin:0 12px 0 4px;padding:0;border:0;white-space:nowrap}
+html.dv-escritorio .cub-lista .cl-head #cuBuscar,html.dv-tablet .cub-lista .cl-head #cuBuscar{-webkit-flex:1 1 260px;flex:1 1 260px;width:auto;height:36px;font-size:15px}
+html.dv-escritorio .cub-form .cf .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rf-canvas{background:#e9e5ea;border-radius:8px;padding:8px;margin:8px 0;touch-action:none;-webkit-user-select:none;user-select:none}
 .rf-canvas svg{display:block;width:100%;height:auto;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
 .rf-cols{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;margin:0 -6px}
@@ -536,7 +580,7 @@ html.dv-escritorio #main.p-cubicacion>.card:nth-of-type(n+2){position:-webkit-st
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.33.2-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.33.3-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -5246,8 +5290,8 @@ Pantallas.pedidos = function (m) {
   };
   m.innerHTML = '<div class="otbar"><div class="n">PEDIDOS / ÓRDENES DE COMPRA</div><div class="muted">Registro previo a Cubicación. El documento de venta puede agregarse después.</div></div>'+
     '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="pedNuevo">+ NUEVO</button><button class="btn btn-sec" data-a="pedPegar">PEGAR DESDE EXCEL</button></div>'+
-    '<label class="lbl">BUSCAR</label><input id="peBuscar" class="inp sm" placeholder="Pedido, O.C., documento, origen…">'+
-    '<div class="fila"><div class="c"><label class="lbl">ETAPA / ESTADO</label><select id="peFiltro" class="inp sm">'+U.map(['VIGENTES','ACTIVOS','HISTÓRICO','TODOS'].concat(Pedidos.estados).concat(['ELIMINADOS']),function(e){return '<option value="'+U.esc(e)+'"'+(e===estadoFiltro?' selected':'')+'>'+U.esc(Listas.etq('ESTADO',e))+'</option>';}).join('')+'</select></div><div class="c"><label class="lbl">CANAL</label><select id="peCanal" class="inp sm"><option>TODOS</option>'+U.map(Listas.activos('CANAL',U.map(Pedidos.lista,function(x){return x.origen;})),function(c){return '<option>'+U.esc(c)+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="fila pe-fil"><div class="c2"><label class="lbl">BUSCAR</label><input id="peBuscar" class="inp sm" placeholder="Pedido, O.C., documento, origen…"></div>'+
+    '<div class="c"><label class="lbl">ETAPA / ESTADO</label><select id="peFiltro" class="inp sm">'+U.map(['VIGENTES','ACTIVOS','HISTÓRICO','TODOS'].concat(Pedidos.estados).concat(['ELIMINADOS']),function(e){return '<option value="'+U.esc(e)+'"'+(e===estadoFiltro?' selected':'')+'>'+U.esc(Listas.etq('ESTADO',e))+'</option>';}).join('')+'</select></div><div class="c"><label class="lbl">CANAL</label><select id="peCanal" class="inp sm"><option>TODOS</option>'+U.map(Listas.activos('CANAL',U.map(Pedidos.lista,function(x){return x.origen;})),function(c){return '<option>'+U.esc(c)+'</option>';}).join('')+'</select></div></div>'+
     '<div id="peConteo" class="muted" style="margin:8px 0"></div><div id="peLista" class="lista-int"></div></div>';
   var editar=function(p){
     p=p||{origen:'MANUAL',tipo:'PEDIDO',numero:'',fecha:U.fechaISO(),tipoDocumento:'',numeroDocumento:'',estado:'RECIBIDO',observacion:''};
@@ -5346,17 +5390,16 @@ Pantallas.cubicacion = function (m) {
   var pedLista=Pedidos.lista.slice(0); pedLista.sort(function(a,b){var ac=(a.estado==='CUBICADO'||a.estado==='EN PREPARACIÓN'||a.estado==='ENVIADO')?1:0,bc=(b.estado==='CUBICADO'||b.estado==='EN PREPARACIÓN'||b.estado==='ENVIADO')?1:0;return ac-bc;});
   U.each(pedLista, function(p){ if(Pedidos.PREVIOS.indexOf(p.estado)>=0) pedOpts += '<option value="'+p.id+'"'+(pedSel&&pedSel.id===p.id?' selected':'')+'>'+U.esc(p.numero)+' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento)+' · '+U.esc(p.estado)+'</option>'; });
   var h = '<div class="otbar"><div class="n">CUBICACIÓN <span class="est ABIERTA">' + U.esc(CubUI.cubId) + '</span></div><div class="muted">Mida y registre. La OT se crea después, en Packing.</div></div>' +
-    '<div class="card"><label class="lbl">PEDIDO / O.C. REGISTRADO</label><select id="cuPedido" class="inp sm">'+pedOpts+'</select><div class="muted">'+(pedSel?('Estado: <b>'+U.esc(pedSel.estado)+'</b> · '+U.esc(pedSel.origen)+' · '+U.esc(U.fechaCL(pedSel.fecha))):'Seleccione un registro o use cubicación manual.')+'</div><label class="lbl">ORDEN / TICKET</label><input id="cuOrden" class="inp" autocomplete="off" enterkeyhint="next" placeholder="Orden, ticket o referencia" value="'+U.esc(pedSel?pedSel.numero:'')+'" data-next="cuTipo">' +
-    '<label class="lbl">TIPO DOCUMENTO <span class="unidad">opcional · se exige al pasar a Packing</span></label><select id="cuTipo" class="inp sm" data-next="cuDoc"><option value=""' + ((pedSel ? !pedSel.tipoDocumento : CubUI.tipo === '') ? ' selected' : '') + '>(SIN DOCUMENTO AÚN)</option>' + CubUI.tipos(pedSel ? pedSel.tipoDocumento : CubUI.tipo) + '</select>' +
-    '<label class="lbl">N° DOCUMENTO</label><input id="cuDoc" class="inp" autocomplete="off" enterkeyhint="next" placeholder="Puede quedar vacío si aún no existe" value="'+U.esc(pedSel?pedSel.numeroDocumento:'')+'" data-next="cuProd">' +
-    '<div class="btns"><button class="btn btn-sec btn-sm" data-a="cuEnvio">'+(function(){var pe=pedSel||null;return pe&&pe.envio?'✓ DATOS DE ENVÍO':'DATOS DE ENVÍO';})()+'</button></div><div id="cuEnvioRes" class="muted"></div>' +
-    '<label class="lbl">PRODUCTO <span class="unidad">opcional · trae medidas y ubicación</span></label><input id="cuProd" class="inp sm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre o marca" data-enter="prodEnter"><div id="cuProdRes"></div><div id="cuProdSel"></div>' +
-    '<div class="fila num"><div class="c"><label class="lbl">ANCHO cm</label><input id="cuAncho" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuAlto"></div><div class="c"><label class="lbl">ALTO cm</label><input id="cuAlto" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuLargo"></div><div class="c"><label class="lbl">LARGO cm</label><input id="cuLargo" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuPeso"></div></div>' +
-    '<label class="lbl">PESO kg</label><input id="cuPeso" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="done" data-enter="agregar"><div id="cuCalc" class="calc"></div>' +
-    '<button class="btn btn-ok btn-xl" data-a="agregar">+ AGREGAR BULTO</button>' +
-    '<div class="btns"><button class="btn btn-sec" data-a="repetir">REPETIR MEDIDAS</button><button class="btn btn-sec" data-a="igual">OTRO IGUAL</button><button class="btn btn-sec" data-a="cotForm">COTIZAR</button></div>' +
-    '<div class="btns"><button class="btn btn-warn" data-a="limpiarDoc">LIMPIAR DOCUMENTO</button><button class="btn btn-sec" data-a="nuevo">NUEVO ID CUBICACIÓN</button></div></div>' +
-    '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"><div id="cuPag"></div><div id="cuLista" class="lista-int"></div><div class="accbar"><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS DE VARIOS</button><button class="btn btn-sec" data-a="vouCub" id="cuVou">VOUCHER DE VARIOS</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button></div><div class="btns"><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn" data-a="packing">PACKING →</button></div></div></div>';
+    '<div class="card cub-form"><div class="cf-tit">DOCUMENTO MANDANTE</div><div class="cf-sec cf-doc"><div class="cf cf-ped"><label class="lbl">PEDIDO / O.C. REGISTRADO</label><select id="cuPedido" class="inp sm">'+pedOpts+'</select><div class="muted">'+(pedSel?('Estado: <b>'+U.esc(pedSel.estado)+'</b> · '+U.esc(pedSel.origen)+' · '+U.esc(U.fechaCL(pedSel.fecha))):'Seleccione un registro o use cubicación manual.')+'</div></div><div class="cf cf-ord"><label class="lbl">ORDEN / TICKET</label><input id="cuOrden" class="inp" autocomplete="off" enterkeyhint="next" placeholder="Orden, ticket o referencia" value="'+U.esc(pedSel?pedSel.numero:'')+'" data-next="cuTipo"></div>' +
+    '<div class="cf cf-tipo"><label class="lbl">TIPO DOCUMENTO <span class="unidad">opcional · se exige al pasar a Packing</span></label><select id="cuTipo" class="inp sm" data-next="cuDoc"><option value=""' + ((pedSel ? !pedSel.tipoDocumento : CubUI.tipo === '') ? ' selected' : '') + '>(SIN DOCUMENTO AÚN)</option>' + CubUI.tipos(pedSel ? pedSel.tipoDocumento : CubUI.tipo) + '</select></div>' +
+    '<div class="cf cf-num"><label class="lbl">N° DOCUMENTO</label><input id="cuDoc" class="inp" autocomplete="off" enterkeyhint="next" placeholder="Puede quedar vacío si aún no existe" value="'+U.esc(pedSel?pedSel.numeroDocumento:'')+'" data-next="cuProd"></div>' +
+    '<div class="cf cf-env"><div class="btns"><button class="btn btn-sec btn-sm" data-a="cuEnvio">'+(function(){var pe=pedSel||null;return pe&&pe.envio?'✓ DATOS DE ENVÍO':'DATOS DE ENVÍO';})()+'</button></div></div><div id="cuEnvioRes" class="muted cf-envres"></div></div>' +
+    '<div class="cf-tit">BULTO</div><div class="cf-sec cf-med"><div class="cf cf-prod"><label class="lbl">PRODUCTO <span class="unidad">opcional · trae medidas y ubicación</span></label><input id="cuProd" class="inp sm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre o marca" data-enter="prodEnter"><div id="cuProdRes"></div><div id="cuProdSel"></div></div>' +
+    '<div class="cf cf-dims fila num"><div class="c"><label class="lbl">ANCHO cm</label><input id="cuAncho" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuAlto"></div><div class="c"><label class="lbl">ALTO cm</label><input id="cuAlto" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuLargo"></div><div class="c"><label class="lbl">LARGO cm</label><input id="cuLargo" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuPeso"></div></div>' +
+    '<div class="cf cf-peso num"><label class="lbl">PESO kg</label><input id="cuPeso" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="done" data-enter="agregar"></div>' +
+    '<div class="cf cf-add"><button class="btn btn-ok btn-xl" data-a="agregar">+ AGREGAR BULTO</button></div><div id="cuCalc" class="calc cf-calc"></div></div>' +
+    '<div class="btns cf-acc"><button class="btn btn-sec" data-a="repetir">REPETIR MEDIDAS</button><button class="btn btn-sec" data-a="igual">OTRO IGUAL</button><button class="btn btn-sec" data-a="cotForm">COTIZAR</button><button class="btn btn-warn" data-a="limpiarDoc">LIMPIAR DOCUMENTO</button><button class="btn btn-sec" data-a="nuevo">NUEVO ID CUBICACIÓN</button></div></div>' +
+    '<div class="card cub-lista"><div class="cl-head"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"></div><div id="cuPag"></div><div id="cuLista" class="lista-int"></div><div class="accbar"><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS DE VARIOS</button><button class="btn btn-sec" data-a="vouCub" id="cuVou">VOUCHER DE VARIOS</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button></div><div class="btns"><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn" data-a="packing">PACKING →</button></div></div></div>';
   m.innerHTML = h;
   var calc = function () { var a = U.num(U.$('cuAncho').value), al = U.num(U.$('cuAlto').value), l = U.num(U.$('cuLargo').value); if (a && al && l) { var c = OT.calcular(a, al, l); U.$('cuCalc').innerHTML = 'Volumen <b>' + U.fx(c.volumen, 3) + ' m³</b> · Peso vol. <b>' + U.fx(c.pesoVol, 2) + ' kg</b>'; } else U.$('cuCalc').innerHTML = ''; };
   var pintar = function () {
@@ -5983,12 +6026,12 @@ Pantallas.packing = function (m) {
   docs.sort(function (a, b) { return (a.orden + ' ' + a.num) < (b.orden + ' ' + b.num) ? -1 : 1; });
   var actual = PackUI.orden ? OT.docKey(PackUI.orden, PackUI.tipoDocumento, PackUI.numeroDocumento) : '';
   var h = '<div class="otbar"><div class="n">PACKING' + (ot ? ' · ' + U.esc(ot.numero) : '') + '</div><div class="muted">Seleccione un documento mandante ya cubicado. Aquí no se vuelven a digitar Orden/Ticket ni documento.</div></div>' +
-    '<div class="card"><label class="lbl">OT ABIERTA DE DESTINO</label><select id="paOTDestino" class="inp sm">'+U.map(U.filter(OT.ordenadas(),function(o){return o.estado==='ABIERTA';}),function(o){return '<option value="'+U.esc(o.id)+'"'+(ot&&o.id===ot.id?' selected':'')+'>'+U.esc(o.numero)+' · '+o.bultos.length+' bultos</option>';}).join('')+'</select></div><div class="card"><label class="lbl">DOCUMENTO MANDANTE DISPONIBLE</label><select id="paMand" class="inp" style="font-size:18px"><option value="">— SELECCIONE ORDEN/TICKET + DOCUMENTO —</option>';
+    '<div class="card pk-top"><div class="pk-f"><div class="pk-c pk-ot"><label class="lbl">OT ABIERTA DE DESTINO</label><select id="paOTDestino" class="inp sm">'+U.map(U.filter(OT.ordenadas(),function(o){return o.estado==='ABIERTA';}),function(o){return '<option value="'+U.esc(o.id)+'"'+(ot&&o.id===ot.id?' selected':'')+'>'+U.esc(o.numero)+' · '+o.bultos.length+' bultos</option>';}).join('')+'</select></div><div class="pk-c pk-doc"><label class="lbl">DOCUMENTO MANDANTE DISPONIBLE</label><select id="paMand" class="inp" style="font-size:18px"><option value="">— SELECCIONE ORDEN/TICKET + DOCUMENTO —</option>';
   U.each(docs, function (d) { h += '<option value="' + U.esc(d.key) + '"' + (d.key === actual ? ' selected' : '') + '>' + U.esc(d.orden + ' · ' + (U.trim(d.num) ? d.tipo + ' ' + d.num : 'SIN DOCUMENTO (se pide al incorporar)')) + '</option>'; });
-  h += '</select>' +
-    '<label class="lbl">COURIER</label><select id="paCourier" class="inp sm">' + opcionesCourier(DB.cfg.courierActual) + '</select>' +
-    '<div class="btns"><button class="btn btn-ok" data-a="courierSel">ASIGNAR AL DOCUMENTO</button><button class="btn btn-sec" data-a="courierTodaHead">APLICAR A TODA LA OT</button></div>' +
-    '<div class="btns"><button class="btn btn-ok" data-a="nueva">+ NUEVA OT</button><button class="btn btn-sec" data-a="ots">OT PENDIENTES</button><button class="btn btn-sec" data-a="historico">HISTÓRICO</button></div></div>' +
+  h += '</select></div>' +
+    '<div class="pk-c pk-cou"><label class="lbl">COURIER</label><select id="paCourier" class="inp sm">' + opcionesCourier(DB.cfg.courierActual) + '</select></div></div>' +
+    '<div class="pk-acc"><div class="btns pk-a1"><button class="btn btn-ok" data-a="courierSel">ASIGNAR AL DOCUMENTO</button><button class="btn btn-sec" data-a="courierTodaHead">APLICAR A TODA LA OT</button></div>' +
+    '<div class="btns pk-a2"><button class="btn btn-ok" data-a="nueva">+ NUEVA OT</button><button class="btn btn-sec" data-a="ots">OT PENDIENTES</button><button class="btn btn-sec" data-a="historico">HISTÓRICO</button></div></div></div>' +
     '<div class="card"><h2>ASIGNACIÓN MASIVA</h2><div class="muted">Seleccione varios documentos; se incorporan todos sus bultos disponibles a la OT seleccionada.</div><div id="paDocsMasivos"></div><div class="accbar"><button class="btn btn-ok" data-a="paMasivo">INCORPORAR DOCUMENTOS SELECCIONADOS</button></div></div><div id="paBody"></div>';
   m.innerHTML = h;
 
