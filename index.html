@@ -158,7 +158,7 @@ textarea.inp { height: auto; min-height: 90px; font-size: 14px; font-family: "Co
 #toast.warn { background: #e07b00; }
 #modalHost { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,.6); z-index: 800; display: none; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px; }
 #modalHost .mp { background: #fff; border-radius: 8px; max-width: 560px; margin: 0 auto 12px; padding: 12px; max-height: calc(100vh - 44px); overflow-y: auto; -webkit-overflow-scrolling: touch; box-sizing: border-box; }
-#modalHost .mp > .btns { position: sticky; bottom: -12px; background: #fff; padding: 9px 0 12px; margin-top: 10px; border-top: 1px solid #bbb; z-index: 5; }
+#modalHost .mp > .btns.mp-pie { position: sticky; bottom: -12px; background: #fff; padding: 9px 0 12px; margin-top: 10px; border-top: 1px solid #bbb; z-index: 5; }
 #main { padding: 8px; max-width: 720px; margin: 0 auto; max-height: calc(100vh - 96px); overflow-y: auto; -webkit-overflow-scrolling: touch; box-sizing: border-box; }
 .scroll-list { max-height: 48vh; overflow-y: auto; -webkit-overflow-scrolling: touch; border: 1px solid #bbb; border-radius: 5px; padding: 4px; }
 #modalHost .mp h3 { margin: 0 0 8px; font-size: 18px; }
@@ -345,7 +345,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 #modalHost{background:rgba(29,27,32,.45)}
 #modalHost .mp{border-radius:16px;padding:18px;box-shadow:0 8px 28px rgba(0,0,0,.25)}
 #modalHost .mp h3{font-size:18px;font-weight:600;color:var(--tinta)}
-#modalHost .mp > .btns{border-top:1px solid var(--linea)}
+#modalHost .mp > .btns.mp-pie{border-top:1px solid var(--linea)}
 #banner{background:var(--err)}
 .dash-h{margin:2px 2px 12px}
 .dash-h .t{font-size:22px;font-weight:600;color:var(--tinta)}
@@ -466,7 +466,8 @@ html.dv-escritorio .btns,html.dv-tablet .btns{margin:0 -4px}
 html.dv-escritorio .btns>.btn,html.dv-tablet .btns>.btn{-webkit-flex:0 1 auto;flex:0 1 auto;min-width:120px;margin-left:4px;margin-right:4px;padding-left:14px;padding-right:14px;white-space:nowrap}
 html.dv-escritorio .doc .btns>.btn,html.dv-escritorio .dochead .btns>.btn{min-width:0}
 html.dv-escritorio #modalHost .mp{max-width:760px;padding:20px 24px}
-html.dv-escritorio #modalHost .mp>.btns{-webkit-justify-content:flex-end;justify-content:flex-end}
+html.dv-escritorio #modalHost .mp>.btns.mp-pie{bottom:-20px;padding-bottom:20px;-webkit-justify-content:flex-end;justify-content:flex-end}
+html.dv-escritorio #modalHost .mp>.btns:not(.mp-pie){margin:8px -4px}
 html.dv-escritorio #modalHost .mp>.btns>.btn{-webkit-flex:0 1 auto;flex:0 1 auto;min-width:110px}
 html.dv-escritorio .lista-int{max-height:none;padding-bottom:10px;border:0;padding-left:0;padding-right:0;background:transparent}
 html.dv-escritorio .doc{margin-bottom:10px}
@@ -511,19 +512,26 @@ html.dv-escritorio .accbar>.btns,html.dv-tablet .accbar>.btns{display:contents}
 html.dv-escritorio .accbar .btn,html.dv-tablet .accbar .btn{-webkit-flex:0 0 auto;flex:0 0 auto;width:auto;min-width:0;margin:6px 8px 0 0;white-space:nowrap}
 html.dv-escritorio .pk-top .pk-f,html.dv-tablet .pk-top .pk-f{display:-ms-grid;display:grid;grid-template-columns:minmax(200px,1fr) minmax(320px,2fr) minmax(180px,1fr);-webkit-column-gap:12px;column-gap:12px;-webkit-align-items:end;align-items:end}
 html.dv-escritorio .pk-top #paMand,html.dv-tablet .pk-top #paMand{height:36px;font-size:14px!important}
-html.dv-escritorio .pk-top .pk-acc,html.dv-tablet .pk-top .pk-acc{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between;margin-top:6px;border-top:1px solid var(--linea)}
+html.dv-escritorio .pk-top .pk-acc,html.dv-tablet .pk-top .pk-acc{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;-webkit-align-items:center;align-items:center;-webkit-justify-content:flex-start;justify-content:flex-start;margin-top:6px;border-top:1px solid var(--linea)}
+html.dv-escritorio .pk-top .pk-acc .pk-a2,html.dv-tablet .pk-top .pk-acc .pk-a2{margin-right:4px}
 html.dv-escritorio .pk-top .pk-acc .btns,html.dv-tablet .pk-top .pk-acc .btns{margin:0;-webkit-flex-wrap:nowrap;flex-wrap:nowrap}
 .pe-fil{-webkit-flex-wrap:wrap;flex-wrap:wrap}.pe-fil>.c2{-webkit-flex-basis:100%;flex-basis:100%}
 html.dv-escritorio .pe-fil,html.dv-tablet .pe-fil{-webkit-flex-wrap:nowrap;flex-wrap:nowrap}html.dv-escritorio .pe-fil>.c2,html.dv-tablet .pe-fil>.c2{-webkit-flex-basis:auto;flex-basis:auto}
 html.dv-escritorio .lista-int>.doc,html.dv-escritorio .lista-int .doc:not(.seg-doc){padding:10px 14px}
 html.dv-escritorio .lista-int .doc .dh{padding:0 0 4px}
 html.dv-escritorio .lista-int .doc .db{margin:6px -14px -10px;padding:8px 14px}
-html.dv-escritorio #main.p-manifiesto{display:-ms-grid;display:grid;grid-template-columns:auto minmax(0,1fr);-webkit-column-gap:14px;column-gap:14px;-webkit-align-items:stretch;align-items:stretch}
-html.dv-escritorio #main.p-manifiesto>*{grid-column:1/-1}
-html.dv-escritorio #main.p-manifiesto>.card:nth-child(1),html.dv-escritorio #main.p-manifiesto>.card:nth-child(2){grid-column:auto}
-html.dv-escritorio #main.p-manifiesto>.card:nth-child(1) .btns{-webkit-flex-wrap:nowrap;flex-wrap:nowrap}
-html.dv-escritorio #main.p-datos{display:-ms-grid;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);-webkit-column-gap:14px;column-gap:14px;-webkit-align-items:start;align-items:start}
-html.dv-escritorio #main.p-datos>#cfBan,html.dv-escritorio #main.p-datos>.otbar{grid-column:1/-1}
+html.dv-escritorio .mf-top,html.dv-tablet .mf-top{display:-webkit-flex;display:flex;-webkit-align-items:flex-end;align-items:flex-end;-webkit-flex-wrap:wrap;flex-wrap:wrap}
+html.dv-escritorio .mf-top>.btns,html.dv-tablet .mf-top>.btns{margin:0 12px 0 -4px;-webkit-flex-wrap:nowrap;flex-wrap:nowrap}
+html.dv-escritorio .mf-top>.btns .btn,html.dv-tablet .mf-top>.btns .btn{margin-top:0}
+html.dv-escritorio .mf-top .mf-sel,html.dv-tablet .mf-top .mf-sel{-webkit-flex:1 1 320px;flex:1 1 320px;min-width:0}
+html.dv-escritorio .mf-top .mf-sel .lbl,html.dv-tablet .mf-top .mf-sel .lbl{margin-top:0}
+html.dv-escritorio .mf-top select.inp,html.dv-tablet .mf-top select.inp{height:38px;font-size:14px}
+html.dv-escritorio .fila.stepper,html.dv-tablet .fila.stepper{max-width:360px}
+html.dv-escritorio .fila.stepper .btn,html.dv-tablet .fila.stepper .btn{margin-top:0;height:42px}
+.dt-nav{position:-webkit-sticky;position:sticky;top:-12px;z-index:8;margin:0 0 8px;box-shadow:0 0 0 6px var(--fondo)}
+html.dv-escritorio .dt-nav{top:-16px}
+.dt-grupo{font-size:13px;font-weight:700;letter-spacing:.6px;color:var(--pri);text-transform:uppercase;margin:18px 2px 8px;padding-bottom:4px;border-bottom:2px solid var(--pri-suave)}
+.dt-grupo:first-of-type{margin-top:4px}
 html.dv-escritorio .cub-lista .cl-head,html.dv-tablet .cub-lista .cl-head{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-flex-wrap:wrap;flex-wrap:wrap;margin-bottom:8px}
 html.dv-escritorio .cub-lista .cl-head .btns,html.dv-tablet .cub-lista .cl-head .btns{margin:0 8px 0 -4px;-webkit-flex-wrap:nowrap;flex-wrap:nowrap}
 html.dv-escritorio .cub-lista .cl-head .btn,html.dv-tablet .cub-lista .cl-head .btn{margin-top:0}
@@ -532,8 +540,9 @@ html.dv-escritorio .cub-lista .cl-head #cuBuscar,html.dv-tablet .cub-lista .cl-h
 html.dv-escritorio .cub-form .cf .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rf-canvas{background:#e9e5ea;border-radius:8px;padding:8px;margin:8px 0;touch-action:none;-webkit-user-select:none;user-select:none}
 .rf-canvas svg{display:block;width:100%;height:auto;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
-.rf-cols{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;margin:0 -6px}
-.rf-c1,.rf-c2{-webkit-flex:1 1 260px;flex:1 1 260px;padding:0 6px;min-width:0}
+.rf-cols{display:block}
+.rf-c1,.rf-c2{display:block;min-width:0}
+.rf-c2{margin-top:10px;padding-top:8px;border-top:1px solid var(--linea)}
 .rf-lista{max-height:260px;overflow-y:auto;border:1px solid var(--borde);border-radius:8px;padding:0 8px}
 .rf-row{min-height:34px;cursor:pointer;font-size:13px}
 .rf-row.rf-sel{background:var(--pri-suave)}
@@ -580,7 +589,7 @@ html.dv-escritorio .cub-form .cf .lbl{white-space:nowrap;overflow:hidden;text-ov
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.33.3-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.33.6-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -956,6 +965,86 @@ var Dispositivo = {
   },
   iniciar: function () { Dispositivo.aplicar(); var to = null; window.addEventListener('resize', function () { clearTimeout(to); to = setTimeout(Dispositivo.aplicar, 150); }, false); },
   nombre: function () { return { escritorio: 'Computador (notebook o PC)', tablet: 'Tablet o pantalla mediana', movil: 'Celular o pantalla pequeña' }[Dispositivo.tipo] || ''; }
+};
+
+var Layout = {
+  EXCL: '#nav, .subtabs, .dt-nav, .combo, .pagbar, .frow, .fila, td, th, .zimp, .wsp, .wsp-panel, .prs, .cf-add, .grp, .tiles, .kpis, .rf-canvas',
+  activo: function () { return Dispositivo.tipo === 'escritorio' || Dispositivo.tipo === 'tablet'; },
+  excluido: function (el) { var x = el; while (x && x !== document.body) { if (x.matches && x.matches(Layout.EXCL)) return true; x = x.parentNode; } return false; },
+  esBtns: function (el) { return !!(el && el.nodeType === 1 && /(^|\s)btns(\s|$)/.test(el.className || '') && !el.querySelector('[data-mb]') && !el.hasAttribute('data-sola')); },
+  esBtn: function (el) { return !!(el && el.nodeType === 1 && el.tagName === 'BUTTON' && /(^|\s)btn(\s|$)/.test(el.className || '') && !el.hasAttribute('data-mb')); },
+  sig: function (el) { var n = el.nextSibling; while (n && n.nodeType === 3 && !/\S/.test(n.nodeValue)) n = n.nextSibling; return n; },
+  normalizar: function (root) {
+    if (!root || !Layout.activo()) return;
+    var bs = root.querySelectorAll ? root.querySelectorAll('button.btn') : [], i;
+    for (i = 0; i < bs.length; i++) {
+      var b = bs[i], pa = b.parentNode;
+      if (!pa || Layout.esBtns(pa) || /(^|\s)(accbar|btns)(\s|$)/.test(pa.className || '') || b.hasAttribute('data-mb') || Layout.excluido(b)) continue;
+      var w = document.createElement('div'); w.className = 'btns';
+      pa.insertBefore(w, b);
+      var x = b;
+      while (x && Layout.esBtn(x)) { var nx = Layout.sig(x); w.appendChild(x); x = nx; }
+    }
+    var gs = root.querySelectorAll ? root.querySelectorAll('.btns') : [];
+    for (i = 0; i < gs.length; i++) {
+      var g = gs[i];
+      if (!g.parentNode || !Layout.esBtns(g) || Layout.excluido(g)) continue;
+      var n = Layout.sig(g);
+      while (n && Layout.esBtns(n) && !Layout.excluido(n)) { while (n.firstChild) g.appendChild(n.firstChild); var nn = Layout.sig(n); n.parentNode.removeChild(n); n = nn; }
+    }
+  },
+  _t: null,
+  observar: function () {
+    if (typeof MutationObserver === 'undefined') return;
+    var pend = {}, run = function () { Layout._t = null; for (var k in pend) { Layout.normalizar(U.$(k)); } pend = {}; };
+    U.each(['main', 'modalHost'], function (id) {
+      var el = U.$(id); if (!el) return;
+      new MutationObserver(function () { pend[id] = 1; if (!Layout._t) Layout._t = setTimeout(run, 0); }).observe(el, { childList: true, subtree: true });
+    });
+  }
+};
+
+var DatosNav = {
+  GRUPOS: [
+    ['conexion', 'Conexión y equipos', ['enlace para colaboradores', 'sincronización', 'este equipo y equipos conectados', 'operaciones y recuperación']],
+    ['general', 'Configuración general', ['configuración', 'remitente por defecto', 'enlaces de seguimiento', 'listas de selección']],
+    ['impresion', 'Impresión', ['tamaño de impresión']],
+    ['cotizador', 'Cotizador e IA', ['cotizador de envíos', 'asistente con ia']],
+    ['respaldo', 'Respaldo y mantención', ['respaldo', 'integridad', 'zona peligrosa']]
+  ],
+  grupo: function (t) {
+    var k = Geo.norm(U.trim(String(t || '').replace(/[^\wÁÉÍÓÚÑáéíóúñ() ]/g, ' ')));
+    for (var i = 0; i < DatosNav.GRUPOS.length; i++) { var l = DatosNav.GRUPOS[i][2]; for (var j = 0; j < l.length; j++) if (k.indexOf(Geo.norm(l[j])) === 0) return { g: DatosNav.GRUPOS[i][0], o: j }; }
+    return { g: 'general', o: 99 };
+  },
+  aplicar: function (m) {
+    var cards = U.filter(Array.prototype.slice.call(m.children), function (c) { return c.className && /\bcard\b/.test(c.className); });
+    if (!cards.length) return;
+    var por = {}, ref = document.createElement('div');
+    m.insertBefore(ref, cards[0]);
+    U.each(cards, function (c, i) { var h = c.querySelector('h2'), x = DatosNav.grupo(h ? h.textContent : ''); (por[x.g] = por[x.g] || []).push({ c: c, o: x.o, i: i }); });
+    var nav = document.createElement('div'); nav.className = 'subtabs dt-nav'; nav.id = 'dtNav';
+    var frag = document.createDocumentFragment();
+    U.each(DatosNav.GRUPOS, function (g) {
+      var l = por[g[0]]; if (!l || !l.length) return;
+      l.sort(function (a, b) { return a.o - b.o || a.i - b.i; });
+      var t = document.createElement('div'); t.className = 'dt-grupo'; t.id = 'dg_' + g[0]; t.textContent = g[1]; frag.appendChild(t);
+      U.each(l, function (x) { frag.appendChild(x.c); });
+      var b = document.createElement('button'); b.type = 'button'; b.setAttribute('data-dg', g[0]); b.textContent = g[1].toUpperCase(); nav.appendChild(b);
+    });
+    m.insertBefore(nav, ref); m.insertBefore(frag, ref); m.removeChild(ref);
+    nav.onclick = function (e) { var b = U.cerca(e.target, 'data-dg', nav); if (!b) return; var t = U.$('dg_' + b.getAttribute('data-dg')); if (!t) return; DatosNav._clic = Date.now(); m.scrollTop = Math.max(0, t.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - nav.offsetHeight - 6); DatosNav.marcar(b.getAttribute('data-dg')); };
+    DatosNav.marcar(U.qa(nav, 'button')[0].getAttribute('data-dg'));
+    if (!DatosNav._spy) { DatosNav._spy = true; m.addEventListener('scroll', DatosNav.seguir); }
+  },
+  marcar: function (k) { var nav = U.$('dtNav'); if (!nav) return; U.each(U.qa(nav, 'button'), function (x) { x.className = x.getAttribute('data-dg') === k ? 'on' : ''; }); },
+  seguir: function () {
+    var nav = U.$('dtNav'); if (!nav || Date.now() - (DatosNav._clic || 0) < 400) return;
+    var m = U.$('main'), lim = nav.getBoundingClientRect().bottom + 12, gs = U.qa(m, '.dt-grupo'), k = gs.length ? gs[0].id.slice(3) : '';
+    if (m.scrollTop >= m.scrollHeight - m.clientHeight - 2 && gs.length) k = gs[gs.length - 1].id.slice(3);
+    else U.each(gs, function (g) { if (g.getBoundingClientRect().top <= lim) k = g.id.slice(3); });
+    DatosNav.marcar(k);
+  }
 };
 
 var Borrador = {
@@ -4680,7 +4769,7 @@ var UI = {
     if (op.titulo) h += '<h3>' + U.esc(op.titulo) + '</h3>';
     h += op.html || '';
     UI._botones = op.botones || [{ txt: 'CERRAR', cls: 'btn-sec' }];
-    h += '<div class="btns">';
+    h += '<div class="btns mp-pie">';
     U.each(UI._botones, function (b, i) { h += '<button class="btn ' + (b.cls || '') + '" data-mb="' + i + '">' + U.esc(b.txt) + '</button>'; });
     h += '</div></div>';
     host.innerHTML = h; host.style.display = 'block'; host.scrollTop = 0;
@@ -4800,6 +4889,7 @@ var App = {
     m.className = 'p-' + p;
     m.onclick = null; m.onkeydown = null; m.oninput = null; m.onchange = null;
     Pantallas[p](m);
+    if (p === 'datos') DatosNav.aplicar(m);
     Borrador.restaurar(p);
     Conflictos.aviso(m);
     ZoomImp.activar(m);
@@ -4846,6 +4936,7 @@ var App = {
     if (App._arrancado) return;
     App._arrancado = true;
     Dispositivo.iniciar();
+    Layout.observar();
     StorageManager.backupLegacy();
     DB.cargar(); Comunas.cargar(); Cotizador.cargar(); Conflictos.cargar(); Ops.cargar();
     if (Ops.interrumpidas) setTimeout(function () { UI.toast(Ops.interrumpidas + ' operación(es) quedaron interrumpidas la última vez. Los datos siguen guardados en este equipo y se reintentarán (Datos → Operaciones).', 'warn', 7000); }, 1200);
@@ -6030,8 +6121,8 @@ Pantallas.packing = function (m) {
   U.each(docs, function (d) { h += '<option value="' + U.esc(d.key) + '"' + (d.key === actual ? ' selected' : '') + '>' + U.esc(d.orden + ' · ' + (U.trim(d.num) ? d.tipo + ' ' + d.num : 'SIN DOCUMENTO (se pide al incorporar)')) + '</option>'; });
   h += '</select></div>' +
     '<div class="pk-c pk-cou"><label class="lbl">COURIER</label><select id="paCourier" class="inp sm">' + opcionesCourier(DB.cfg.courierActual) + '</select></div></div>' +
-    '<div class="pk-acc"><div class="btns pk-a1"><button class="btn btn-ok" data-a="courierSel">ASIGNAR AL DOCUMENTO</button><button class="btn btn-sec" data-a="courierTodaHead">APLICAR A TODA LA OT</button></div>' +
-    '<div class="btns pk-a2"><button class="btn btn-ok" data-a="nueva">+ NUEVA OT</button><button class="btn btn-sec" data-a="ots">OT PENDIENTES</button><button class="btn btn-sec" data-a="historico">HISTÓRICO</button></div></div></div>' +
+    '<div class="pk-acc"><div class="btns pk-a2"><button class="btn btn-ok" data-a="nueva">+ NUEVA OT</button><button class="btn btn-sec" data-a="ots">OT PENDIENTES</button><button class="btn btn-sec" data-a="historico">HISTÓRICO</button></div>' +
+    '<div class="btns pk-a1"><button class="btn btn-ok" data-a="courierSel">ASIGNAR AL DOCUMENTO</button><button class="btn btn-sec" data-a="courierTodaHead">APLICAR A TODA LA OT</button></div></div></div>' +
     '<div class="card"><h2>ASIGNACIÓN MASIVA</h2><div class="muted">Seleccione varios documentos; se incorporan todos sus bultos disponibles a la OT seleccionada.</div><div id="paDocsMasivos"></div><div class="accbar"><button class="btn btn-ok" data-a="paMasivo">INCORPORAR DOCUMENTOS SELECCIONADOS</button></div></div><div id="paBody"></div>';
   m.innerHTML = h;
 
@@ -6546,12 +6637,12 @@ var DespachoGrupo = {
     if (!DespachoGrupo.otId || !OT.porId(DespachoGrupo.otId) || OT.porId(DespachoGrupo.otId).estado!=='ABIERTA') DespachoGrupo.otId = (act && act.estado==='ABIERTA' && (act.bultos||[]).length ? act.id : (ots.length ? ots[0].id : ''));
     var ot = DespachoGrupo.otId ? OT.porId(DespachoGrupo.otId) : null;
     var h = '<div class="otbar"><div class="n">DESPACHO · EN GESTIÓN</div><div class="muted">Se muestran documentos pendientes, parciales y completos de OT abiertas.</div></div>' +
-      '<div class="card"><div class="btns"><button class="btn btn-ok" data-a="dgAct">VIGENTES / EN GESTIÓN</button><button class="btn btn-sec" data-a="dgHist">HISTÓRICO</button></div>';
+      '<div class="card mf-top"><div class="btns"><button class="btn btn-ok" data-a="dgAct">VIGENTES / EN GESTIÓN</button><button class="btn btn-sec" data-a="dgHist">HISTÓRICO</button></div>';
     if (ots.length) {
-      h += '<label class="lbl">OT INTERNA</label><select id="dgOT" class="inp sm">';
+      h += '<div class="mf-sel"><label class="lbl">OT INTERNA</label><select id="dgOT" class="inp sm">';
       U.each(ots, function (o) { h += '<option value="' + o.id + '"' + (ot && o.id === ot.id ? ' selected' : '') + '>' + U.esc(o.numero) + ' · ' + o.bultos.length + ' bultos · ' + U.esc((o.despacho && o.despacho.estado) || 'PENDIENTE') + '</option>'; });
-      h += '</select>';
-    } else h += '<div class="aviso verde">No hay OT internas abiertas con bultos.</div>';
+      h += '</select></div>';
+    } else h += '<div class="aviso verde mf-sel">No hay OT internas abiertas con bultos.</div>';
     h += '</div><div id="dgGrupos"></div>';
     m.innerHTML = h;
     function pintar() {
@@ -7839,17 +7930,17 @@ Pantallas.manifiesto = function (m) {
   });
   if (!Manif.otId || !OT.porId(Manif.otId) || !U.find(l, function (x) { return x.id === Manif.otId; })) Manif.otId = l.length ? l[0].id : null;
   var ot = Manif.otId ? OT.porId(Manif.otId) : null;
-  var h = '<div class="card"><div class="btns"><button class="btn ' + (Manif.vista === 'vigentes' ? 'btn-ok' : 'btn-sec') + '" data-a="mfVig">VIGENTES / EN GESTIÓN</button><button class="btn ' + (Manif.vista === 'historico' ? 'btn-ok' : 'btn-sec') + '" data-a="mfHist">HISTÓRICO</button></div></div>';
+  var h = '<div class="card mf-top"><div class="btns"><button class="btn ' + (Manif.vista === 'vigentes' ? 'btn-ok' : 'btn-sec') + '" data-a="mfVig">VIGENTES / EN GESTIÓN</button><button class="btn ' + (Manif.vista === 'historico' ? 'btn-ok' : 'btn-sec') + '" data-a="mfHist">HISTÓRICO</button></div>';
   if (!ot) {
-    m.innerHTML = h + '<div class="card"><h2>Sin OT en esta vista</h2><button class="btn btn-ok btn-xl" data-a="irPack">IR A PACKING</button></div>';
+    m.innerHTML = h + '</div><div class="card"><h2>Sin OT en esta vista</h2><button class="btn btn-ok btn-xl" data-a="irPack">IR A PACKING</button></div>';
     UI.delegar(m, { mfVig: function () { Manif.vista = 'vigentes'; Manif.otId = null; App.ir('manifiesto'); }, mfHist: function () { Manif.vista = 'historico'; Manif.otId = null; App.ir('manifiesto'); }, irPack: function () { App.ir('packing'); } });
     return;
   }
   OT.recalcular(ot);
   var mf = ot.manifiesto, t = ot.totales, tr = ot.transporte || (ot.transporte = { transportista: '', patente: '', conductor: '' });
-  h += '<div class="card"><label class="lbl">ORDEN DE TRANSPORTE</label><select id="mfSel" class="inp">';
+  h += '<div class="mf-sel"><label class="lbl">ORDEN DE TRANSPORTE</label><select id="mfSel" class="inp">';
   U.each(l, function (o) { h += '<option value="' + o.id + '"' + (o.id === ot.id ? ' selected' : '') + '>' + U.esc(o.numero) + ' · ' + o.estado + ' · ' + o.bultos.length + ' bultos</option>'; });
-  h += '</select></div>';
+  h += '</select></div></div>';
   var est = !mf.generado ? '<span class="muted">No generado</span>' : (mf.desactualizado ? '<span class="est DESACT">DESACTUALIZADO</span>' :
     '<span class="est ABIERTA">GENERADO v' + mf.version + '</span>');
   h += '<div class="otbar"><div class="n">' + U.esc(ot.numero) + ' <span class="est ' + ot.estado + '">' + ot.estado + '</span></div>' +
@@ -8031,7 +8122,7 @@ Rotulado.etiqueta = function (c, acc, m) {
     '<label class="lbl" for="rqDesc">DESCRIPCIÓN</label><input id="rqDesc" class="inp sm" type="text" data-next="rqCant">' +
     '<div id="rqEst" class="muted"></div>' +
     '<div class="fila" style="margin-top:6px"><div class="c"><label class="lbl" for="rqCant">CANTIDAD DE ETIQUETAS</label>' +
-    '<div class="fila"><div class="c"><button class="btn btn-sec" data-a="menos" style="margin:0">−</button></div><div class="c num"><input id="rqCant" class="inp" type="number" min="1" step="1" pattern="[0-9]*" inputmode="numeric" value="1" data-enter="imprimir"></div>' +
+    '<div class="fila stepper"><div class="c"><button class="btn btn-sec" data-a="menos" style="margin:0">−</button></div><div class="c num"><input id="rqCant" class="inp" type="number" min="1" step="1" pattern="[0-9]*" inputmode="numeric" value="1" data-enter="imprimir"></div>' +
     '<div class="c"><button class="btn btn-sec" data-a="mas" style="margin:0">+</button></div></div></div></div>' +
     '<label class="lbl" for="rqFmt">FORMATO</label><select id="rqFmt" class="inp sm">' + Rotulado.opcionesFormato(DB.cfg.formatoRapida) + '</select>' +
     '<button class="btn btn-ok btn-xl" data-a="imprimir">IMPRIMIR ETIQUETA</button>' +
