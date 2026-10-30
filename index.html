@@ -576,6 +576,9 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 .ip-av.warn{color:var(--warn-txt)}
 .ip-av.info{color:var(--txt2)}
 .pn-ret{margin-top:10px;font-weight:700;color:#0a5f7a}
+.ed-guardado{font-size:13px;background:var(--ok-suave);color:var(--ok-txt);border-left:4px solid var(--ok)}
+.ed-cmp td{vertical-align:top}
+.ed-cmp td.ed-nuevo{color:var(--ok-txt);font-weight:600}
 .rut-msg{color:var(--err-txt);font-weight:600;font-size:12px;margin-top:4px}
 .inp.inp-err{border-color:var(--err-txt);box-shadow:0 0 0 2px rgba(176,42,55,.15)}
 .btn:focus-visible,.mini:focus-visible,#nav button:focus-visible,.subtabs button:focus-visible{outline:3px solid var(--foco);outline-offset:2px}
@@ -614,7 +617,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.34.1-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.35.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -682,15 +685,72 @@ var StorageManager = (function () {
   var big = {}, pend = {}, idb = null, idbOk = null, esperas = [];
   var sucio = {}, prog = null;
   function idbPut(k, v) { try { var tx = idb.transaction('kv', 'readwrite'); if (v == null) tx.objectStore('kv')['delete'](k); else tx.objectStore('kv').put(v, k); } catch (e) {} }
-  function vaciar() {
+  var base = {}, baseLS = {};
+  function avisarEscritos(ks) { if (ks.length && typeof Pestanas !== 'undefined') Pestanas.enviar({ t: 'w', ks: ks }); }
+  function choquesDe(k, ch) { var out = []; if (typeof Pestanas === 'undefined') return out; U.each(ch || [], function (x) { if (x.charAt(0) === '#') { var n = Pestanas.nombre(k, x.substr(1)); if (n && out.indexOf(n) < 0) out.push(n); } }); return out; }
+  function vaciar(ev) {
     if (prog) { clearTimeout(prog); prog = null; }
     if (!idb) return;
-    var ks = [], k; for (k in sucio) ks.push(k); sucio = {};
+    var ks = [], k; for (k in sucio) if (!(big.hasOwnProperty(k) && base.hasOwnProperty(k) && big[k] === base[k])) ks.push(k); sucio = {};
     if (!ks.length) return;
+    var salida = ev && (ev.type === 'pagehide' || ev.type === 'beforeunload' || ev.type === 'visibilitychange');
     try {
-      var st = idb.transaction('kv', 'readwrite').objectStore('kv');
-      for (var i = 0; i < ks.length; i++) { if (big.hasOwnProperty(ks[i]) && big[ks[i]] != null) st.put(big[ks[i]], ks[i]); else st['delete'](ks[i]); }
+      var tx = idb.transaction('kv', 'readwrite'), st = tx.objectStore('kv'), escritos = [], rec = [], choques = [];
+      if (salida) {
+        for (var i = 0; i < ks.length; i++) { if (big.hasOwnProperty(ks[i]) && big[ks[i]] != null) st.put(big[ks[i]], ks[i]); else st['delete'](ks[i]); base[ks[i]] = big.hasOwnProperty(ks[i]) ? big[ks[i]] : null; }
+        avisarEscritos(ks);
+        return;
+      }
+      U.each(ks, function (c) {
+        var g = st.get(c);
+        g.onsuccess = function () {
+          var cur = g.result == null ? null : g.result, mio = big.hasOwnProperty(c) ? big[c] : null, out = mio;
+          if (base.hasOwnProperty(c) && cur !== base[c] && cur !== mio && mio != null && cur != null && typeof Fusion !== 'undefined') {
+            var ch = []; out = Fusion.texto(base[c], mio, cur, c, ch);
+            if (out !== mio) { big[c] = out; rec.push(c); }
+            choques = choques.concat(choquesDe(c, ch));
+          }
+          if (out == null) st['delete'](c); else st.put(out, c);
+          base[c] = out; escritos.push(c);
+        };
+      });
+      tx.oncomplete = function () { avisarEscritos(escritos); if ((rec.length || choques.length) && typeof Pestanas !== 'undefined') Pestanas.recargar(rec, choques); };
     } catch (e) {}
+  }
+  function recibir(ks) {
+    if (!idb || !ks || !ks.length) return;
+    try {
+      var tx = idb.transaction('kv', 'readonly'), st = tx.objectStore('kv'), rec = [], choques = [];
+      U.each(ks, function (c) {
+        if (!GRANDES[c]) return;
+        var g = st.get(c);
+        g.onsuccess = function () {
+          var cur = g.result == null ? null : g.result, mio = big.hasOwnProperty(c) ? big[c] : null;
+          if (cur === mio) { base[c] = cur; return; }
+          if (!base.hasOwnProperty(c) || mio === base[c] || mio == null) { if (cur == null) delete big[c]; else big[c] = cur; base[c] = cur; rec.push(c); return; }
+          var ch = [], out = typeof Fusion !== 'undefined' ? Fusion.texto(base[c], mio, cur, c, ch) : mio;
+          big[c] = out; base[c] = cur; rec.push(c); encolar(c);
+          choques = choques.concat(choquesDe(c, ch));
+        };
+      });
+      tx.oncomplete = function () { if (rec.length && typeof Pestanas !== 'undefined') Pestanas.recargar(rec, choques); };
+    } catch (e) {}
+  }
+  function recibirLS(k, nuevo) {
+    var mio = memoLS(k);
+    if (nuevo == null || nuevo === mio) { baseLS[k] = nuevo; return; }
+    var out = nuevo;
+    if (baseLS.hasOwnProperty(k) && mio != null && mio !== baseLS[k] && typeof Fusion !== 'undefined') out = Fusion.texto(baseLS[k], mio, nuevo, k, []);
+    baseLS[k] = nuevo;
+    if (out !== nuevo) { try { if (disponible) localStorage.setItem(k, out); } catch (e) {} baseLS[k] = out; }
+    if (typeof Pestanas !== 'undefined') Pestanas.recargar([k]);
+  }
+  function memoLS(k) {
+    try {
+      if (k === CLAVES.config && typeof DB !== 'undefined' && DB.cfg) return JSON.stringify(DB.cfg);
+      if (k === CLAVES.formatos && typeof DB !== 'undefined' && DB.formatos) return JSON.stringify(DB.formatos);
+    } catch (e) {}
+    return baseLS.hasOwnProperty(k) ? baseLS[k] : null;
   }
   function encolar(k) { sucio[k] = 1; if (!prog) prog = setTimeout(vaciar, 40); }
   (function () { if (typeof window === 'undefined' || !window.addEventListener) return; window.addEventListener('pagehide', vaciar); window.addEventListener('beforeunload', vaciar); document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') vaciar(); }); })();
@@ -702,11 +762,17 @@ var StorageManager = (function () {
       quitarLS(clave);
       return;
     }
-    if (disponible) localStorage.setItem(clave, txt); else memoria[clave] = txt;
+    if (disponible) {
+      if (baseLS.hasOwnProperty(clave) && typeof Fusion !== 'undefined') {
+        var cur = null; try { cur = localStorage.getItem(clave); } catch (e) {}
+        if (cur != null && cur !== baseLS[clave] && cur !== txt) { var mez = Fusion.texto(baseLS[clave], txt, cur, clave, []); if (mez !== txt) { txt = mez; localStorage.setItem(clave, txt); baseLS[clave] = txt; if (typeof Pestanas !== 'undefined') Pestanas.recargar([clave]); return; } }
+      }
+      localStorage.setItem(clave, txt); baseLS[clave] = txt;
+    } else memoria[clave] = txt;
   }
   function _getTxt(clave) {
     if (GRANDES[clave] && big.hasOwnProperty(clave)) return big[clave];
-    try { return disponible ? localStorage.getItem(clave) : (memoria.hasOwnProperty(clave) ? memoria[clave] : null); } catch (e) { return null; }
+    try { if (disponible) { var t = localStorage.getItem(clave); if (!baseLS.hasOwnProperty(clave)) baseLS[clave] = t; return t; } return memoria.hasOwnProperty(clave) ? memoria[clave] : null; } catch (e) { return null; }
   }
   function terminar(ok) {
     if (idbOk !== null) return;
@@ -733,10 +799,11 @@ var StorageManager = (function () {
           for (var i = 0; i < ks.length; i++) {
             var c = ks[i];
             if (!big.hasOwnProperty(c)) {
-              if (leidos[c] != null) big[c] = leidos[c];
+              if (leidos[c] != null) { big[c] = leidos[c]; base[c] = leidos[c]; }
               else { var ls = null; try { ls = disponible ? localStorage.getItem(c) : null; } catch (e) {} if (ls != null) { big[c] = ls; pend[c] = 1; } }
             }
-            if (pend[c] && big[c] != null) idbPut(c, big[c]);
+            if (!base.hasOwnProperty(c)) base[c] = leidos[c] == null ? null : leidos[c];
+            if (pend[c] && big[c] != null) { idbPut(c, big[c]); base[c] = big[c]; }
             if (big.hasOwnProperty(c)) quitarLS(c);
           }
           pend = {};
@@ -841,7 +908,7 @@ var StorageManager = (function () {
       if (legacy) eliminar(CLAVE_LEGACY_DESPACHOS);
     } catch (e) {}
   }
-  return { vaciar: vaciar, disponible: disponible, guardar: guardar, leer: leer, eliminar: eliminar, exportar: exportar, validar: validar,
+  return { vaciar: vaciar, recibir: recibir, recibirLS: recibirLS, disponible: disponible, guardar: guardar, leer: leer, eliminar: eliminar, exportar: exportar, validar: validar,
     importar: importar, backup: backup, uso: uso, backupLegacy: _backupLegacy, iniciarGrande: iniciarGrande, cuando: cuando, detalle: detalle,
     listo: function () { return idbOk !== null; } };
 })();
@@ -926,7 +993,7 @@ var SyncReg = {
   },
   hash: function (o) { var t = SyncReg.estable(o), h = 5381, h2 = 52711; for (var i = 0; i < t.length; i++) { var c = t.charCodeAt(i); h = ((h << 5) + h + c) | 0; h2 = ((h2 << 5) + h2 ^ c) | 0; } return (h >>> 0).toString(36) + (h2 >>> 0).toString(36); },
   marcar: function (o) { if (o) o._e = new Date().toISOString(); return o; },
-  sincronizado: function (o, v) { if (v) o._v = v; o._h = SyncReg.hash(o); delete o._e; return o; },
+  sincronizado: function (o, v) { if (v) o._v = v; o._h = SyncReg.hash(o); delete o._e; o._b = Conflictos.limpio(o); return o; },
   detectar: function (o) { if (o && !o._e && o._h && SyncReg.hash(o) !== o._h) o._e = new Date().toISOString(); },
   pendiente: function (o) {
     if (!o) return false;
@@ -1085,32 +1152,172 @@ var Borrador = {
   }
 };
 
-var Pestana = {
-  CLAVE: 'rdm_pestana', id: '', pasiva: false, t: null,
-  iniciar: function () {
-    if (typeof window === 'undefined' || !window.addEventListener) return;
-    Pestana.id = Equipo.sesion;
-    Pestana.reclamar();
-    Pestana.t = setInterval(function () { if (!Pestana.pasiva) Pestana.latir(); }, 3000);
-    window.addEventListener('storage', function (e) {
-      if (e.key !== Pestana.CLAVE || !e.newValue || Pestana.pasiva) return;
-      var v = null; try { v = JSON.parse(e.newValue); } catch (x) {}
-      if (v && v.id && v.id !== Pestana.id && v.reclamo) Pestana.ceder();
-    }, false);
+var Fusion = {
+  SIN: { sinBase: true },
+  ENTERO: { rdm_catalogo: 1, rdm_medidas: 1, rdm_ubicaciones: 1 },
+  est: function (v) {
+    if (v === undefined || v === null) return 'null';
+    if (U.esArray(v)) return '[' + U.map(v, Fusion.est).join(',') + ']';
+    if (typeof v === 'object') { var ks = [], k; for (k in v) if (Object.prototype.hasOwnProperty.call(v, k) && v[k] !== undefined) ks.push(k); ks.sort(); return '{' + U.map(ks, function (x) { return JSON.stringify(x) + ':' + Fusion.est(v[x]); }).join(',') + '}'; }
+    return JSON.stringify(v);
   },
-  escribir: function (rec) { try { localStorage.setItem(Pestana.CLAVE, JSON.stringify({ id: Pestana.id, t: Date.now(), reclamo: !!rec })); } catch (e) {} },
-  reclamar: function () { Pestana.escribir(true); },
-  latir: function () { var v = null; try { v = JSON.parse(localStorage.getItem(Pestana.CLAVE) || 'null'); } catch (e) {} if (v && v.id !== Pestana.id && Date.now() - v.t < 8000) { Pestana.ceder(); return; } Pestana.escribir(false); },
-  ceder: function () {
-    if (Pestana.pasiva) return;
-    Pestana.pasiva = true;
-    try { StorageManager.vaciar(); } catch (e) {}
-    Sync.pausada = true;
-    var d = document.createElement('div'); d.id = 'pestanaVelo';
-    d.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483600;background:rgba(29,27,32,.72);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;padding:16px';
-    d.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:420px;padding:20px;text-align:center;color:#1d1b20"><div style="font-size:18px;font-weight:600;margin-bottom:8px">Satélite está abierto en otra pestaña</div><div style="font-size:14px;color:#5c5660;margin-bottom:14px">Para que los datos no se pisen, en este navegador trabaja una pestaña a la vez. Esta pestaña quedó en pausa sin perder nada de lo guardado.</div><button type="button" class="btn btn-ok" id="pestanaUsar">USAR AQUÍ</button></div>';
-    document.body.appendChild(d);
-    U.$('pestanaUsar').onclick = function () { Pestana.escribir(true); location.reload(); };
+  meta: function (ruta) { var k = String(ruta || '').replace(/^.*\]/, '').replace(/^\./, ''); return !k || k.charAt(0) === '_' || k.indexOf('._') >= 0 || !!(typeof Conflictos !== 'undefined' && Conflictos.META[k]); },
+  esObj: function (v) { return !!v && typeof v === 'object' && !U.esArray(v); },
+  vacio: function (v) { return v === undefined || v === null || v === '' || (U.esArray(v) && !v.length) || (Fusion.esObj(v) && !Object.keys(v).length); },
+  conId: function (l) { if (!U.esArray(l)) return true; for (var i = 0; i < l.length; i++) if (!Fusion.esObj(l[i]) || l[i].id == null || l[i].id === '') return false; return true; },
+  tres: function (b, m, s, ruta, ch) {
+    var sin = b === Fusion.SIN, em = Fusion.est(m), es = Fusion.est(s);
+    if (em === es) return m;
+    if (!sin) { var eb = Fusion.est(b); if (em === eb) return s; if (es === eb) return m; }
+    else { if (Fusion.vacio(m)) return s; if (Fusion.vacio(s)) return m; }
+    if (Fusion.esObj(m) && Fusion.esObj(s)) {
+      var r = {}, ks = {}, k;
+      for (k in m) if (m.hasOwnProperty(k)) ks[k] = 1;
+      for (k in s) if (s.hasOwnProperty(k)) ks[k] = 1;
+      for (k in ks) { var v = Fusion.tres(sin ? Fusion.SIN : (Fusion.esObj(b) ? b[k] : undefined), m[k], s[k], ruta + '.' + k, ch); if (v !== undefined) r[k] = v; }
+      return r;
+    }
+    if (U.esArray(m) && U.esArray(s)) {
+      var bl = sin ? null : (U.esArray(b) ? b : []);
+      if (Fusion.conId(m) && Fusion.conId(s) && (sin || Fusion.conId(bl)) && (m.length || s.length)) return Fusion.porId(sin ? Fusion.SIN : bl, m, s, ruta, ch);
+      if (ruta === '') { var vis = {}, out = s.slice(0); U.each(s, function (x) { vis[Fusion.est(x)] = 1; }); if (bl) U.each(bl, function (x) { vis[Fusion.est(x)] = 1; }); U.each(m, function (x) { var e = Fusion.est(x); if (!vis[e]) { vis[e] = 1; out.push(x); } }); return out; }
+    }
+    ch.push(ruta);
+    return m;
+  },
+  porId: function (b, m, s, ruta, ch) {
+    var sin = b === Fusion.SIN, ib = {}, im = {}, is = {}, orden = [], vis = {}, out = [];
+    if (!sin) U.each(b, function (x) { ib[x.id] = x; });
+    U.each(m, function (x) { im[x.id] = x; });
+    U.each(s, function (x) { is[x.id] = x; if (!vis[x.id]) { vis[x.id] = 1; orden.push(x.id); } });
+    U.each(m, function (x) { if (!vis[x.id]) { vis[x.id] = 1; orden.push(x.id); } });
+    U.each(orden, function (id) {
+      if (sin && !(im.hasOwnProperty(id) && is.hasOwnProperty(id))) { out.push(im[id] || is[id]); return; }
+      var bx = sin ? Fusion.SIN : ib[id];
+      var n0 = ch.length, v = Fusion.tres(bx, im[id], is[id], ruta + '[' + id + ']', ch);
+      if (U.find(ch.slice(n0), function (x) { return x.charAt(0) !== '#' && !Fusion.meta(x); })) ch.push('#' + id);
+      if (v !== undefined) out.push(v);
+    });
+    return out;
+  },
+  texto: function (b, m, s, clave, ch) {
+    if (m === s) return m;
+    if (b === m) return s;
+    if (b === s) return m;
+    if (s == null) return m;
+    if (m == null) return s;
+    if (Fusion.ENTERO[clave]) return m;
+    var pb, pm, ps;
+    try { pm = JSON.parse(m); ps = JSON.parse(s); pb = b == null ? Fusion.SIN : JSON.parse(b); } catch (e) { return m; }
+    return JSON.stringify(Fusion.tres(pb, pm, ps, '', ch || []));
+  },
+  registro: function (loc, nube) {
+    var L = Conflictos.limpio(loc), N = Conflictos.limpio(nube), B = loc && loc._b ? loc._b : Fusion.SIN, ch = [];
+    var r = Fusion.tres(B, L, N, '', ch);
+    if (Fusion.est(r) === Fusion.est(N)) return { o: SyncReg.sincronizado(U.clone(nube), nube._v), cambio: false, choques: [] };
+    r._v = nube._v; r._b = N; SyncReg.marcar(r);
+    return { o: r, cambio: true, choques: U.filter(ch, function (x) { return x.charAt(0) !== '#' && !Fusion.meta(x); }) };
+  },
+  sync: function (tipo, loc, nube) {
+    var f = Fusion.registro(loc, nube);
+    if (f.choques.length) Conflictos.historial(tipo, loc, nube, f.o, f.choques);
+    return f;
+  }
+};
+
+var Pestanas = {
+  CLAVE: 'rdm_lider', CANAL: 'rdm_satelite', id: '', bc: null, esLider: false, otras: {}, mia: null, _t: null, _ref: null,
+  iniciar: function () {
+    if (typeof window === 'undefined' || !window.addEventListener) { Pestanas.esLider = true; return; }
+    Pestanas.id = Equipo.sesion;
+    try { if (window.BroadcastChannel) { Pestanas.bc = new BroadcastChannel(Pestanas.CANAL); Pestanas.bc.onmessage = function (e) { Pestanas.recibir(e.data); }; } } catch (e) { Pestanas.bc = null; }
+    window.addEventListener('storage', function (e) {
+      if (!e.key) return;
+      if (e.key === 'rdm_bc' && e.newValue && !Pestanas.bc) { var v = null; try { v = JSON.parse(e.newValue); } catch (x) {} if (v) Pestanas.recibir(v); return; }
+      if (e.key === CLAVES.config || e.key === CLAVES.formatos) StorageManager.recibirLS(e.key, e.newValue);
+    }, false);
+    Pestanas.latir();
+    Pestanas._t = setInterval(Pestanas.latir, 2000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) Pestanas.latir(true); }, false);
+    window.addEventListener('focus', function () { Pestanas.latir(true); }, false);
+    window.addEventListener('pagehide', function () { Pestanas.libera(); try { var v = JSON.parse(localStorage.getItem(Pestanas.CLAVE) || 'null'); if (v && v.id === Pestanas.id) localStorage.removeItem(Pestanas.CLAVE); } catch (e) {} Pestanas.enviar({ t: 'adios' }); }, false);
+    Pestanas.enviar({ t: 'quien' });
+  },
+  visible: function () { return !document.hidden; },
+  latir: function (activa) {
+    var v = null, ahora = Date.now(), yo = Pestanas.visible();
+    try { v = JSON.parse(localStorage.getItem(Pestanas.CLAVE) || 'null'); } catch (e) {}
+    var tomar = !v || v.id === Pestanas.id || ahora - v.t > 6000 || (yo && !v.vis) || (activa === true && yo);
+    var antes = Pestanas.esLider;
+    if (tomar) { try { localStorage.setItem(Pestanas.CLAVE, JSON.stringify({ id: Pestanas.id, t: ahora, vis: yo })); } catch (e) {} Pestanas.esLider = true; }
+    else Pestanas.esLider = false;
+    if (Pestanas.esLider && !antes && Pestanas._iniciada && typeof Sync !== 'undefined' && Sync.modo() !== 'local' && Date.now() - Sync._ultEjec > 15000) Sync.programar(800);
+    Pestanas._iniciada = true;
+    for (var k in Pestanas.otras) if (ahora - Pestanas.otras[k].t > 15000) delete Pestanas.otras[k];
+  },
+  lider: function () { return !Pestanas.id || Pestanas.esLider; },
+  enviar: function (m) {
+    m.de = Pestanas.id;
+    if (Pestanas.bc) { try { Pestanas.bc.postMessage(m); } catch (e) {} return; }
+    try { localStorage.setItem('rdm_bc', JSON.stringify(U.assign({ n: Math.random() }, m))); localStorage.removeItem('rdm_bc'); } catch (e) {}
+  },
+  recibir: function (m) {
+    if (!m || m.de === Pestanas.id) return;
+    if (m.t === 'w') { StorageManager.recibir(m.ks || []); return; }
+    if (m.t === 'quien') { if (Pestanas.mia) Pestanas.enviar({ t: 'edita', ref: Pestanas.mia.ref, txt: Pestanas.mia.txt }); return; }
+    if (m.t === 'edita') { Pestanas.otras[m.de] = { ref: m.ref, txt: m.txt, t: Date.now() }; Pestanas.avisar(); return; }
+    if (m.t === 'libera' || m.t === 'adios') { delete Pestanas.otras[m.de]; Pestanas.avisar(); return; }
+    if (m.t === 'choque') { UI.toast(m.txt + ': se editó en dos pestañas a la vez; quedó lo último guardado.', 'warn', 6000); return; }
+    if (m.t === 'sync' && Pestanas.esLider && typeof Sync !== 'undefined' && Sync.modo() !== 'local') Sync.programar(400);
+  },
+  ping: function () { Pestanas.latir(); },
+  edita: function (ref, txt) { if (!ref) return; Pestanas.mia = { ref: ref, txt: txt || ref }; Pestanas.enviar({ t: 'edita', ref: ref, txt: txt || ref }); Pestanas.avisar(); },
+  libera: function () { if (!Pestanas.mia) return; Pestanas.mia = null; Pestanas.enviar({ t: 'libera' }); },
+  enOtra: function (ref) { var ahora = Date.now(); for (var k in Pestanas.otras) { var o = Pestanas.otras[k]; if (o.ref === ref && ahora - o.t < 15000) return true; } return false; },
+  avisar: function () {
+    var el = U.$('pestAviso');
+    if (!el) return;
+    var ref = el.getAttribute('data-ref');
+    el.style.display = ref && Pestanas.enOtra(ref) ? '' : 'none';
+  },
+  aviso: function (ref, txt) { return '<div id="pestAviso" class="aviso amar" data-ref="' + U.esc(ref) + '" style="font-size:13px' + (Pestanas.enOtra(ref) ? '' : ';display:none') + '">' + U.esc(txt || 'Este registro') + ' también está abierto para edición en otra pestaña. Se conserva lo último que se guarde.</div>'; },
+  ref: function (numero) { return 'orden:' + U.norm(numero || ''); },
+  RECARGAR: {
+    rdm_pedidos: function () { Pedidos.cargar(); },
+    rdm_cubicaciones: function () { CubPool.cargar(); },
+    rdm_ordenes_transporte: function () { OT.cargar(); },
+    rdm_catalogo: function () { Catalogo.cargar(); },
+    rdm_medidas: function () { Medidas.cargar(); },
+    rdm_ubicaciones: function () { Ubicaciones.cargar(); },
+    rdm_correos: function () { CorreosSat.cargar(); },
+    rdm_cotizador: function () { Comunas.cargar(); Cotizador.cargar(); },
+    rdm_conflictos: function () { Conflictos.cargar(); },
+    rdm_operaciones: function () { var l = StorageManager.leer(CLAVES.operaciones, []); Ops.lista = U.esArray(l) ? l : []; },
+    rdm_config: function () { var c = StorageManager.leer(CLAVES.config, {}) || {}; var n = U.assign(U.clone(CONFIG_DEFECTO), c); n.sync = U.assign(U.clone(SYNC_DEFECTO), c.sync || {}); if (!n.contadoresOT || typeof n.contadoresOT !== 'object') n.contadoresOT = {}; if (!n.rotuloLibre) n.rotuloLibre = U.clone(ROTULO_LIBRE_DEFECTO); DB.cfg = n; Listas.aplicar(); },
+    rdm_formatos_etiqueta: function () { var f = StorageManager.leer(CLAVES.formatos, null); if (U.esArray(f) && f.length) DB.formatos = f; }
+  },
+  recargar: function (ks, choques) {
+    var hubo = false;
+    U.each(ks, function (k) { var f = Pestanas.RECARGAR[k]; if (f) { try { f(); hubo = true; } catch (e) {} } });
+    if (choques && choques.length) U.each(choques, function (c) { UI.toast(c + ': se editó en dos pestañas a la vez; quedó lo último guardado.', 'warn', 6000); Pestanas.enviar({ t: 'choque', txt: c }); });
+    if (!hubo) return;
+    if (U.find(ks, function (k) { return k === CLAVES.pedidos || k === CLAVES.cubicacion || k === CLAVES.ordenes; })) { try { CubPool.reconciliar(); } catch (e) {} }
+    clearTimeout(Pestanas._ref);
+    Pestanas._ref = setTimeout(Pestanas.refrescar, 250);
+  },
+  refrescar: function () {
+    if (typeof App === 'undefined' || !App.pantalla) return;
+    try { App.cabecera(); } catch (e) {}
+    if (UI.abierto() || App.escribiendo()) { clearTimeout(Pestanas._ref); Pestanas._ref = setTimeout(Pestanas.refrescar, 1500); return; }
+    var m = U.$('main'), st = m ? m.scrollTop : 0;
+    App.ir(App.pantalla, true);
+    if (m) m.scrollTop = st;
+  },
+  nombre: function (k, id) {
+    if (k === CLAVES.pedidos) { var p = Pedidos.porId(id); return p ? 'Pedido ' + p.numero : 'Un pedido'; }
+    if (k === CLAVES.cubicacion) { var b = U.find(CubPool.lista, function (x) { return x.id === id; }); return b ? 'Bulto de la orden ' + b.orden : 'Un bulto'; }
+    if (k === CLAVES.ordenes) { var o = OT.porId(id); return o ? 'OT ' + o.numero : 'Una OT'; }
+    return '';
   }
 };
 
@@ -1580,6 +1787,28 @@ var Conflictos = {
     U.each(Conflictos.lista, function (c) { if (c.estado === 'PENDIENTE' && c.tipo === tipo && c.rid === rid) { c.estado = 'REEMPLAZADO'; c.cerrado = new Date().toISOString(); } });
     var c = { id: U.uid('cf-'), tipo: tipo, rid: rid, ridLocal: local.id, ref: Conflictos.ref(tipo, nube), local: Conflictos.limpio(local), nube: Conflictos.limpio(nube), por: nube._por || '', en: nube._en || nube.actualizado || nube.act || '', origen: origen || 'sincronizacion', fecha: new Date().toISOString(), estado: 'PENDIENTE' };
     Conflictos.lista.push(c); Conflictos.guardar();
+    return c;
+  },
+  cerrarAntiguos: function () {
+    var l = Conflictos.pendientes(), ahora = new Date().toISOString();
+    if (!l.length) return 0;
+    U.each(l, function (c) {
+      var cur = Conflictos.registro(c);
+      if (cur) {
+        var L = Conflictos.aplanar(c.local), C = Conflictos.aplanar(Conflictos.limpio(cur)), usar = [], k;
+        for (k in L) if (L.hasOwnProperty(k) && !Conflictos.META[k] && !Fusion.vacio(L[k]) && Fusion.vacio(C[k])) usar.push(k);
+        if (usar.length) { Conflictos.resolver(c, usar); c.resolucion = 'AUTOMATICA'; return; }
+      }
+      c.estado = 'RESUELTO'; c.resolucion = 'AUTOMATICA'; c.cerrado = ahora;
+      SyncReg.archivar(c.tipo + '-conflicto', [c.local]);
+    });
+    Conflictos.guardar();
+    return l.length;
+  },
+  historial: function (tipo, local, nube, resultado, campos) {
+    var c = { id: U.uid('cf-'), tipo: tipo, rid: nube.id || local.id, ridLocal: local.id, ref: Conflictos.ref(tipo, nube), local: Conflictos.limpio(local), nube: Conflictos.limpio(nube), resultado: Conflictos.limpio(resultado), por: nube._por || '', en: nube._en || nube.actualizado || nube.act || '', origen: 'sincronizacion', fecha: new Date().toISOString(), cerrado: new Date().toISOString(), estado: 'RESUELTO', resolucion: 'AUTOMATICA', campos: campos };
+    Conflictos.lista.push(c); Conflictos.guardar();
+    UI.toast(c.ref + ' también se modificó en otro equipo: se conservó su ingreso.', 'warn', 5000);
     return c;
   },
   registro: function (c) { var l = c.tipo === 'pedido' ? Pedidos.lista : CubPool.lista; return U.find(l, function (x) { return x.id === c.rid || x.id === c.ridLocal; }); },
@@ -2128,17 +2357,20 @@ var EnvioDatos = {
   },
   geoOk: function (pref) { var c = U.$(pref + 'geoPend'); return !!(c && c.checked); },
   leerForm: function (pref) { var o = {}; U.each(CAMPOS_DIRECCION, function (c) { var el = U.$(pref + c.k); o[c.k] = el ? el.value : ''; }); return EnvioDatos.limpiar(o); },
-  abrir: function (ref, alGuardar, man) {
+  abrir: function (ref, alGuardar, man, op) {
+    op = op || {};
     var p = ref.pedidoId ? Pedidos.porId(ref.pedidoId) : null;
     if (!p) p = EnvioDatos.buscarPedido(ref.orden, ref.tipoDocumento, ref.numeroDocumento);
     var orden = p ? p.numero : U.trim(ref.orden);
     if (!orden) { UI.toast('Escriba primero la orden / ticket', 'error'); return; }
-    var leido = p ? SyncReg.estable(p) : '';
     var env = (p && p.envio) || {}, dest = EnvioDatos.limpiar(env.destinatario || {}), remP = env.remitente && env.remitente.usarDefecto === false;
     var rem = remP ? EnvioDatos.limpiar(env.remitente) : EnvioDatos.remitenteDefecto(), remDef = EnvioDatos.remitenteDefecto();
+    var guardado = !!(p && p.envio && (EnvioDatos.tieneDatos(p.envio.destinatario) || remP)), bloqueado = guardado && !op.editar, refP = Pestanas.ref(orden);
+    if (op.borrador) { dest = op.borrador.d; remP = !!op.borrador.r; if (remP) rem = op.borrador.r; }
+    var inicial = op.inicial || EnvioDatos.comparable(p && p.envio);
     var docTxt = p ? (p.tipoDocumento ? p.tipoDocumento + ' ' + (p.numeroDocumento || 'sin número') : 'sin documento') : ((ref.tipoDocumento || '') + ' ' + (ref.numeroDocumento || 'sin número'));
     var html = '<div class="muted">Orden <b>' + U.esc(orden) + '</b> · ' + U.esc(docTxt) + (p ? '' : ' · <b>se registrará como pedido</b>') + '</div>' +
-      '<div class="muted">Todos los campos son opcionales. La extensión los traspasa al formulario de Correos.</div>' +
+      (bloqueado ? '<div class="msg ed-guardado">Datos de envío guardados' + (env.act ? ' el ' + U.esc(U.fechaCL(U.fechaISO(new Date(env.act))) + ' ' + U.hora(new Date(env.act))) : '') + (env.usuario ? ' por ' + U.esc(env.usuario) : '') + '. Para modificarlos pulse <b>EDITAR</b>.</div>' : '<div class="muted">Todos los campos son opcionales. La extensión los traspasa al formulario de Correos.</div>' + Pestanas.aviso(refP, 'La orden ' + orden)) +
       (man && man.length ? '<div class="aviso amar" style="font-size:13px">Este documento ya está en el manifiesto de ' + U.esc(man.join(', ')) + '. Si cambia la dirección, reimprímalo.</div>' : '') +
       '<div class="btns" style="margin-top:8px"><button type="button" class="btn btn-ok btn-sm" data-tab="ed">DESTINATARIO</button><button type="button" class="btn btn-sec btn-sm" data-tab="er">REMITENTE</button></div>' +
       '<div id="edPanel">' + EnvioDatos.formulario('edD_', dest) + '</div>' +
@@ -2147,8 +2379,12 @@ var EnvioDatos = {
       '<div id="edRemCampos"' + (remP ? '' : ' style="display:none"') + '>' + EnvioDatos.formulario('edR_', rem) + '</div></div>' +
       '<div class="muted" style="margin-top:8px">Marca que la extensión escribe en «Detalle del envío»: <b>' + U.esc(EnvioDatos.marcaPrevia(p || { numero: orden, tipoDocumento: ref.tipoDocumento, numeroDocumento: ref.numeroDocumento })) + '</b></div>' +
       (env.act ? '<div class="muted">Última modificación: ' + U.esc(U.fechaCL(U.fechaISO(new Date(env.act))) + ' ' + U.hora(new Date(env.act))) + (env.usuario ? ' · ' + U.esc(env.usuario) : '') + '</div>' : '');
-    var botones = [{ txt: 'CANCELAR', cls: 'btn-sec' }];
-    if (p && p.envio) botones.push({ txt: 'BORRAR DATOS', cls: 'btn-dan', fn: function () {
+    var botones = [{ txt: bloqueado ? 'CERRAR' : 'CANCELAR', cls: 'btn-sec' }];
+    if (bloqueado) {
+      if (EnvioDatos.tieneDatos(dest)) botones.push({ txt: 'IMPRIMIR RÓTULO', cls: 'btn-sec', fn: function () { RotuloDir.abrir([RotuloDir.fuentePedido(Pedidos.porId(p.id) || p)]); return false; } });
+      botones.push({ txt: 'EDITAR', cls: 'btn-ok', fn: function () { UI.confirmar('¿Desea editar los datos de envío ya guardados de la orden ' + orden + '? Antes de guardar podrá revisar y confirmar los cambios.', function () { EnvioDatos.abrir(ref, alGuardar, man, { editar: true }); }, { titulo: 'Editar datos de envío', si: 'SÍ, EDITAR' }); return false; } });
+    }
+    if (!bloqueado && p && p.envio) botones.push({ txt: 'BORRAR DATOS', cls: 'btn-dan', fn: function () {
       UI.confirmar('¿Borrar los datos de envío de ' + orden + '?', function () { EnvioDatos.guardar(p, ref, null, alGuardar); });
       return false;
     } });
@@ -2159,17 +2395,28 @@ var EnvioDatos = {
       if (er.length) { UI.toast(er.join(' · '), 'error', 6000); return false; }
       var nuevo = { destinatario: d, remitente: usarDef ? { usarDefecto: true } : U.assign({ usarDefecto: false }, r) };
       if (!EnvioDatos.tieneDatos(d) && usarDef) nuevo = null;
-      var actual = p && Pedidos.porId(p.id);
-      if (actual && SyncReg.estable(actual) !== leido) {
-        var mio = U.clone(actual); mio.envio = nuevo ? U.assign(U.clone(nuevo), { act: new Date().toISOString(), usuario: DB.cfg.operador || '' }) : null;
-        if (Conflictos.registrar('pedido', mio, actual, 'edicion')) { UI.toast('Los datos de envío de este pedido cambiaron en otro equipo mientras los editaba: elija qué conservar.', 'warn', 6000); Conflictos.abrir(function () { if (alGuardar) alGuardar(Pedidos.porId(actual.id)); }); return false; }
+      var actual = p && Pedidos.porId(p.id), fin = luego ? function (p2) { if (alGuardar) alGuardar(p2); luego(p2); } : alGuardar;
+      if (guardado && actual) {
+        var cur = EnvioDatos.comparable(actual.envio), mz = Fusion.tres(inicial, EnvioDatos.comparable(nuevo), cur, '', []);
+        nuevo = { destinatario: EnvioDatos.limpiar(mz.destinatario), remitente: mz.remitente === 'DEFECTO' ? { usarDefecto: true } : U.assign({ usarDefecto: false }, EnvioDatos.limpiar(mz.remitente)) };
+        if (!EnvioDatos.tieneDatos(nuevo.destinatario) && nuevo.remitente.usarDefecto) nuevo = null;
+        var difs = EnvioDatos.diferencias(actual.envio, nuevo);
+        if (!difs.length) { UI.cerrarModal(); UI.toast('Sin cambios en los datos de envío', 'ok'); return false; }
+        EnvioDatos.confirmarCambios({ orden: orden, difs: difs, cambioExterno: Fusion.est(cur) !== Fusion.est(inicial),
+          volver: function () { EnvioDatos.abrir(ref, alGuardar, man, { editar: true, inicial: inicial, borrador: { d: d, r: usarDef ? null : r } }); },
+          confirmar: function () { EnvioDatos.guardar(Pedidos.porId(actual.id) || actual, ref, nuevo, fin); } });
+        return false;
       }
-      EnvioDatos.guardar(actual || p, ref, nuevo, luego ? function (p2) { if (alGuardar) alGuardar(p2); luego(p2); } : alGuardar);
+      EnvioDatos.guardar(actual || p, ref, nuevo, fin);
       return false;
     };
-    botones.push({ txt: 'GUARDAR E IMPRIMIR RÓTULO', cls: 'btn-sec', fn: function () { return guardarY(function (p2) { var pp = p2 || EnvioDatos.buscarPedido(orden, ref.tipoDocumento, ref.numeroDocumento); if (pp) RotuloDir.abrir([RotuloDir.fuentePedido(pp)]); }); } });
-    botones.push({ txt: 'GUARDAR', cls: 'btn-ok', fn: function () { return guardarY(null); } });
+    if (!bloqueado) {
+      botones.push({ txt: 'GUARDAR E IMPRIMIR RÓTULO', cls: 'btn-sec', fn: function () { return guardarY(function (p2) { var pp = p2 || EnvioDatos.buscarPedido(orden, ref.tipoDocumento, ref.numeroDocumento); if (pp) RotuloDir.abrir([RotuloDir.fuentePedido(pp)]); }); } });
+      botones.push({ txt: 'GUARDAR', cls: 'btn-ok', fn: function () { return guardarY(null); } });
+    }
     UI.modal({ titulo: 'Datos de envío', html: html, botones: botones, alAbrir: function (host) {
+      if (bloqueado) U.each(U.qa(host, '#edPanel input, #edPanel select, #edPanel textarea, #erPanel input, #erPanel select'), function (el) { el.disabled = true; el.removeAttribute('placeholder'); });
+      else Pestanas.edita(refP, 'La orden ' + orden);
       host.onclick = function (e) {
         var t = U.cerca(e.target, 'data-tab', host);
         if (!t) return;
@@ -2179,6 +2426,27 @@ var EnvioDatos = {
       };
       host.onchange = function (e) { if (e.target.id === 'edRemDef') U.$('edRemCampos').style.display = e.target.checked ? 'none' : ''; };
     } });
+  },
+  comparable: function (env) {
+    env = env || {};
+    var r = env.remitente && env.remitente.usarDefecto === false ? EnvioDatos.limpiar(env.remitente) : 'DEFECTO';
+    return { destinatario: EnvioDatos.limpiar(env.destinatario || {}), remitente: r };
+  },
+  diferencias: function (antes, despues) {
+    var a = EnvioDatos.comparable(antes), b = EnvioDatos.comparable(despues), out = [];
+    var campo = function (k) { var c = U.find(CAMPOS_DIRECCION, function (x) { return x.k === k; }); return c ? c.n.split(' (')[0] : k; };
+    U.each(CAMPOS_DIRECCION, function (c) { var x = a.destinatario[c.k] || '', y = b.destinatario[c.k] || ''; if (x !== y) out.push({ n: 'Destinatario · ' + campo(c.k), a: x, b: y }); });
+    if ((a.remitente === 'DEFECTO') !== (b.remitente === 'DEFECTO')) out.push({ n: 'Remitente', a: a.remitente === 'DEFECTO' ? 'Por defecto (Datos)' : EnvioDatos.resumen(a.remitente), b: b.remitente === 'DEFECTO' ? 'Por defecto (Datos)' : EnvioDatos.resumen(b.remitente) });
+    else if (a.remitente !== 'DEFECTO') U.each(CAMPOS_DIRECCION, function (c) { var x = a.remitente[c.k] || '', y = b.remitente[c.k] || ''; if (x !== y) out.push({ n: 'Remitente · ' + campo(c.k), a: x, b: y }); });
+    return out;
+  },
+  confirmarCambios: function (o) {
+    var v = function (t) { return t ? U.esc(t) : '<i class="muted">vacío</i>'; };
+    UI.modal({ titulo: 'Confirmar cambios en datos de envío', html: '<div class="muted">Orden <b>' + U.esc(o.orden) + '</b> · ' + o.difs.length + ' dato(s) cambian.</div>' +
+      (o.cambioExterno ? '<div class="aviso amar" style="font-size:13px">Los datos guardados cambiaron en otro equipo o pestaña mientras usted editaba. Se conservan esos cambios y solo se reemplaza lo que usted modificó; la columna «Guardado» muestra lo registrado ahora.</div>' : '') +
+      '<div class="tbl-wrap"><table class="tbl ed-cmp"><thead><tr><th>Dato</th><th>Guardado</th><th>Nuevo</th></tr></thead><tbody>' +
+      U.map(o.difs, function (d) { return '<tr><td><b>' + U.esc(d.n) + '</b></td><td>' + v(d.a) + '</td><td class="ed-nuevo">' + v(d.b) + '</td></tr>'; }).join('') + '</tbody></table></div>',
+      botones: [{ txt: 'VOLVER A EDITAR', cls: 'btn-sec', fn: function () { o.volver(); return false; } }, { txt: 'CONFIRMAR CAMBIOS', cls: 'btn-ok', fn: function () { o.confirmar(); return false; } }] });
   },
   pedidoDeBultos: function (bs) {
     var pid = '';
@@ -2217,7 +2485,6 @@ var EnvioDatos = {
     UI.cerrarModal();
     if (Sync.modo() !== 'local') Sync.subirPedidos(function (ok, r) {
       if (!ok) UI.toast('Guardado en este equipo; se subirá al volver la conexión (' + r + ')', 'warn', 5000);
-      else if (r.conflictos) { UI.toast('Otro equipo modificó este pedido: su cambio quedó guardado para revisión.', 'warn', 7000); Conflictos.abrir(); }
       else UI.toast(envio ? 'Datos de envío guardados en la nube' : 'Datos de envío borrados', 'ok', 3000);
       if (cb) cb(p);
     });
@@ -3955,7 +4222,7 @@ var Sync = {
     var env = U.filter(Pedidos.lista, SyncReg.pendiente);
     if (!env.length) { cb(true, { enviados: 0, conflictos: 0 }); return; }
     var copia = U.map(env, function (p) { return U.clone(p); });
-    Sync.llamar('satPedidosGuardar', { pedidos: U.map(copia, function (c) { var o = U.clone(c); o.retiro = !!c.retiro; return o; }), dispositivo: Sync.firma() }, function (r) {
+    Sync.llamar('satPedidosGuardar', { pedidos: U.map(copia, function (c) { var o = U.clone(c); o.retiro = !!c.retiro; delete o._b; return o; }), dispositivo: Sync.firma() }, function (r) {
       r = r || {};
       var ver = r.versiones || {}, nc = 0;
       U.each(env, function (p, i) {
@@ -3966,10 +4233,11 @@ var Sync = {
       });
       U.each(r.conflictos || [], function (n) {
         var idx = U.findIdx(Pedidos.lista, function (x) { return x.id === n.id || (n._idLocal && x.id === n._idLocal); });
-        var cfp = idx >= 0 ? Conflictos.registrar('pedido', Pedidos.lista[idx], n) : null;
-        var nube = SyncReg.sincronizado(n, n._v); delete nube._idLocal;
-        if (idx >= 0) Pedidos.lista[idx] = nube; else Pedidos.lista.push(nube);
-        if (cfp) nc++;
+        delete n._idLocal;
+        if (idx < 0) { Pedidos.lista.push(SyncReg.sincronizado(n, n._v)); return; }
+        var fp = Fusion.sync('pedido', Pedidos.lista[idx], n);
+        Pedidos.lista[idx] = fp.o;
+        if (fp.cambio) nc++;
       });
       Pedidos.guardar();
       Sync._conf += nc;
@@ -3987,7 +4255,7 @@ var Sync = {
         var loc=porId[sp.id]||porIdent[Pedidos.identidadDoc(sp)];
         if(loc) vistos[loc.id]=1;
         if(loc && SyncReg.pendiente(loc) && loc._v){ nuevaLista.push(loc); return; }
-        if(loc && loc._e && loc._v) Conflictos.registrar('pedido', loc, sp);
+        if(loc && loc._e && loc._v){ var fz=Fusion.sync('pedido', loc, sp); if(fz.cambio){ nuevaLista.push(fz.o); cambio=true; return; } }
         var n=SyncReg.sincronizado(sp, sp._v);
         if(!loc || SyncReg.estable(loc)!==SyncReg.estable(n) || loc._v!==n._v) cambio=true;
         nuevaLista.push(n);
@@ -4007,16 +4275,16 @@ var Sync = {
     var env = U.filter(CubPool.lista, SyncReg.pendiente);
     if (!env.length) { cb(true, { enviados: 0, conflictos: 0 }); return; }
     var copia = U.map(env, function (b) { return U.clone(b); });
-    Sync.llamar('satGuardarCubicaciones', { bultos: copia, dispositivo: Sync.firma() }, function (r) {
+    Sync.llamar('satGuardarCubicaciones', { bultos: U.map(copia, function (c) { var o = U.clone(c); delete o._b; return o; }), dispositivo: Sync.firma() }, function (r) {
       r = r || {};
       var ver = r.versiones || {}, nc = 0;
       U.each(env, function (b, i) { var v = ver[b.id]; if (!v) return; if (SyncReg.hash(b) !== SyncReg.hash(copia[i])) { b._v = v; return; } SyncReg.sincronizado(b, v); });
       U.each(r.conflictos || [], function (n) {
         var idx = U.findIdx(CubPool.lista, function (x) { return x.id === n.id; });
-        var cfc = idx >= 0 ? Conflictos.registrar('cubicacion', CubPool.lista[idx], n) : null;
-        var nube = SyncReg.sincronizado(n, n._v);
-        if (idx >= 0) CubPool.lista[idx] = nube; else CubPool.lista.push(nube);
-        if (cfc) nc++;
+        if (idx < 0) { CubPool.lista.push(SyncReg.sincronizado(n, n._v)); return; }
+        var fc = Fusion.sync('cubicacion', CubPool.lista[idx], n);
+        CubPool.lista[idx] = fc.o;
+        if (fc.cambio) nc++;
       });
       StorageManager.guardar(CLAVES.cubicacion, CubPool.lista);
       Sync._conf += nc;
@@ -4034,7 +4302,7 @@ var Sync = {
       U.each(r.bultos,function(sb){
         var loc=porId[sb.id]; vistos[sb.id]=1;
         if(loc && SyncReg.pendiente(loc) && loc._v){ nueva.push(loc); return; }
-        if(loc && loc._e && loc._v) Conflictos.registrar('cubicacion', loc, sb);
+        if(loc && loc._e && loc._v){ var fz=Fusion.sync('cubicacion', loc, sb); if(fz.cambio){ nueva.push(fz.o); cambio=true; return; } }
         var n=SyncReg.sincronizado(sb, sb._v);
         if(!loc || SyncReg.estable(loc)!==SyncReg.estable(n) || loc._v!==n._v) cambio=true;
         nueva.push(n);
@@ -4051,13 +4319,14 @@ var Sync = {
   },
   bajarTodo: function(cb) {
     Sync._conf = 0;
-    var pasos=[Sync.bajar, Sync.subirPedidos, Sync.bajarPedidos, Sync.subirCubicaciones, Sync.bajarCubicaciones], i=0;
+    var reintentar=function(lista,subir){return function(sig){ if(Sync._conf && U.find(lista(),SyncReg.pendiente)) subir(function(ok,r){sig(ok,r);}); else sig(true); };};
+    var pasos=[Sync.bajar, Sync.subirPedidos, Sync.bajarPedidos, reintentar(function(){return Pedidos.lista;},Sync.subirPedidos), Sync.subirCubicaciones, Sync.bajarCubicaciones, reintentar(function(){return CubPool.lista;},Sync.subirCubicaciones)], i=0;
     if (Sync._forzar || Date.now() - Sync._ultSec > 120000) { Sync._ultSec = Date.now(); pasos = pasos.concat([function(sig){ if (typeof ProdSync==='undefined') { sig(true); return; } ProdSync.actualizar(function(){ sig(true); }, true); }, function(sig){ FormSync.sincronizar(function(){ sig(true); }); }, function(sig){ Listas.sincronizar(function(){ sig(true); }); }, function(sig){ Cotizador.sincronizar(function(){ sig(true); }); }]); }
     var sig=function(ok,msg){
       if(ok===false){cb(false,msg);return;}
       if(i>=pasos.length){
         CubPool.reconciliar(); Pedidos.reconciliarEstados(); App.refrescarDatos();
-        if(Sync._conf) { UI.toast((Sync._conf||Conflictos.pendientes().length)+' registro(s) cambiaron en otro equipo: su versión quedó guardada para revisión (aviso rojo · REVISAR)','warn',7000); if (!App.escribiendo() && !UI.abierto()) Conflictos.aviso(U.$('main')); }
+        if(Sync._conf) Sync.programar(400);
         cb(true,0); return;
       }
       var f=pasos[i++]; f(sig);
@@ -4861,6 +5130,7 @@ var UI = {
   },
   cerrarModal: function () {
     var h = U.$('modalHost');
+    if (typeof Pestanas !== 'undefined') Pestanas.libera();
     if (UI._modalClick) { h.removeEventListener('click', UI._modalClick, true); UI._modalClick = null; }
     h.style.display = 'none'; h.innerHTML = ''; h.onclick = null;
   },
@@ -4962,7 +5232,6 @@ var App = {
     Pantallas[p](m);
     if (p === 'datos') DatosNav.aplicar(m);
     Borrador.restaurar(p);
-    Conflictos.aviso(m);
     ZoomImp.activar(m);
     App.cabecera();
     window.scrollTo(0, 0);
@@ -5010,7 +5279,7 @@ var App = {
     Layout.observar();
     Rut.iniciar();
     StorageManager.backupLegacy();
-    DB.cargar(); Comunas.cargar(); Cotizador.cargar(); Conflictos.cargar(); Ops.cargar();
+    DB.cargar(); Comunas.cargar(); Cotizador.cargar(); Conflictos.cargar(); Conflictos.cerrarAntiguos(); Ops.cargar();
     if (Ops.interrumpidas) setTimeout(function () { UI.toast(Ops.interrumpidas + ' operación(es) quedaron interrumpidas la última vez. Los datos siguen guardados en este equipo y se reintentarán (Datos → Operaciones).', 'warn', 7000); }, 1200);
     document.addEventListener('change', function (e) {
       var t = e.target;
@@ -5043,7 +5312,7 @@ var App = {
     else Compartida.bajar(function () { FormSync.sincronizar(); Listas.sincronizar(function (ok) { if (ok && App.pantalla !== 'inicio' && !UI.abierto() && !App.escribiendo()) App.ir(App.pantalla, true); StorageManager.cuando(function () { Cotizador.sincronizar(); }); }); });
     setTimeout(function () { if (Sync.modo() !== 'local') Sync.ejecutar(); }, 1200);
     setInterval(function () {
-      if (Sync.modo() === 'local' || Sync._enCurso || Sync.pausada) return;
+      if (Sync.modo() === 'local' || Sync._enCurso || Sync.pausada || !Pestanas.lider()) return;
       var s = DB.cfg.sync;
       if (s.proximoIntento && new Date().getTime() < s.proximoIntento) return;
       if (Date.now() - Sync._ultEjec < Sync.intervalo()) return;
@@ -5051,9 +5320,9 @@ var App = {
     }, 5000);
     var act = function () { Equipo.actividad = Date.now(); };
     U.each(['pointerdown', 'keydown', 'touchstart', 'mousedown'], function (ev) { document.addEventListener(ev, act, true); });
-    document.addEventListener('visibilitychange', function () { if (!document.hidden && Sync.modo() !== 'local' && !Sync._enCurso && !Sync.pausada && Date.now() - Sync._ultEjec > 15000) Sync.ejecutar(); }, false);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && Sync.modo() !== 'local' && !Sync._enCurso && !Sync.pausada && Date.now() - Sync._ultEjec > 15000) { Pestanas.latir(true); Sync.ejecutar(); } }, false);
     if (window.addEventListener) window.addEventListener('offline', function () { App.estadoSync(); }, false);
-    Pestana.iniciar();
+    Pestanas.iniciar();
     if (window.addEventListener) window.addEventListener('online', function () {
       var s = DB.cfg.sync;
       s.intentosFallidos = 0; DB.guardarCfg();
@@ -5674,7 +5943,7 @@ Pantallas.pedidos = function (m) {
   var editar=function(p){
     p=p||{origen:'MANUAL',tipo:'PEDIDO',numero:'',fecha:U.fechaISO(),tipoDocumento:'',numeroDocumento:'',estado:'RECIBIDO',observacion:''};
     var tipos=Listas.activos('TIPO_PEDIDO',[p.tipo]), origenes=Listas.activos('CANAL',[p.origen]);
-    var opcionesEstado = p.id ? Pedidos.transiciones(p) : ['RECIBIDO'], firmaAviso = '', leido = p.id ? SyncReg.estable(p) : '';
+    var opcionesEstado = p.id ? Pedidos.transiciones(p) : ['RECIBIDO'], firmaAviso = '';
     var avisoDup = function () {
       var d = { origen: U.$('pnOrigen').value, tipo: U.$('pnTipo').value, numero: U.$('pnNumero').value, tipoDocumento: U.$('pnTD').value, numeroDocumento: U.$('pnND').value };
       var l = Pedidos.duplicados(d, p.id), el = U.$('pnAviso');
@@ -5686,8 +5955,8 @@ Pantallas.pedidos = function (m) {
       '<label class="lbl">ESTADO <span class="unidad">según el flujo del proceso</span></label><select id="pnEstado" class="inp sm">' + U.map(opcionesEstado, function (x) { return '<option value="' + U.esc(x) + '"' + (p.estado === x ? ' selected' : '') + '>' + U.esc(Listas.etq('ESTADO', x)) + '</option>'; }).join('') + '</select>' +
       '<div class="muted">Flujo: RECIBIDO → EN RECOLECCIÓN → PARA REVISIÓN → REVISADO → CUBICADO (al medir) → EN PREPARACIÓN (OT) → ENVIADO (despacho) → ENTREGADO. Las etapas automáticas no se eligen a mano.</div>'
       : '<label class="lbl">ESTADO</label><div class="inp sm" style="background:#f4f4f4">RECIBIDO</div><div class="muted">Todo pedido nuevo entra como RECIBIDO; avanza después según el flujo.</div>';
-    UI.modal({titulo:p.id?'Editar pedido':'Nuevo pedido',alAbrir:function(h){h.oninput=function(e){if(/^(pnNumero|pnND)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onchange=function(e){if(/^(pnOrigen|pnTipo|pnTD)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onclick=function(e){var b=U.cerca(e.target,'data-a',h);if(b&&b.getAttribute('data-a')==='pnRevisar'){var x=Pedidos.porId(b.getAttribute('data-x'));UI.cerrarModal();editar(x);}};if(p.id)avisoDup();},html:
-      '<label class="lbl">ORIGEN</label><select id="pnOrigen" class="inp sm">'+U.map(origenes,function(x){return '<option'+(p.origen===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
+    UI.modal({titulo:p.id?'Editar pedido':'Nuevo pedido',alAbrir:function(h){if(p.id)Pestanas.edita(Pestanas.ref(p.numero),'El pedido '+p.numero);h.oninput=function(e){if(/^(pnNumero|pnND)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onchange=function(e){if(/^(pnOrigen|pnTipo|pnTD)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onclick=function(e){var b=U.cerca(e.target,'data-a',h);if(b&&b.getAttribute('data-a')==='pnRevisar'){var x=Pedidos.porId(b.getAttribute('data-x'));UI.cerrarModal();editar(x);}};if(p.id)avisoDup();},html:
+      (p.id?Pestanas.aviso(Pestanas.ref(p.numero),'El pedido '+p.numero):'')+'<label class="lbl">ORIGEN</label><select id="pnOrigen" class="inp sm">'+U.map(origenes,function(x){return '<option'+(p.origen===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
       '<label class="lbl">TIPO</label><select id="pnTipo" class="inp sm">'+U.map(tipos,function(x){return '<option'+(p.tipo===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
       '<label class="lbl">N° PEDIDO / O.C.</label><input id="pnNumero" class="inp" value="'+U.esc(p.numero)+'">'+
       '<label class="lbl">FECHA</label><input id="pnFecha" class="inp sm" type="date" value="'+U.esc(p.fecha)+'">'+
@@ -5697,7 +5966,6 @@ Pantallas.pedidos = function (m) {
       '<label class="lbl">OBSERVACIÓN</label><input id="pnObs" class="inp sm" value="'+U.esc(p.observacion||'')+'"><div id="pnAviso"></div>',
       botones:[{txt:'CANCELAR',cls:'btn-sec'},{txt:'GUARDAR',cls:'btn-ok',fn:function(){
         if(!U.trim(U.$('pnNumero').value)){UI.toast('Falta número de pedido / O.C.','error');return false;}
-        if(p.id){var actual=Pedidos.porId(p.id);if(actual&&SyncReg.estable(actual)!==leido){var mio=U.assign(U.clone(actual),{origen:U.norm(U.$('pnOrigen').value),tipo:U.norm(U.$('pnTipo').value),numero:U.trim(U.$('pnNumero').value),fecha:U.$('pnFecha').value,tipoDocumento:U.norm(U.$('pnTD').value),numeroDocumento:U.trim(U.$('pnND').value),estado:U.$('pnEstado').value,observacion:U.$('pnObs').value,retiro:U.$('pnRetiro').checked||undefined});if(!mio.retiro)delete mio.retiro;if(Conflictos.registrar('pedido',mio,actual,'edicion')){UI.toast('Este pedido cambió en otro equipo mientras lo editaba: elija qué datos conservar.','warn',6000);Conflictos.abrir(function(){render();});return false;}}}
         var dups=avisoDup(), firma=U.map(dups,function(x){return x.p.id;}).join(',');
         if(p.id&&U.norm(p.numero)===U.norm(U.$('pnNumero').value)&&U.norm(p.numeroDocumento)===U.norm(U.$('pnND').value)&&U.norm(p.origen)===U.norm(U.$('pnOrigen').value)&&U.norm(p.tipo)===U.norm(U.$('pnTipo').value))dups=[];
         if(dups.length&&firmaAviso!==firma){firmaAviso=firma;UI.toast('Esta orden ya tiene registro'+(U.find(dups,function(x){return x.despacho;})?' con despacho asociado':'')+'. Si es otro despacho de la misma orden, pulse GUARDAR otra vez para registrarlo.','warn',5500);return false;}
