@@ -629,7 +629,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.38.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.39.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -2677,6 +2677,43 @@ var OT = {
     });
   },
   guardar: function (ot) { if (ot && typeof Sync !== 'undefined') Sync.marcarOT(ot.id); return StorageManager.guardar(CLAVES.ordenes, OT.lista); },
+  corregir: function (ot, d, aut) {
+    var num = U.norm(d.numero).replace(/\s+/g, '');
+    if (/^\d/.test(num)) num = 'OT-' + num;
+    if (!/^[A-Z0-9][A-Z0-9-]{2,39}$/.test(num)) return { ok: false, error: 'N° de OT inválido: use letras, números y guiones' };
+    if (U.find(OT.lista, function (o) { return o.id !== ot.id && o.numero === num; })) return { ok: false, error: 'Ya existe otra OT con el número ' + num };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.fecha) || !/^\d{2}:\d{2}$/.test(d.hora)) return { ok: false, error: 'Fecha u hora de la OT inválida' };
+    var mf = ot.manifiesto || {};
+    if (mf.generado && (!/^\d{4}-\d{2}-\d{2}$/.test(d.mfFecha) || !/^\d{2}:\d{2}$/.test(d.mfHora))) return { ok: false, error: 'Fecha u hora del manifiesto inválida' };
+    var antes = { numero: ot.numero, fecha: ot.fecha, hora: ot.hora, mfFecha: mf.fecha || '', mfHora: mf.hora || '' };
+    var despues = { numero: num, fecha: d.fecha, hora: d.hora, mfFecha: mf.generado ? d.mfFecha : antes.mfFecha, mfHora: mf.generado ? d.mfHora : antes.mfHora };
+    var cambios = U.filter(['numero', 'fecha', 'hora', 'mfFecha', 'mfHora'], function (k) { return antes[k] !== despues[k]; });
+    if (!cambios.length) return { ok: false, error: 'No hay cambios' };
+    var ahora = new Date().toISOString(), nb = 0;
+    ot.numero = despues.numero; ot.fecha = despues.fecha; ot.hora = despues.hora;
+    if (mf.generado) { mf.fecha = despues.mfFecha; mf.hora = despues.mfHora; }
+    U.each(ot.bultos, function (b) { if (b.otNumero !== num) { b.otNumero = num; b.act = ahora; } });
+    U.each(CubPool.lista, function (b) { if (b.otId === ot.id && b.otNumero !== num) { b.otNumero = num; b.act = ahora; SyncReg.marcar(b); nb++; } });
+    if (nb) StorageManager.guardar(CLAVES.cubicacion, CubPool.lista);
+    if (!U.esArray(ot.correcciones)) ot.correcciones = [];
+    ot.correcciones.push({ fecha: ahora, usuario: aut.usuario, operador: DB.cfg.operador || '', equipo: DB.cfg.equipo || '', motivo: aut.motivo, antes: antes, despues: despues });
+    ot.actualizado = ahora;
+    OT.guardar(ot);
+    return { ok: true, cambios: cambios, antes: antes, despues: despues };
+  },
+  corregirPrevia: function (ot, d) {
+    var num = U.norm(d.numero).replace(/\s+/g, ''); if (/^\d/.test(num)) num = 'OT-' + num;
+    var mf = ot.manifiesto || {}, l = [];
+    if (num !== ot.numero) l.push('N° OT: ' + ot.numero + ' → ' + num);
+    if (d.fecha !== ot.fecha || d.hora !== ot.hora) l.push('Fecha OT: ' + U.fechaCL(ot.fecha) + ' ' + ot.hora + ' → ' + U.fechaCL(d.fecha) + ' ' + d.hora);
+    if (mf.generado && (d.mfFecha !== mf.fecha || d.mfHora !== mf.hora)) l.push('Manifiesto: ' + U.fechaCL(mf.fecha) + ' ' + mf.hora + ' → ' + U.fechaCL(d.mfFecha) + ' ' + d.mfHora);
+    if (!/^[A-Z0-9][A-Z0-9-]{2,39}$/.test(num)) return { ok: false, error: 'N° de OT inválido: use letras, números y guiones' };
+    if (U.find(OT.lista, function (o) { return o.id !== ot.id && o.numero === num; })) return { ok: false, error: 'Ya existe otra OT con el número ' + num };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.fecha) || !/^\d{2}:\d{2}$/.test(d.hora)) return { ok: false, error: 'Fecha u hora de la OT inválida' };
+    if (mf.generado && (!/^\d{4}-\d{2}-\d{2}$/.test(d.mfFecha) || !/^\d{2}:\d{2}$/.test(d.mfHora))) return { ok: false, error: 'Fecha u hora del manifiesto inválida' };
+    if (!l.length) return { ok: false, error: 'No hay cambios' };
+    return { ok: true, txt: l.join('\n') };
+  },
   docKey: function (orden, tipoDocumento, numeroDocumento) {
     if (numeroDocumento === undefined) { numeroDocumento = tipoDocumento; tipoDocumento = 'FACTURA'; }
     return U.norm(orden) + '|' + U.norm(tipoDocumento || 'FACTURA') + '|' + U.norm(numeroDocumento);
@@ -8789,6 +8826,35 @@ var Manif = { otId: null, vista: 'vigentes', cour: '*',
   },
   opCourier: function (v) { return v === '*' || v == null ? undefined : (v === '-' ? '' : v); }
 };
+Manif.corregir = function (ot) {
+  Seguridad.admin('Corregir datos de la OT ' + ot.numero + ' (número, fecha y hora)', function (aut) {
+    var mf = ot.manifiesto || {}, ext = U.filter(ot.bultos, function (b) { return b.ordenCourier || b.despachoId || b.despachado || b.verificadoCourier; }).length;
+    var html = '<div class="muted">Autoriza <b>' + U.esc(aut.usuario) + '</b> · motivo: ' + U.esc(aut.motivo) + '</div>' +
+      '<label class="lbl" for="coNum">N° OT</label><input id="coNum" class="inp sm" maxlength="40" autocomplete="off" value="' + U.esc(ot.numero) + '">' +
+      '<div class="fila"><div class="c"><label class="lbl" for="coFec">FECHA OT</label><input id="coFec" class="inp sm" type="date" value="' + U.esc(ot.fecha) + '"></div>' +
+      '<div class="c"><label class="lbl" for="coHor">HORA OT</label><input id="coHor" class="inp sm" type="time" value="' + U.esc(ot.hora) + '"></div></div>' +
+      (mf.generado ? '<div class="fila"><div class="c"><label class="lbl" for="coMfF">FECHA MANIFIESTO</label><input id="coMfF" class="inp sm" type="date" value="' + U.esc(mf.fecha) + '"></div>' +
+        '<div class="c"><label class="lbl" for="coMfH">HORA MANIFIESTO</label><input id="coMfH" class="inp sm" type="time" value="' + U.esc(mf.hora) + '"></div></div>' : '<div class="muted">El manifiesto aún no se genera: su fecha será la del momento en que se genere.</div>') +
+      '<div class="muted" style="margin-top:6px">El cambio se aplica a la OT, sus bultos y la cubicación, se sincroniza con la planilla y queda en el historial de correcciones de la OT.</div>' +
+      (ext ? '<div class="aviso amar" style="font-size:13px;margin-top:6px">' + ext + ' bulto(s) ya tienen orden de courier o despacho: las etiquetas y documentos emitidos por el courier conservan el número anterior.</div>' : '');
+    UI.modal({ titulo: 'Corregir datos de OT', html: html, botones: [
+      { txt: 'CANCELAR', cls: 'btn-sec' },
+      { txt: 'GUARDAR CORRECCIÓN', cls: 'btn-ok', fn: function () {
+        var d = { numero: U.$('coNum').value, fecha: U.$('coFec').value, hora: U.$('coHor').value, mfFecha: U.$('coMfF') ? U.$('coMfF').value : '', mfHora: U.$('coMfH') ? U.$('coMfH').value : '' };
+        var prev = OT.corregirPrevia(ot, d);
+        if (!prev.ok) { UI.toast(prev.error, 'error', 4500); return false; }
+        UI.confirmar('¿Guardar la corrección de la OT?\n' + prev.txt, function () {
+          var r = OT.corregir(ot, d, aut);
+          if (!r.ok) { UI.toast(r.error, 'error', 4500); return; }
+          if (Sync.modo() !== 'local') Sync.programar(300);
+          UI.toast('OT corregida: ' + r.despues.numero, 'ok', 4000);
+          Manif.otId = ot.id; App.ir('manifiesto');
+        }, { titulo: 'Confirmar corrección', si: 'SÍ, CORREGIR' });
+        return false;
+      } }
+    ] });
+  });
+};
 
 Pantallas.manifiesto = function (m) {
   var todas = OT.ordenadas(), l = U.filter(todas, function (o) {
@@ -8842,7 +8908,7 @@ Pantallas.manifiesto = function (m) {
       '<button class="btn btn-warn" data-a="reabrir">REABRIR OT</button>';
   }
   h += '<button class="btn btn-sec" data-a="todas"' + (t.bultos ? '' : ' disabled') + '>IMPRIMIR TODAS LAS ETIQUETAS</button>' +
-    '<div class="btns"><button class="btn btn-sec" data-a="activar">USAR EN PACKING</button><button class="btn btn-dan" data-a="eliminar">ELIMINAR OT</button></div></div>';
+    '<div class="btns"><button class="btn btn-sec" data-a="activar">USAR EN PACKING</button><button class="btn btn-sec" data-a="corregir">CORREGIR DATOS (ADMIN)</button><button class="btn btn-dan" data-a="eliminar">ELIMINAR OT</button></div></div>';
   m.innerHTML = h;
   var selTxt = function () { var e = U.$('mfSelTxt'); if (e) e.innerHTML = Manif.sel.keys.length + ' de ' + ot.documentos.length + ' documento(s) marcados'; };
   if (Manif.sel && Manif.sel.ot === ot.id) selTxt();
@@ -8886,6 +8952,7 @@ Pantallas.manifiesto = function (m) {
     reabrir: function () { Seguridad.admin('Reabrir ' + ot.numero, function (aut) { OT.reabrir(ot, aut); OT.setActiva(ot.id); App.ir('packing'); }); },
     todas: function () { Packing.imprimirTodas(ot); },
     activar: function () { OT.setActiva(ot.id); App.ir('packing'); },
+    corregir: function () { Manif.corregir(ot); },
     eliminar: function () {
       var usados = false;
       U.each(ot.bultos, function (b) { if (b.ordenCourier || b.verificadoCourier || b.despachoId || b.despachado) usados = true; });
