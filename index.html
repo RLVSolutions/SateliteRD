@@ -495,7 +495,10 @@ html.dv-escritorio .cub-form .cf-env{padding-top:22px}
 html.dv-escritorio .cub-form .cf-env .btns{margin:0}html.dv-escritorio .cub-form .cf-env .btn{margin:0;min-height:36px}
 html.dv-escritorio .cub-form .cf-envres,html.dv-tablet .cub-form .cf-envres{grid-column:1/-1}
 html.dv-escritorio .cub-form #cuOrden,html.dv-escritorio .cub-form #cuDoc{height:36px;font-size:16px}
-html.dv-escritorio .cub-form .cf-med{grid-template-columns:minmax(240px,1.6fr) minmax(300px,2fr) minmax(110px,.7fr) minmax(180px,1fr)}
+html.dv-escritorio .cub-form .cf-med{grid-template-columns:minmax(210px,1.5fr) minmax(270px,2fr) minmax(95px,.6fr) minmax(130px,.8fr) minmax(170px,1fr)}
+.cub-form .cf-valor .inp{text-align:right}
+html.dv-escritorio .cub-form .cf-valor .inp{font-size:16px}
+.cub-form .cf-valor .inp::placeholder{font-size:13px}
 html.dv-tablet .cub-form .cf-med{grid-template-columns:1fr 1fr}
 html.dv-escritorio .cub-form .cf-prod{position:relative;-webkit-align-self:start;align-self:start}
 html.dv-escritorio .cub-form .cf-prod #cuProdRes .prs{position:absolute;left:0;right:0;z-index:30;box-shadow:0 8px 20px rgba(0,0,0,.18)}
@@ -576,6 +579,8 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 .ip-av.warn{color:var(--warn-txt)}
 .ip-av.info{color:var(--txt2)}
 .pn-ret{margin-top:10px;font-weight:700;color:#0a5f7a}
+.pn-retc{display:-webkit-flex;display:flex;-webkit-align-items:flex-end;align-items:flex-end}
+.pn-retc .pn-ret{margin:0 0 8px}
 .ed-guardado{font-size:13px;background:var(--ok-suave);color:var(--ok-txt);border-left:4px solid var(--ok)}
 .ed-cmp td{vertical-align:top}
 .ed-cmp td.ed-nuevo{color:var(--ok-txt);font-weight:600}
@@ -617,7 +622,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.35.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.36.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1140,7 +1145,7 @@ var DatosNav = {
 };
 
 var Borrador = {
-  CAMPOS: { cubicacion: ['cuOrden', 'cuTipo', 'cuDoc', 'cuAncho', 'cuAlto', 'cuLargo', 'cuPeso', 'cuBuscar'], rotulado: ['rdQ'] },
+  CAMPOS: { cubicacion: ['cuOrden', 'cuTipo', 'cuDoc', 'cuAncho', 'cuAlto', 'cuLargo', 'cuPeso', 'cuValor', 'cuBuscar'], rotulado: ['rdQ'] },
   datos: {},
   guardar: function (p) { var l = Borrador.CAMPOS[p]; if (!l) return; var o = {}, hay = false; U.each(l, function (id) { var el = U.$(id); if (el) { o[id] = el.value; if (el.value) hay = true; } }); Borrador.datos[p] = hay ? o : null; },
   restaurar: function (p) {
@@ -1673,25 +1678,32 @@ var RotuloDir = {
     });
     return out;
   },
-  CELDAS: {
-    1: [[0, 0, 210, 297]],
-    2: [[0, 0, 210, 148.5], [0, 148.5, 210, 148.5]],
-    4: [[0, 0, 105, 148.5], [105, 0, 105, 148.5], [0, 148.5, 105, 148.5], [105, 148.5, 105, 148.5]]
+  PAPEL: { A4: { n: 'A4 (210 × 297 mm)', c: 'A4', w: 210, h: 297 }, CARTA: { n: 'Carta (216 × 279 mm)', c: 'carta', w: 215.9, h: 279.4 }, OFICIO: { n: 'Oficio (216 × 330 mm)', c: 'oficio', w: 215.9, h: 330.2 }, A5: { n: 'A5 (148 × 210 mm)', c: 'A5', w: 148, h: 210 } },
+  hoja: function (est) {
+    var p = RotuloDir.PAPEL[est && est.papel] || RotuloDir.PAPEL.A4, hz = est && est.orient === 'H';
+    return { W: hz ? p.h : p.w, H: hz ? p.w : p.h, c: p.c, n: p.n };
   },
-  paginas: function (lista, porHoja) {
-    var M = RotuloDir.medidor(), cel = RotuloDir.CELDAS[porHoja] || RotuloDir.CELDAS[2], pags = [], P = null, fmt = RotuloFmt.actual();
+  celdas: function (W, H, n) {
+    if (n === 1) return { c: [[0, 0, W, H]], l: [] };
+    if (n === 4) return { c: [[0, 0, W / 2, H / 2], [W / 2, 0, W / 2, H / 2], [0, H / 2, W / 2, H / 2], [W / 2, H / 2, W / 2, H / 2]], l: [[W / 2, 0, W / 2, H], [0, H / 2, W, H / 2]] };
+    if (H >= W) return { c: [[0, 0, W, H / 2], [0, H / 2, W, H / 2]], l: [[0, H / 2, W, H / 2]] };
+    return { c: [[0, 0, W / 2, H], [W / 2, 0, W / 2, H]], l: [[W / 2, 0, W / 2, H]] };
+  },
+  paginas: function (lista, porHoja, est) {
+    var M = RotuloDir.medidor(), hj = RotuloDir.hoja(est), cl = RotuloDir.celdas(hj.W, hj.H, porHoja === 1 || porHoja === 4 ? porHoja : 2), cel = cl.c, pags = [], P = null, fmt = RotuloFmt.actual();
     U.each(lista, function (e, i) {
-      var j = i % cel.length; if (!j) { P = []; pags.push(P); if (cel.length > 1) { if (porHoja === 2) P.push({ t: 'l', x1: 0, y1: 148.5, x2: 210, y2: 148.5, lw: 0.2, dash: 1 }); else { P.push({ t: 'l', x1: 105, y1: 0, x2: 105, y2: 297, lw: 0.2, dash: 1 }); P.push({ t: 'l', x1: 0, y1: 148.5, x2: 210, y2: 148.5, lw: 0.2, dash: 1 }); } } }
+      var j = i % cel.length; if (!j) { P = []; pags.push(P); U.each(cl.l, function (l) { P.push({ t: 'l', x1: Math.round(l[0] * 100) / 100, y1: Math.round(l[1] * 100) / 100, x2: Math.round(l[2] * 100) / 100, y2: Math.round(l[3] * 100) / 100, lw: 0.2, dash: 1 }); }); }
       var c = cel[j], r = RotuloFmt.render(M, fmt, e, c[0], c[1], c[2], c[3]);
       for (var q = 0; q < r.P.length; q++) P.push(r.P[q]);
     });
     return pags;
   },
-  pdf: function (pags) {
-    var d = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+  pdf: function (pags, est) {
+    var hj = RotuloDir.hoja(est), ori = hj.W > hj.H ? 'landscape' : 'portrait', fm = [hj.W, hj.H];
+    var d = new window.jspdf.jsPDF({ unit: 'mm', format: fm, orientation: ori, compress: true });
     d.setProperties({ title: 'Rótulos de despacho', creator: 'Satélite ' + APP.version });
     U.each(pags, function (P, i) {
-      if (i) d.addPage('a4', 'portrait');
+      if (i) d.addPage(fm, ori);
       U.each(P, function (o) {
         if (o.t === 'r') { d.setLineWidth(o.lw || 0.3); if (o.f) { d.setFillColor(0, 0, 0); d.rect(o.x, o.y, o.w, o.h, 'F'); } else { d.setDrawColor(0, 0, 0); d.rect(o.x, o.y, o.w, o.h, 'S'); } }
         else if (o.t === 'l') { d.setLineWidth(o.lw || 0.3); d.setDrawColor(o.dash ? 150 : 0, o.dash ? 150 : 0, o.dash ? 150 : 0); if (d.setLineDashPattern) d.setLineDashPattern(o.dash ? [2, 2] : [], 0); d.line(o.x1, o.y1, o.x2, o.y2); if (d.setLineDashPattern) d.setLineDashPattern([], 0); }
@@ -1700,8 +1712,9 @@ var RotuloDir = {
     });
     return d;
   },
-  svg: function (P, anchoPx) {
-    var h = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 297" ' + (anchoPx ? 'width="' + anchoPx + '" height="' + Math.round(anchoPx * 297 / 210) + '"' : 'width="210mm" height="297mm"') + ' style="background:#fff;display:block">';
+  svg: function (P, anchoPx, est) {
+    var hj = RotuloDir.hoja(est), W = hj.W, H = hj.H;
+    var h = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" ' + (anchoPx ? 'width="' + anchoPx + '" height="' + Math.round(anchoPx * H / W) + '"' : 'width="' + W + 'mm" height="' + H + 'mm"') + ' style="background:#fff;display:block">';
     U.each(P, function (o) {
       if (o.t === 'r') h += '<rect x="' + o.x + '" y="' + o.y + '" width="' + o.w + '" height="' + o.h + '" ' + (o.f ? 'fill="#000"' : 'fill="none" stroke="#000" stroke-width="' + (o.lw || 0.3) + '"') + '/>';
       else if (o.t === 'l') h += '<line x1="' + o.x1 + '" y1="' + o.y1 + '" x2="' + o.x2 + '" y2="' + o.y2 + '" stroke="' + (o.dash ? '#999' : '#000') + '" stroke-width="' + (o.lw || 0.3) + '"' + (o.dash ? ' stroke-dasharray="2 2"' : '') + '/>';
@@ -1712,37 +1725,45 @@ var RotuloDir = {
   nombre: function (items) { return 'rotulos_' + (items.length === 1 ? U.norm(items[0].orden).replace(/[^A-Z0-9]+/g, '_') : items.length + '_documentos') + '_' + U.sello() + '.pdf'; },
   abrir: function (fuentes, alCerrar) {
     var items = U.map(fuentes, function (f) { return RotuloDir.datos(f.ot, f.d, f.bultos); });
-    var conB = U.filter(items, function (x) { return x.bultos.length > 0; }).length, est = { modo: conB ? 'lote' : 'copias', copias: 1, porHoja: DB.cfg.rotuloPorHoja === 4 ? 4 : 2 }, pags = [], pdfListo = PdfLib.listo();
+    var conB = U.filter(items, function (x) { return x.bultos.length > 0; }).length, est = { modo: conB ? 'lote' : 'copias', copias: 1, porHoja: DB.cfg.rotuloPorHoja === 4 ? 4 : (DB.cfg.rotuloPorHoja === 1 ? 1 : 2), papel: RotuloDir.PAPEL[DB.cfg.rotuloPapel] ? DB.cfg.rotuloPapel : 'A4', orient: DB.cfg.rotuloOrient === 'H' ? 'H' : 'V' }, pags = [], pdfListo = PdfLib.listo();
     var sinDir = U.map(U.filter(items, function (x) { return !x.dest; }), function (x) { return x.orden; }), ofi = U.filter(items, function (x) { return x.oficiales.length; });
-    var h = '<div class="muted">' + items.length + ' documento(s)' + (items.length === 1 ? ': <b>' + U.esc(items[0].orden + ' · ' + items[0].doc) + '</b>' : '') + '. PDF en tamaño A4 real (210 × 297 mm).</div>' +
+    var h = '<div class="muted">' + items.length + ' documento(s)' + (items.length === 1 ? ': <b>' + U.esc(items[0].orden + ' · ' + items[0].doc) + '</b>' : '') + '. El PDF sale en el tamaño real del papel elegido.</div>' +
       (sinDir.length ? '<div class="aviso amar" style="font-size:13px">Sin datos de envío: ' + U.esc(sinDir.join(', ')) + '. Ingréselos con DATOS DE ENVÍO antes de imprimir.</div>' : '') +
       (ofi.length ? '<div class="aviso verde" style="font-size:13px">Con etiqueta oficial de Correos de Chile: ' + U.esc(U.map(ofi, function (x) { return x.orden + ' (' + x.oficiales.join(', ') + ')'; }).join(' · ')) + '. Esa etiqueta se imprime desde Correos y no se modifica: este rótulo es complementario.</div>' : '') +
       '<label class="lbl">CANTIDAD A IMPRIMIR</label><div class="btns">' + (conB ? '<button type="button" class="btn btn-sm" data-rm="lote">UNO POR BULTO REGISTRADO</button>' : '') + '<button type="button" class="btn btn-sm" data-rm="copias">INDICAR CANTIDAD</button></div>' +
       '<div id="rdCop"><label class="lbl" for="rdN">CANTIDAD DE RÓTULOS POR DOCUMENTO <span class="unidad">se numeran 1/N … N/N</span></label><input id="rdN" class="inp sm" type="number" min="1" max="50" step="1" inputmode="numeric" value="1"></div>' +
-      '<label class="lbl" for="rdHoja">RÓTULOS POR HOJA A4</label><select id="rdHoja" class="inp sm"><option value="2">2 por hoja · media página (recomendado)</option><option value="4">4 por hoja (A6, 105 × 148 mm)</option></select>' +
+      '<div class="fila rd-pap"><div class="c"><label class="lbl" for="rdPapel">PAPEL</label><select id="rdPapel" class="inp sm">' + U.map(['A4', 'CARTA', 'OFICIO', 'A5'], function (k) { return '<option value="' + k + '">' + RotuloDir.PAPEL[k].n + '</option>'; }).join('') + '</select></div>' +
+      '<div class="c"><label class="lbl" for="rdOrient">ORIENTACIÓN</label><select id="rdOrient" class="inp sm"><option value="V">Vertical</option><option value="H">Horizontal</option></select></div>' +
+      '<div class="c"><label class="lbl" for="rdHoja">RÓTULOS POR HOJA</label><select id="rdHoja" class="inp sm"><option value="1">1 por hoja · hoja completa</option><option value="2">2 por hoja · media hoja (recomendado)</option><option value="4">4 por hoja · un cuarto de hoja</option></select></div></div>' +
       '<div id="rdRes" class="tot" style="margin-top:8px"></div>' +
       '<label class="lbl">VISTA PREVIA</label><div id="rdPrev" style="max-height:60vh;overflow:auto;background:#888;padding:8px"></div>' +
       '<div class="muted" style="margin-top:6px">Para imprimir sin escalado use el PDF: en el diálogo de impresión elija papel A4, escala 100 % («Tamaño real») y márgenes «Ninguno» o «Predeterminados». Evite «Ajustar a la página».</div>';
     var pintar = function () {
       var lista = RotuloDir.etiquetas(items, est.modo, est.copias);
-      pags = RotuloDir.paginas(lista, est.porHoja);
+      pags = RotuloDir.paginas(lista, est.porHoja, est);
       U.$('rdCop').style.display = est.modo === 'copias' ? '' : 'none';
-      U.$('rdRes').innerHTML = lista.length + ' rótulo(s) · ' + pags.length + ' hoja(s) A4' + (pdfListo ? '' : ' · <span class="muted">cargando generador PDF…</span>');
+      U.$('rdRes').innerHTML = lista.length + ' rótulo(s) · ' + pags.length + ' hoja(s) ' + RotuloDir.hoja(est).c + (est.orient === 'H' ? ' horizontal' : '') + (pdfListo ? '' : ' · <span class="muted">cargando generador PDF…</span>');
       var w = Math.min(560, (U.$('rdPrev').clientWidth || 360) - 16);
-      U.$('rdPrev').innerHTML = U.map(pags.slice(0, 6), function (P, i) { return '<div style="margin:0 auto 8px;width:' + w + 'px;box-shadow:0 1px 4px rgba(0,0,0,.4)">' + RotuloDir.svg(P, w) + '</div>'; }).join('') + (pags.length > 6 ? '<div style="color:#fff;text-align:center">… y ' + (pags.length - 6) + ' hoja(s) más</div>' : '');
+      U.$('rdPrev').innerHTML = U.map(pags.slice(0, 6), function (P, i) { return '<div style="margin:0 auto 8px;width:' + w + 'px;box-shadow:0 1px 4px rgba(0,0,0,.4)">' + RotuloDir.svg(P, w, est) + '</div>'; }).join('') + (pags.length > 6 ? '<div style="color:#fff;text-align:center">… y ' + (pags.length - 6) + ' hoja(s) más</div>' : '');
       U.each(U.qa(U.$('modalHost'), '[data-rm]'), function (b) { b.className = 'btn btn-sm ' + (b.getAttribute('data-rm') === est.modo ? 'btn-ok' : 'btn-sec'); });
     };
-    var conPdf = function (fn) { PdfLib.cargar(function () { if (!pdfListo) { pdfListo = true; pintar(); } fn(RotuloDir.pdf(pags)); }, function () { UI.toast('No se pudo cargar el generador de PDF (requiere internet). Use IMPRIMIR DESDE EL NAVEGADOR.', 'error', 6000); }); };
+    var conPdf = function (fn) { PdfLib.cargar(function () { if (!pdfListo) { pdfListo = true; pintar(); } fn(RotuloDir.pdf(pags, est)); }, function () { UI.toast('No se pudo cargar el generador de PDF (requiere internet). Use IMPRIMIR DESDE EL NAVEGADOR.', 'error', 6000); }); };
     UI.modal({ titulo: 'Rótulos de dirección A4', html: h, botones: [
       { txt: 'CERRAR', cls: 'btn-sec', fn: function () { UI.cerrarModal(); if (alCerrar) alCerrar(); return false; } },
-      { txt: 'IMPRIMIR DESDE EL NAVEGADOR', cls: 'btn-sec', fn: function () { Impresion.imprimir(U.map(pags, function (P) { return '<div class="hoja" style="width:210mm;height:297mm;margin:0;padding:0;overflow:hidden">' + RotuloDir.svg(P) + '</div>'; }).join(''), { tipo: 'a4', margen: 0 }); return false; } },
+      { txt: 'IMPRIMIR DESDE EL NAVEGADOR', cls: 'btn-sec', fn: function () { var hj = RotuloDir.hoja(est); Impresion.imprimir(U.map(pags, function (P) { return '<div class="hoja" style="width:' + hj.W + 'mm;height:' + hj.H + 'mm;margin:0;padding:0;overflow:hidden">' + RotuloDir.svg(P, null, est) + '</div>'; }).join(''), { tipo: 'a4', margen: 0, pagW: hj.W, pagH: hj.H }); return false; } },
       { txt: 'VER / IMPRIMIR PDF', cls: 'btn-sec', fn: function () { conPdf(function (d) { var u = d.output('bloburl'), w = null; try { w = window.open(u, '_blank'); } catch (e) {} if (!w) { RotuloDir.descargar(d, items); UI.toast('El navegador bloqueó la ventana: se descargó el PDF', 'warn', 5000); } }); return false; } },
       { txt: 'DESCARGAR PDF', cls: 'btn-ok', fn: function () { conPdf(function (d) { RotuloDir.descargar(d, items); }); return false; } }
     ], alAbrir: function (host) {
-      U.$('rdHoja').value = String(est.porHoja);
+      U.$('rdHoja').value = String(est.porHoja); U.$('rdPapel').value = est.papel; U.$('rdOrient').value = est.orient;
       host.onclick = function (e) { var b = U.cerca(e.target, 'data-rm', host); if (!b) return; est.modo = b.getAttribute('data-rm'); pintar(); };
       host.oninput = function (e) { if (e.target.id === 'rdN') { est.copias = Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 1)); pintar(); } };
-      host.onchange = function (e) { if (e.target.id === 'rdHoja') { est.porHoja = parseInt(e.target.value, 10) || 2; DB.cfg.rotuloPorHoja = est.porHoja; DB.guardarCfg(); pintar(); } };
+      host.onchange = function (e) {
+        if (e.target.id === 'rdHoja') { est.porHoja = parseInt(e.target.value, 10) || 2; DB.cfg.rotuloPorHoja = est.porHoja; }
+        else if (e.target.id === 'rdPapel') { est.papel = e.target.value; DB.cfg.rotuloPapel = est.papel; }
+        else if (e.target.id === 'rdOrient') { est.orient = e.target.value === 'H' ? 'H' : 'V'; DB.cfg.rotuloOrient = est.orient; }
+        else return;
+        DB.guardarCfg(); pintar();
+      };
       pintar();
       if (!pdfListo) PdfLib.cargar(function () { pdfListo = true; if (U.$('rdPrev')) pintar(); }, function () { if (U.$('rdRes')) U.$('rdRes').innerHTML += ' · <b>sin conexión: solo impresión desde el navegador</b>'; });
     } });
@@ -1979,6 +2000,7 @@ var Pedidos = {
       if (Pedidos.puedeCambiar(x, ne)) x.estado = ne; else aviso = Pedidos.motivoEstado(x, ne);
     }
     x.observacion = U.trim(p.observacion != null ? p.observacion : (x.observacion || ''));
+    if (p.monto !== undefined) { var mt = Valores.limpio(p.monto); if (mt) x.monto = mt; else delete x.monto; }
     if (p.retiro !== undefined) { if (p.retiro) x.retiro = true; else delete x.retiro; }
     x.actualizado = ahora;
     SyncReg.marcar(x);
@@ -4624,7 +4646,7 @@ var Impresion = {
       if (perfil === 'b62r') { if (hh > 60) { f = f * 60 / hh; hh = 60; w = a * f; } return '@page{size:62mm ' + red(w + 0.5) + 'mm;margin:0}.pg{transform-origin:top left;transform:translate(' + red((62 + hh) / 2 / f) + 'mm,0) rotate(90deg);margin:0!important}'; }
       return '@page{size:' + red(w) + 'mm ' + red(hh) + 'mm;margin:0}';
     };
-    if (tipo === 'a4') { paginas = Impresion.paginas(html, 'a4'); css = op && op.margen === 0 ? '@page{size:210mm 297mm;margin:0}.pg{width:210mm!important;height:297mm!important;overflow:hidden}' : '@page{size:A4 portrait;margin:12mm}'; }
+    if (tipo === 'a4') { paginas = Impresion.paginas(html, 'a4'); css = op && op.margen === 0 ? '@page{size:' + (op.pagW || 210) + 'mm ' + (op.pagH || 297) + 'mm;margin:0}.pg{width:' + (op.pagW || 210) + 'mm!important;height:' + (op.pagH || 297) + 'mm!important;overflow:hidden}' : '@page{size:A4 portrait;margin:12mm}'; }
     else if (tipo === 'troquel') { paginas = Impresion.paginas(html, 'troquel', ancho, op.alto, 0, aj); css = tam(ancho, op.alto); }
     else {
       paginas = Impresion.paginas(html, 'rollo', ancho, 0, margen, aj);
@@ -4731,6 +4753,32 @@ var ZoomImp = {
         };
       });
     });
+  }
+};
+
+var ManifCfg = {
+  CAMPOS: [
+    ['destinatario', 'Destinatario (nombre)', 'Destino'], ['rut', 'RUT del destinatario', 'Destino'], ['direccion', 'Dirección de envío', 'Destino'], ['telefono', 'Teléfono', 'Destino'],
+    ['bulto', 'N° de bulto (1/N)', 'Bultos'], ['courier', 'N° de orden del courier', 'Bultos'], ['medidas', 'Medidas (cm)', 'Bultos'], ['peso', 'Peso (kg)', 'Bultos'], ['volumen', 'Volumen (m³)', 'Bultos'], ['pesoVol', 'Peso volumétrico (kg)', 'Bultos'], ['valor', 'Valor referencial ($)', 'Bultos'],
+    ['resTipos', 'Resumen por tipo de documento', 'Resumen'], ['resOrdenes', 'Resumen por orden (RUT, documentos, bultos y valor)', 'Resumen'], ['resCanales', 'Pedidos por canal', 'Resumen'], ['totales', 'Totales (bultos, peso, volumen y valor)', 'Resumen'], ['firmas', 'Firmas', 'Resumen']
+  ],
+  actual: function () { var c = DB.cfg.manifCfg || {}, o = {}; U.each(ManifCfg.CAMPOS, function (k) { o[k[0]] = c[k[0]] !== false; }); return o; },
+  editar: function () {
+    var c = ManifCfg.actual(), grupos = {}, orden = [];
+    U.each(ManifCfg.CAMPOS, function (k) { if (!grupos[k[2]]) { grupos[k[2]] = []; orden.push(k[2]); } grupos[k[2]].push(k); });
+    var h = '<div class="muted">Elija qué datos salen en el manifiesto y en la orden de transporte (OT). Los bultos se agrupan siempre por orden o pedido y, dentro de cada orden, por documento. La configuración se comparte con todos los equipos.</div>' +
+      U.map(orden, function (g) { return '<div class="mc-grupo"><div class="cf-tit">' + U.esc(g.toUpperCase()) + '</div>' + U.map(grupos[g], function (k) { return '<label class="chk"><input type="checkbox" data-mc="' + k[0] + '"' + (c[k[0]] ? ' checked' : '') + '> ' + U.esc(k[1]) + '</label>'; }).join('') + '</div>'; }).join('');
+    UI.modal({ titulo: 'Datos a imprimir en el manifiesto / OT', html: h, botones: [
+      { txt: 'CANCELAR', cls: 'btn-sec' },
+      { txt: 'TODOS', cls: 'btn-sec', fn: function () { U.each(U.qa(U.$('modalHost'), '[data-mc]'), function (x) { x.checked = true; }); return false; } },
+      { txt: 'GUARDAR', cls: 'btn-ok', fn: function () {
+        var o = {}; U.each(U.qa(U.$('modalHost'), '[data-mc]'), function (x) { o[x.getAttribute('data-mc')] = !!x.checked; });
+        o.act = new Date().toISOString(); DB.cfg.manifCfg = o; DB.guardarCfg();
+        Compartida.subir(function (ok) { UI.toast(ok ? 'Configuración del manifiesto guardada y compartida' : 'Configuración del manifiesto guardada', 'ok', 3500); });
+        if (App.pantalla === 'manifiesto') App.ir('manifiesto', true);
+        return true;
+      } }
+    ] });
   }
 };
 
@@ -4885,9 +4933,9 @@ var Plantillas = {
     if (pid) p = Pedidos.porId(pid);
     if (!p) p = EnvioDatos.buscarPedido(d.orden, OT.tipoDoc(d), OT.numeroDoc(d));
     var de = p && p.envio && p.envio.destinatario;
-    if (!de || !EnvioDatos.tieneDatos(de)) return { ok: false, nombre: '', txt: '', tel: '' };
+    if (!de || !EnvioDatos.tieneDatos(de)) return { ok: false, nombre: '', txt: '', tel: '', rut: '' };
     var l = U.filter([U.trim([de.calle, de.numero].join(' ')), de.referencia, de.comuna, de.region], function (x) { return !!U.trim(x); });
-    return { ok: !!(U.trim(de.calle) && U.trim(de.comuna)), nombre: U.trim(de.nombre || ''), txt: l.join(', '), tel: U.trim(de.telefono || '') };
+    return { ok: !!(U.trim(de.calle) && U.trim(de.comuna)), nombre: U.trim(de.nombre || ''), txt: l.join(', '), tel: U.trim(de.telefono || ''), rut: de.rut ? Rut.formato(de.rut) : '' };
   },
   _natural: function (a, b) {
     var x = U.norm(a), y = U.norm(b), nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
@@ -4907,41 +4955,77 @@ var Plantillas = {
   resumenGrupo: function (gr) {
     var tipos = [], porT = {}, ords = [], porO = {}, canales = [], porC = {};
     U.each(gr.docs, function (g) {
-      var t = OT.tipoDoc(g.doc), o = U.norm(g.doc.orden), pe = Plantillas.pedidoDoc(gr.ot, g.doc), c = pe ? U.norm(pe.origen || 'SIN CANAL') : 'SIN PEDIDO REGISTRADO';
+      var t = OT.tipoDoc(g.doc), o = U.norm(g.doc.orden), pe = Plantillas.pedidoDoc(gr.ot, g.doc), c = pe ? U.norm(pe.origen || 'SIN CANAL') : 'SIN PEDIDO REGISTRADO', vd = Plantillas.valorDoc(gr.ot, g);
       if (!porT[t]) { porT[t] = { t: t, docs: 0, bultos: 0, peso: 0, volumen: 0 }; tipos.push(porT[t]); }
       porT[t].docs++; porT[t].bultos += g.bultos.length;
       U.each(g.bultos, function (b) { porT[t].peso += Number(b.peso) || 0; porT[t].volumen += Number(b.volumen) || 0; });
-      if (!porO[o]) { porO[o] = { o: o, docs: [], bultos: 0, canal: pe ? U.norm(pe.origen || '') : '' }; ords.push(porO[o]); }
+      if (!porO[o]) { porO[o] = { o: o, docs: [], bultos: 0, canal: pe ? U.norm(pe.origen || '') : '', rut: (g.destino && g.destino.rut) || '', nombre: (g.destino && g.destino.nombre) || '', valor: null }; ords.push(porO[o]); }
       porO[o].docs.push(OT.etiquetaDoc(g.doc)); porO[o].bultos += g.bultos.length;
+      if (!porO[o].rut && g.destino && g.destino.rut) porO[o].rut = g.destino.rut;
+      if (vd.total != null) porO[o].valor = (porO[o].valor || 0) + vd.total;
       if (!porC[c]) { porC[c] = { c: c, pedidos: {}, n: 0, bultos: 0 }; canales.push(porC[c]); }
       var pk = pe ? pe.id : 'doc:' + g.doc.key; if (!porC[c].pedidos[pk]) { porC[c].pedidos[pk] = 1; porC[c].n++; }
       porC[c].bultos += g.bultos.length;
     });
     ords.sort(function (a, b) { return Plantillas._natural(a.o, b.o); });
-    return { tipos: tipos, ordenes: ords, canales: canales };
+    var vt = null; U.each(ords, function (x) { if (x.valor != null) vt = (vt || 0) + x.valor; });
+    return { tipos: tipos, ordenes: ords, canales: canales, valor: vt };
+  },
+  valorDoc: function (ot, g) {
+    if (!g._val) { var rep = Valores.deOT(ot, g.doc), m = {}, t = null; U.each(g.bultos, function (b) { var x = rep.mapa[b.id]; m[b.id] = x ? x.v : null; if (x && x.v != null) t = (t || 0) + x.v; }); g._val = { mapa: m, total: t }; }
+    return g._val;
+  },
+  porOrden: function (gr) {
+    var docs = gr.docs.slice(0), out = [], idx = {};
+    docs.sort(function (a, b) { return Plantillas._natural(U.norm(a.doc.orden), U.norm(b.doc.orden)) || (Plantillas._rangoTipo(OT.tipoDoc(a.doc)) - Plantillas._rangoTipo(OT.tipoDoc(b.doc))) || Plantillas._natural(OT.numeroDoc(a.doc), OT.numeroDoc(b.doc)); });
+    U.each(docs, function (g) {
+      var o = U.norm(g.doc.orden), x = idx[o];
+      if (!x) { x = idx[o] = { orden: g.doc.orden, docs: [], bultos: 0, valor: null, destino: g.destino }; out.push(x); }
+      x.docs.push(g); x.bultos += g.bultos.length;
+      if (!x.destino.ok && g.destino.ok) x.destino = g.destino;
+      var vd = Plantillas.valorDoc(gr.ot, g); if (vd.total != null) x.valor = (x.valor || 0) + vd.total;
+    });
+    return out;
+  },
+  destinoHtml: function (de, c, br) {
+    var p = [];
+    if (c.destinatario && de.nombre) p.push('<b>' + U.esc(de.nombre) + '</b>');
+    if (c.rut && de.rut) p.push('RUT ' + U.esc(de.rut));
+    if (c.direccion) p.push(de.txt ? U.esc(de.txt) : '<b>⚠ SIN DIRECCIÓN</b>');
+    if (c.telefono && de.tel) p.push('Tel. ' + U.esc(de.tel));
+    return p.join(br || '<br>');
   },
   pedidoDoc: function (ot, d) {
     var pid = EnvioDatos.pedidoDeBultos(OT.bultosDoc(ot, d.key));
     return (pid && Pedidos.porId(pid)) || EnvioDatos.buscarPedido(d.orden, OT.tipoDoc(d), OT.numeroDoc(d));
   },
-  resumenA4: function (gr) {
-    var r = Plantillas.resumenGrupo(gr), th = 'style="background:#ddd"', h = '<div style="margin-top:3mm;font-weight:bold;font-size:11pt">RESUMEN' + (gr.courier ? ' · ' + U.esc(gr.courier) : '') + '</div>';
-    h += '<table style="margin-top:1mm"><thead><tr><th ' + th + '>Tipo de documento</th><th ' + th + '>Documentos</th><th ' + th + '>Bultos</th><th ' + th + '>Peso (kg)</th><th ' + th + '>Vol. (m³)</th></tr></thead><tbody>' +
+  resumenA4: function (gr, c) {
+    c = c || ManifCfg.actual();
+    var r = Plantillas.resumenGrupo(gr), th = 'style="background:#ddd"', h = '';
+    if (!c.resTipos && !c.resOrdenes && !c.resCanales) return '';
+    h += '<div style="margin-top:3mm;font-weight:bold;font-size:11pt">RESUMEN' + (gr.courier ? ' · ' + U.esc(gr.courier) : '') + '</div>';
+    if (c.resOrdenes) {
+      h += '<table style="margin-top:1mm"><thead><tr><th ' + th + '>Orden / pedido</th>' + (c.rut ? '<th ' + th + '>RUT destinatario</th>' : '') + '<th ' + th + '>Canal</th><th ' + th + '>Documento(s)</th><th ' + th + '>Bultos</th>' + (c.valor ? '<th ' + th + '>Valor</th>' : '') + '</tr></thead><tbody>' +
+        U.map(r.ordenes, function (x) { return '<tr><td>' + U.esc(x.o) + '</td>' + (c.rut ? '<td>' + U.esc(x.rut || '—') + '</td>' : '') + '<td>' + U.esc(x.canal || '—') + '</td><td>' + U.esc(x.docs.join(', ')) + '</td><td class="n">' + x.bultos + '</td>' + (c.valor ? '<td class="n">' + (x.valor != null ? Valores.txt(x.valor) : '—') + '</td>' : '') + '</tr>'; }).join('') +
+        '<tr><td colspan="' + (c.rut ? 4 : 3) + '"><b>ÓRDENES: ' + r.ordenes.length + '</b></td><td class="n"><b>' + gr.t.bultos + '</b></td>' + (c.valor ? '<td class="n"><b>' + (r.valor != null ? Valores.txt(r.valor) : '—') + '</b></td>' : '') + '</tr></tbody></table>';
+    }
+    if (c.resTipos) h += '<table style="margin-top:2mm"><thead><tr><th ' + th + '>Tipo de documento</th><th ' + th + '>Documentos</th><th ' + th + '>Bultos</th><th ' + th + '>Peso (kg)</th><th ' + th + '>Vol. (m³)</th></tr></thead><tbody>' +
       U.map(r.tipos, function (x) { return '<tr><td>' + U.esc(x.t) + '</td><td class="n">' + x.docs + '</td><td class="n">' + x.bultos + '</td><td class="n">' + U.fx(x.peso, 2) + '</td><td class="n">' + U.fx(x.volumen, 3) + '</td></tr>'; }).join('') + '</tbody></table>';
-    h += '<table style="margin-top:2mm"><thead><tr><th ' + th + '>Orden / Ticket</th><th ' + th + '>Canal</th><th ' + th + '>Documento(s)</th><th ' + th + '>Bultos</th></tr></thead><tbody>' +
-      U.map(r.ordenes, function (x) { return '<tr><td>' + U.esc(x.o) + '</td><td>' + U.esc(x.canal || '—') + '</td><td>' + U.esc(x.docs.join(', ')) + '</td><td class="n">' + x.bultos + '</td></tr>'; }).join('') +
-      '<tr><td colspan="3"><b>ÓRDENES: ' + r.ordenes.length + '</b></td><td class="n"><b>' + gr.t.bultos + '</b></td></tr></tbody></table>';
-    h += '<table style="margin-top:2mm"><thead><tr><th ' + th + '>Pedidos por canal</th><th ' + th + '>Pedidos</th><th ' + th + '>Bultos</th></tr></thead><tbody>' +
+    if (c.resCanales) h += '<table style="margin-top:2mm"><thead><tr><th ' + th + '>Pedidos por canal</th><th ' + th + '>Pedidos</th><th ' + th + '>Bultos</th></tr></thead><tbody>' +
       U.map(r.canales, function (x) { return '<tr><td>' + U.esc(x.c) + '</td><td class="n">' + x.n + '</td><td class="n">' + x.bultos + '</td></tr>'; }).join('') + '</tbody></table>';
     return h;
   },
-  resumen58: function (gr) {
-    var r = Plantillas.resumenGrupo(gr), h = '<div class="sep"></div><div class="c"><b>RESUMEN</b></div><div><b>Por tipo de documento</b></div>';
-    U.each(r.tipos, function (x) { h += '<div class="r"><span class="l">' + U.esc(x.t) + ': ' + x.docs + ' doc.</span><span class="rr">' + x.bultos + ' bulto(s)</span></div>'; });
-    h += '<div><b>Órdenes: ' + r.ordenes.length + '</b></div>';
-    U.each(r.ordenes, function (x) { h += '<div class="r"><span class="l">' + U.esc(x.o) + (x.canal ? ' (' + U.esc(x.canal) + ')' : '') + '</span><span class="rr">' + x.bultos + ' bulto(s)</span></div>'; });
-    h += '<div><b>Pedidos por canal</b></div>';
-    U.each(r.canales, function (x) { h += '<div class="r"><span class="l">' + U.esc(x.c) + ': ' + x.n + '</span><span class="rr">' + x.bultos + ' bulto(s)</span></div>'; });
+  resumen58: function (gr, c) {
+    c = c || ManifCfg.actual();
+    var r = Plantillas.resumenGrupo(gr), h = '';
+    if (!c.resTipos && !c.resOrdenes && !c.resCanales) return '';
+    h += '<div class="sep"></div><div class="c"><b>RESUMEN</b></div>';
+    if (c.resOrdenes) {
+      h += '<div><b>Órdenes: ' + r.ordenes.length + '</b></div>';
+      U.each(r.ordenes, function (x) { h += '<div class="r"><span class="l">' + U.esc(x.o) + (c.rut && x.rut ? ' · RUT ' + U.esc(x.rut) : '') + '<br>&nbsp;' + U.esc(x.docs.join(', ')) + '</span><span class="rr">' + x.bultos + ' b.' + (c.valor && x.valor != null ? '<br>' + Valores.txt(x.valor) : '') + '</span></div>'; });
+    }
+    if (c.resTipos) { h += '<div><b>Por tipo de documento</b></div>'; U.each(r.tipos, function (x) { h += '<div class="r"><span class="l">' + U.esc(x.t) + ': ' + x.docs + ' doc.</span><span class="rr">' + x.bultos + ' bulto(s)</span></div>'; }); }
+    if (c.resCanales) { h += '<div><b>Pedidos por canal</b></div>'; U.each(r.canales, function (x) { h += '<div class="r"><span class="l">' + U.esc(x.c) + ': ' + x.n + '</span><span class="rr">' + x.bultos + ' bulto(s)</span></div>'; }); }
     return h;
   },
   gruposCourier: function (ot, keys, solo) {
@@ -4974,9 +5058,9 @@ var Plantillas = {
   _firmasOT: function (cls) { return '<div class="' + cls + '"><div>PREPARÓ: ____________________</div><div>REVISÓ: _____________________</div><div>FECHA Y HORA: _______________</div></div>'; },
   manifiesto58: function (ot, keys, op) {
     OT.recalcular(ot); op = op || {};
-    var m = ot.manifiesto || {}, esOT = op.tipo === 'OT', sel = Plantillas._selTxt(ot, keys), gs = Plantillas.gruposCourier(ot, keys, op.courier), h = '';
+    var m = ot.manifiesto || {}, esOT = op.tipo === 'OT', sel = Plantillas._selTxt(ot, keys), gs = Plantillas.gruposCourier(ot, keys, op.courier), h = '', c = ManifCfg.actual();
     U.each(gs, function (gr, gi) {
-      var t = gr.t;
+      var t = gr.t, vt = null;
       h += '<div class="hoja vo"><div class="sep"></div><div class="c h1">' + U.esc(DB.cfg.empresa) + '</div><div class="c h1">' + Plantillas._tituloDoc(op) + '</div><div class="sep"></div>';
       h += '<div class="dest">' + (gr.courier ? 'COURIER: ' + U.esc(gr.courier) : '⚠ SIN COURIER ASIGNADO') + '</div>';
       h += '<div><b>' + U.esc(ot.numero) + '</b> · OT creada: ' + U.fechaCL(ot.fecha) + ' ' + U.esc(ot.hora) + '</div>';
@@ -4986,53 +5070,72 @@ var Plantillas = {
       if (sel) h += '<div><b>' + sel + '</b></div>';
       if (!gr.courier) h += '<div><b>Asigne el courier antes de despachar.</b></div>';
       h += '<div class="sep"></div>';
-      var tipoAct58 = null;
-      U.each(gr.docs, function (g) {
-        var de = g.destino;
-        if (OT.tipoDoc(g.doc) !== tipoAct58) { tipoAct58 = OT.tipoDoc(g.doc); var n58 = U.filter(gr.docs, function (x) { return OT.tipoDoc(x.doc) === tipoAct58; }); h += '<div class="c" style="margin-top:2mm;border-top:1px dashed #000;border-bottom:1px dashed #000"><b>' + U.esc(tipoAct58) + ' · ' + n58.length + ' doc.</b></div>'; }
-        h += '<div class="b"><div class="t">' + U.esc(g.doc.orden) + ' | ' + U.esc(OT.etiquetaDoc(g.doc)) + '</div>';
-        h += '<div>' + (de.txt ? 'Destino: ' + (de.nombre ? '<b>' + U.esc(de.nombre) + '</b>, ' : '') + U.esc(de.txt) + (de.tel ? ' · ' + U.esc(de.tel) : '') : '<b>⚠ SIN DIRECCIÓN DE ENVÍO</b>') + '</div>';
-        U.each(g.bultos, function (b) {
-          var pb = Plantillas._posBulto(ot, b);
-          h += '<div>' + pb.pos + '/' + pb.tot + '  ' + b.ancho + 'x' + b.alto + 'x' + b.largo + '  ' + U.fx(b.peso, 1) + 'kg  ' + U.fx(b.volumen, 3) + 'm3' + (b.ordenCourier ? '<br>&nbsp;&nbsp;N° courier ' + U.esc(b.ordenCourier) : '') + '</div>';
+      U.each(Plantillas.porOrden(gr), function (o) {
+        if (o.valor != null) vt = (vt || 0) + o.valor;
+        h += '<div class="c" style="margin-top:2mm;border-top:1px dashed #000;border-bottom:1px dashed #000"><b>' + U.esc(o.orden) + ' · ' + o.bultos + ' bulto(s)' + (c.valor && o.valor != null ? ' · ' + Valores.txt(o.valor) : '') + '</b></div>';
+        var dh = Plantillas.destinoHtml(o.destino, c, ' · ');
+        if (dh) h += '<div>' + dh + '</div>';
+        U.each(o.docs, function (g) {
+          var vd = c.valor ? Plantillas.valorDoc(ot, g) : null;
+          h += '<div class="b"><div class="t">' + U.esc(OT.etiquetaDoc(g.doc)) + '</div>';
+          U.each(g.bultos, function (b) {
+            var pb = Plantillas._posBulto(ot, b), p = [];
+            if (c.bulto) p.push(pb.pos + '/' + pb.tot);
+            if (c.medidas) p.push(b.ancho + 'x' + b.alto + 'x' + b.largo);
+            if (c.peso) p.push(U.fx(b.peso, 1) + 'kg');
+            if (c.volumen) p.push(U.fx(b.volumen, 3) + 'm3');
+            if (c.pesoVol) p.push('PV ' + U.fx(b.pesoVol, 1) + 'kg');
+            if (vd && vd.mapa[b.id] != null) p.push(Valores.txt(vd.mapa[b.id]));
+            h += '<div>' + p.join('  ') + (c.courier && b.ordenCourier ? '<br>&nbsp;&nbsp;N° courier ' + U.esc(b.ordenCourier) : '') + '</div>';
+          });
+          h += '</div>';
         });
-        h += '</div>';
       });
       h += '<div class="sep"></div>';
-      h += '<div class="r"><span class="l">DOCUMENTOS:</span><span class="rr">' + t.documentos + '</span></div>';
-      h += '<div class="r"><span class="l">BULTOS:</span><span class="rr">' + t.bultos + '</span></div>';
-      h += '<div class="r"><span class="l">PESO REAL:</span><span class="rr">' + U.fx(t.peso, 2) + ' kg</span></div>';
-      h += '<div class="r"><span class="l">VOLUMEN:</span><span class="rr">' + U.fx(t.volumen, 3) + ' m3</span></div>';
-      h += '<div class="r"><span class="l">PESO VOL.:</span><span class="rr">' + U.fx(t.pesoVol, 2) + ' kg</span></div>';
-      h += Plantillas.resumen58(gr);
-      h += '<div class="sep"></div>' + (esOT ? Plantillas._firmasOT('firma') : Plantillas._firmas(ot, 'firma')) + '<div class="sep"></div></div>';
+      if (c.totales) {
+        h += '<div class="r"><span class="l">DOCUMENTOS:</span><span class="rr">' + t.documentos + '</span></div>';
+        h += '<div class="r"><span class="l">BULTOS:</span><span class="rr">' + t.bultos + '</span></div>';
+        if (c.peso) h += '<div class="r"><span class="l">PESO REAL:</span><span class="rr">' + U.fx(t.peso, 2) + ' kg</span></div>';
+        if (c.volumen) h += '<div class="r"><span class="l">VOLUMEN:</span><span class="rr">' + U.fx(t.volumen, 3) + ' m3</span></div>';
+        if (c.pesoVol) h += '<div class="r"><span class="l">PESO VOL.:</span><span class="rr">' + U.fx(t.pesoVol, 2) + ' kg</span></div>';
+        if (c.valor && vt != null) h += '<div class="r"><span class="l">VALOR:</span><span class="rr">' + Valores.txt(vt) + '</span></div>';
+      }
+      h += Plantillas.resumen58(gr, c);
+      h += (c.firmas ? '<div class="sep"></div>' + (esOT ? Plantillas._firmasOT('firma') : Plantillas._firmas(ot, 'firma')) : '') + '<div class="sep"></div></div>';
     });
     return h || '<div class="hoja vo"><div class="c">Sin bultos para imprimir.</div></div>';
   },
   manifiestoA4: function (ot, keys, op) {
     OT.recalcular(ot); op = op || {};
-    var m = ot.manifiesto || {}, esOT = op.tipo === 'OT', sel = Plantillas._selTxt(ot, keys), gs = Plantillas.gruposCourier(ot, keys, op.courier), h = '';
+    var m = ot.manifiesto || {}, esOT = op.tipo === 'OT', sel = Plantillas._selTxt(ot, keys), gs = Plantillas.gruposCourier(ot, keys, op.courier), h = '', c = ManifCfg.actual();
+    var dest = c.destinatario || c.rut || c.direccion || c.telefono;
+    var cols = [['bulto', 'Bulto'], ['courier', 'N° Courier'], ['medidas', 'Medidas (cm)'], ['peso', 'Peso (kg)'], ['volumen', 'Vol. (m³)'], ['pesoVol', 'P.Vol (kg)'], ['valor', 'Valor ($)']];
+    cols = U.filter(cols, function (k) { return c[k[0]]; });
+    var nCol = 1 + (dest ? 1 : 0) + cols.length;
     U.each(gs, function (gr, gi) {
-      var t = gr.t;
+      var t = gr.t, vt = null;
       h += '<div class="hoja ma"><h1>' + Plantillas._tituloDoc(op) + '</h1>';
       h += '<div class="enc"><div style="font-size:15pt;margin-bottom:1mm">' + (gr.courier ? 'COURIER: <b>' + U.esc(gr.courier) + '</b>' : '<b>⚠ SIN COURIER ASIGNADO</b> · asigne el courier antes de despachar') + (gs.length > 1 ? '<span style="float:right;font-size:10pt">Hoja ' + (gi + 1) + ' de ' + gs.length + ' (una por courier)</span>' : '') + '</div>' +
         '<b>' + U.esc(DB.cfg.empresa) + '</b><br>N° OT: <b>' + U.esc(ot.numero) + '</b> &nbsp; Fecha: <b>' + U.fechaCL(ot.fecha) + '</b> &nbsp; Hora: <b>' + U.esc(ot.hora) + '</b>' +
         (esOT ? '<br>Estado de la OT: <b>' + U.esc(ot.estado) + '</b> · documento interno de preparación' : (m.generado ? '<br>Manifiesto generado: ' + U.fechaCL(m.fecha) + ' ' + U.esc(m.hora) + (m.version > 1 ? ' (versión ' + m.version + ')' : '') : '')) + (sel ? '<br><b>' + sel + '</b>' : '') + '</div>';
-      h += '<table><thead><tr><th>Orden/Ticket</th><th>Documento</th><th>Dirección de envío</th><th>Bulto</th><th>N° Courier</th><th>Medidas (cm)</th><th>Peso (kg)</th><th>Vol. (m³)</th><th>P.Vol (kg)</th></tr></thead><tbody>';
-      var tipoAct = null;
-      U.each(gr.docs, function (g) {
-        var de = g.destino, n = g.bultos.length;
-        if (OT.tipoDoc(g.doc) !== tipoAct) { tipoAct = OT.tipoDoc(g.doc); var dt = U.filter(gr.docs, function (x) { return OT.tipoDoc(x.doc) === tipoAct; }), nb = 0; U.each(dt, function (x) { nb += x.bultos.length; }); h += '<tr class="tg"><td colspan="9" style="background:#eee;font-weight:bold">' + U.esc(tipoAct) + ' · ' + dt.length + ' documento(s) · ' + nb + ' bulto(s)</td></tr>'; }
-        U.each(g.bultos, function (b, i) {
-          var pb = Plantillas._posBulto(ot, b);
-          h += '<tr>' + (i ? '' : '<td rowspan="' + n + '">' + U.esc(g.doc.orden) + '</td><td rowspan="' + n + '">' + U.esc(OT.etiquetaDoc(g.doc)) + '</td><td rowspan="' + n + '">' + (de.txt ? (de.nombre ? '<b>' + U.esc(de.nombre) + '</b><br>' : '') + U.esc(de.txt) + (de.tel ? '<br>Tel. ' + U.esc(de.tel) : '') : '<b>⚠ SIN DIRECCIÓN</b>') + '</td>') +
-            '<td>' + pb.pos + '/' + pb.tot + '</td><td>' + U.esc(b.ordenCourier || '') + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td class="n">' + U.fx(b.peso, 2) + '</td><td class="n">' + U.fx(b.volumen, 3) + '</td><td class="n">' + U.fx(b.pesoVol, 2) + '</td></tr>';
+      h += '<table><thead><tr><th>Documento</th>' + (dest ? '<th>Destinatario / envío</th>' : '') + U.map(cols, function (k) { return '<th>' + k[1] + '</th>'; }).join('') + '</tr></thead><tbody>';
+      U.each(Plantillas.porOrden(gr), function (o) {
+        if (o.valor != null) vt = (vt || 0) + o.valor;
+        h += '<tr class="tg"><td colspan="' + nCol + '" style="background:#eee;font-weight:bold">ORDEN ' + U.esc(o.orden) + (o.destino.nombre && c.destinatario ? ' · ' + U.esc(o.destino.nombre) : '') + (o.destino.rut && c.rut ? ' · RUT ' + U.esc(o.destino.rut) : '') + ' · ' + o.docs.length + ' documento(s) · ' + o.bultos + ' bulto(s)' + (c.valor && o.valor != null ? ' · ' + Valores.txt(o.valor) : '') + '</td></tr>';
+        U.each(o.docs, function (g, di) {
+          var n = g.bultos.length, vd = c.valor ? Plantillas.valorDoc(ot, g) : null, de = g.destino;
+          U.each(g.bultos, function (b, i) {
+            var pb = Plantillas._posBulto(ot, b), cel = { bulto: pb.pos + '/' + pb.tot, courier: U.esc(b.ordenCourier || ''), medidas: b.ancho + 'x' + b.alto + 'x' + b.largo, peso: U.fx(b.peso, 2), volumen: U.fx(b.volumen, 3), pesoVol: U.fx(b.pesoVol, 2), valor: vd && vd.mapa[b.id] != null ? Valores.txt(vd.mapa[b.id]) : '' };
+            h += '<tr>' + (i ? '' : '<td rowspan="' + n + '">' + U.esc(OT.etiquetaDoc(g.doc)) + '</td>' + (dest ? '<td rowspan="' + n + '">' + Plantillas.destinoHtml(de, c) + '</td>' : '')) +
+              U.map(cols, function (k) { return '<td' + (/peso|volumen|pesoVol|valor/.test(k[0]) ? ' class="n"' : '') + '>' + cel[k[0]] + '</td>'; }).join('') + '</tr>';
+          });
         });
       });
       h += '</tbody></table>';
-      h += Plantillas.resumenA4(gr);
-      h += '<div class="res">DOCUMENTOS: <b>' + t.documentos + '</b> &nbsp;&nbsp; BULTOS: <b>' + t.bultos + '</b><br>PESO REAL TOTAL: <b>' + U.fx(t.peso, 2) + ' kg</b> &nbsp;&nbsp; VOLUMEN TOTAL: <b>' + U.fx(t.volumen, 3) + ' m³</b> &nbsp;&nbsp; PESO VOLUMÉTRICO TOTAL: <b>' + U.fx(t.pesoVol, 2) + ' kg</b></div>';
-      h += (esOT ? Plantillas._firmasOT('fir') : Plantillas._firmas(ot, 'fir')) + '</div>';
+      h += Plantillas.resumenA4(gr, c);
+      if (c.totales) h += '<div class="res">DOCUMENTOS: <b>' + t.documentos + '</b> &nbsp;&nbsp; BULTOS: <b>' + t.bultos + '</b>' + (c.valor && vt != null ? ' &nbsp;&nbsp; VALOR TOTAL: <b>' + Valores.txt(vt) + '</b>' : '') + ((c.peso || c.volumen || c.pesoVol) ? '<br>' : '') + (c.peso ? 'PESO REAL TOTAL: <b>' + U.fx(t.peso, 2) + ' kg</b> &nbsp;&nbsp; ' : '') + (c.volumen ? 'VOLUMEN TOTAL: <b>' + U.fx(t.volumen, 3) + ' m³</b> &nbsp;&nbsp; ' : '') + (c.pesoVol ? 'PESO VOLUMÉTRICO TOTAL: <b>' + U.fx(t.pesoVol, 2) + ' kg</b>' : '') + '</div>';
+      if (c.valor) h += '<div style="font-size:8pt;margin-top:1mm">Valor referencial: el ingresado por bulto en Cubicación; si un bulto no lo tiene, se reparte el saldo del valor del pedido.</div>';
+      h += (c.firmas ? (esOT ? Plantillas._firmasOT('fir') : Plantillas._firmas(ot, 'fir')) : '') + '</div>';
     });
     return h || '<div class="hoja ma"><h1>' + Plantillas._tituloDoc(op) + '</h1><div>Sin bultos para imprimir.</div></div>';
   },
@@ -5340,6 +5443,44 @@ function opcionesCourier(sel, textoVacio) {
   return h;
 }
 
+var Valores = {
+  num: function (v) {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return isFinite(v) ? v : null;
+    var s = String(v).replace(/[^\d.,\-]/g, '');
+    if (!s || s === '-') return null;
+    if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+    else if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, '');
+    else s = s.replace(',', '.');
+    var n = parseFloat(s);
+    return isFinite(n) ? n : null;
+  },
+  limpio: function (v) { var n = Valores.num(v); return n == null ? '' : String(Math.round(n)); },
+  txt: function (n) { return n == null ? '' : U.clp(Math.round(n)); },
+  reparto: function (lista, total) {
+    var mapa = {}, S = 0, vac = [];
+    U.each(lista, function (b) { var v = Valores.num(b.valor); if (v != null) { mapa[b.id] = { v: v, auto: false }; S += v; } else vac.push(b); });
+    var resto = total != null ? Math.round(total - S) : null;
+    if (vac.length) {
+      if (resto == null) U.each(vac, function (b) { mapa[b.id] = { v: null, auto: true }; });
+      else { var base = Math.floor(Math.max(0, resto) / vac.length), acc = 0; U.each(vac, function (b, i) { var v = i === vac.length - 1 ? Math.max(0, resto - acc) : base; acc += v; mapa[b.id] = { v: v, auto: true }; }); }
+    }
+    var suma = 0, hay = false; for (var k in mapa) if (mapa[k].v != null) { suma += mapa[k].v; hay = true; }
+    return { mapa: mapa, total: total, explicito: S, suma: hay ? suma : null, exceso: total != null && S > total, sinTotal: total == null };
+  },
+  grupoCub: function (b) {
+    var key = OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento), bs = U.filter(CubPool.lista, function (x) { return x.estado !== 'ELIMINADO' && OT.docKey(x.orden, x.tipoDocumento, x.numeroDocumento) === key; });
+    var pe = CubPool.pedidoDe(b), tot = pe ? Valores.num(pe.monto) : null;
+    return { bultos: bs, pedido: pe, rep: Valores.reparto(bs, tot) };
+  },
+  deCub: function (b) { var g = Valores.grupoCub(b); return g.rep.mapa[b.id] || { v: null, auto: true }; },
+  deOT: function (ot, d) {
+    var bs = OT.bultosDoc(ot, d.key), pe = Plantillas.pedidoDoc(ot, d), tot = pe ? Valores.num(pe.monto) : null;
+    var l = U.map(bs, function (ob) { var cb = ob.origenCubicacionId ? U.find(CubPool.lista, function (x) { return x.id === ob.origenCubicacionId; }) : null; return { id: ob.id, valor: cb && cb.valor != null && cb.valor !== '' ? cb.valor : ob.valor }; });
+    return Valores.reparto(l, tot);
+  }
+};
+
 var CubPool = {
   lista: [], ultimo: null, filtro: '',
   cargar: function () {
@@ -5370,6 +5511,7 @@ var CubPool = {
     var mismos = U.filter(CubPool.lista, function (x) { return x.cubicacionId === cub; });
     var b = { id: U.uid('cub-'), pedidoId: d.pedidoId || '', cubicacionId: cub, numero: mismos.length + 1, orden: U.norm(d.orden), tipoDocumento: U.norm(d.tipoDocumento || (U.trim(d.numeroDocumento) ? 'FACTURA' : '')), numeroDocumento: U.norm(d.numeroDocumento), factura: U.norm(d.numeroDocumento), ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso, volumen: c.volumen, pesoVol: c.pesoVol, fecha: U.fechaISO(a), hora: U.hora(a), estado: 'DISPONIBLE', otId: '', otNumero: '', act: a.toISOString() };
     if (d.producto) { b.producto = d.producto; b.productoDesc = d.productoDesc || ''; }
+    if (Valores.num(d.valor) != null) b.valor = Math.round(Valores.num(d.valor));
     SyncReg.marcar(b);
     CubPool.lista.push(b); CubPool.ultimo = { ancho: b.ancho, alto: b.alto, largo: b.largo, peso: b.peso, producto: b.producto || '', productoDesc: b.productoDesc || '' }; CubPool.guardar(); return b;
   },
@@ -5546,7 +5688,8 @@ CubUI.editarBulto = function (id) {
     '<div class="fila"><div class="c"><label class="lbl">ANCHO</label><input id="ceA" class="inp" type="number" value="' + b.ancho + '"></div>' +
     '<div class="c"><label class="lbl">ALTO</label><input id="ceH" class="inp" type="number" value="' + b.alto + '"></div>' +
     '<div class="c"><label class="lbl">LARGO</label><input id="ceL" class="inp" type="number" value="' + b.largo + '"></div></div>' +
-    '<label class="lbl">PESO kg</label><input id="ceP" class="inp" type="number" value="' + b.peso + '">' +
+    '<div class="fila"><div class="c"><label class="lbl">PESO kg</label><input id="ceP" class="inp" type="number" value="' + b.peso + '"></div>' +
+    '<div class="c"><label class="lbl" for="ceValor">VALOR REF. $ <span class="unidad">vacío = reparto automático</span></label><input id="ceValor" class="inp" inputmode="numeric" autocomplete="off" value="' + (Valores.num(b.valor) != null ? Math.round(Valores.num(b.valor)) : '') + '" placeholder="' + (function () { var vv = Valores.deCub(b); return vv && vv.v != null && vv.auto ? 'Reparto ' + Valores.txt(vv.v) : 'Opcional'; })() + '"></div></div>' +
     (hermanos.length ? '<label class="chk"><input type="checkbox" id="ceTodos"> Aplicar pedido, orden y documento también a los otros ' + hermanos.length + ' bulto(s) de ' + U.esc(b.orden) + '</label>' : '') +
     '<div class="msg">Estado: <b>' + U.esc(b.estado) + '</b>' + (b.otNumero ? ' · OT ' + U.esc(b.otNumero) : '') + '</div>';
   var botones = [];
@@ -5579,8 +5722,9 @@ CubUI.editarBulto = function (id) {
   botones.push({ txt: 'CANCELAR', cls: 'btn-sec' });
   botones.push({ txt: 'GUARDAR', cls: 'btn-ok', fn: function () {
     var pid = U.$('cePed').value, d = { orden: U.trim(U.$('ceOrden').value), tipoDocumento: U.$('ceTipo').value, numeroDocumento: U.trim(U.$('ceDoc').value), ancho: U.num(U.$('ceA').value), alto: U.num(U.$('ceH').value), largo: U.num(U.$('ceL').value), peso: U.num(U.$('ceP').value) };
-    var er = CubPool.validar(d);
+    var er = CubPool.validar(d), vTxt = U.trim(U.$('ceValor').value);
     if (er) { UI.toast(er.msg, 'error'); return false; }
+    if (vTxt && Valores.num(vTxt) == null) { UI.toast('Valor referencial inválido: use solo números', 'error'); return false; }
     if (enOT && !d.numeroDocumento) { UI.toast('El bulto está en la OT ' + b.otNumero + ': el N° de documento es obligatorio', 'error'); return false; }
     if (d.numeroDocumento && !d.tipoDocumento) d.tipoDocumento = 'FACTURA';
     var codP = U.trim(U.$('ceProd').value), cat = codP ? Catalogo.porCodigo(codP) : null;
@@ -5596,6 +5740,7 @@ CubUI.editarBulto = function (id) {
       });
       var c = OT.calcular(d.ancho, d.alto, d.largo);
       b.ancho = d.ancho; b.alto = d.alto; b.largo = d.largo; b.peso = d.peso; b.volumen = c.volumen; b.pesoVol = c.pesoVol;
+      if (vTxt) b.valor = Math.round(Valores.num(vTxt)); else delete b.valor;
       if (codP) { b.producto = cat ? cat.codigo : U.norm(codP); b.productoDesc = cat ? cat.descripcion : (b.producto === U.norm(codP) ? b.productoDesc || '' : ''); } else { delete b.producto; delete b.productoDesc; }
       CubPool.guardar();
       if (ot && ob) OT.editarBulto(ot, ob.id, { orden: d.orden, tipoDocumento: d.tipoDocumento, numeroDocumento: d.numeroDocumento, ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso });
@@ -5867,14 +6012,14 @@ var ImpPedidos = {
       if (p.accion === 'nuevo') {
         var u = Pedidos.upsert({ nuevo: true, origen: p.origen, tipo: 'PEDIDO', numero: p.numero, fecha: p.fecha, tipoDocumento: p.tipoDocumento, numeroDocumento: p.numeroDocumento, observacion: p.obs, retiro: p.retiro });
         if (!u.ok) { r.invalidos++; return; }
-        x = u.pedido; if (p.monto) x.monto = p.monto; if (p.conDest) x.envio = envio(p.dest);
+        x = u.pedido; if (Valores.limpio(p.monto)) x.monto = Valores.limpio(p.monto); if (p.conDest) x.envio = envio(p.dest);
         r.nuevos++;
       } else {
         x = Pedidos.porId(p.exId); if (!x) { r.invalidos++; return; }
         if (p.cambios.indexOf('datos de envío') >= 0) x.envio = envio(p.dest);
         if (p.cambios.indexOf('para retiro') >= 0) x.retiro = true;
         if (p.cambios.indexOf('documento') >= 0) { x.tipoDocumento = p.tipoDocumento; x.numeroDocumento = p.numeroDocumento; }
-        if (p.cambios.indexOf('total') >= 0) x.monto = p.monto;
+        if (p.cambios.indexOf('total') >= 0 && Valores.limpio(p.monto)) x.monto = Valores.limpio(p.monto);
         x.actualizado = ahora;
         r.completados++;
       }
@@ -5926,7 +6071,7 @@ Pantallas.pedidos = function (m) {
         hh += '<!--pe--><div class="doc" style="border-left:7px solid #6c757d;background:#f4f4f4"><div class="dh"><div class="cnt"><span class="est ANULADO">ELIMINADO</span></div><div class="o">'+U.esc(p.numero)+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):'')+'</div></div><div class="db"><div class="muted">'+U.esc(p.observacion||'')+'</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedRestaurar" data-x="'+p.id+'">RESTAURAR</button></div></div></div>';
         return;
       }
-      hh +='<!--pe--><div class="doc'+(p.retiro?' pe-retiro':'')+'" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(Listas.etq('ESTADO',p.estado))+'</span><label class="pe-ret" title="Marcar si el cliente retira el pedido"><input type="checkbox" data-ret="'+p.id+'"'+(p.retiro?' checked':'')+'> RETIRO</label></div><div class="o">'+U.esc(p.numero)+(p.retiro?' <span class="tag-ret">PARA RETIRO</span>':'')+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(p.monto?' · $'+U.esc(p.monto):'')+'</div></div>'+
+      hh +='<!--pe--><div class="doc'+(p.retiro?' pe-retiro':'')+'" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(Listas.etq('ESTADO',p.estado))+'</span><label class="pe-ret" title="Marcar si el cliente retira el pedido"><input type="checkbox" data-ret="'+p.id+'"'+(p.retiro?' checked':'')+'> RETIRO</label></div><div class="o">'+U.esc(p.numero)+(p.retiro?' <span class="tag-ret">PARA RETIRO</span>':'')+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(Valores.num(p.monto)!=null?' · '+U.esc(Valores.txt(Valores.num(p.monto))):'')+'</div></div>'+
         '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO')+'</button>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<button class="btn btn-sec btn-sm" data-a="pedRotulo" data-x="'+p.id+'">RÓTULO</button>':'')+'<button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
     });
     var bloques = hh ? hh.split('<!--pe-->') : [];
@@ -5956,16 +6101,18 @@ Pantallas.pedidos = function (m) {
       '<div class="muted">Flujo: RECIBIDO → EN RECOLECCIÓN → PARA REVISIÓN → REVISADO → CUBICADO (al medir) → EN PREPARACIÓN (OT) → ENVIADO (despacho) → ENTREGADO. Las etapas automáticas no se eligen a mano.</div>'
       : '<label class="lbl">ESTADO</label><div class="inp sm" style="background:#f4f4f4">RECIBIDO</div><div class="muted">Todo pedido nuevo entra como RECIBIDO; avanza después según el flujo.</div>';
     UI.modal({titulo:p.id?'Editar pedido':'Nuevo pedido',alAbrir:function(h){if(p.id)Pestanas.edita(Pestanas.ref(p.numero),'El pedido '+p.numero);h.oninput=function(e){if(/^(pnNumero|pnND)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onchange=function(e){if(/^(pnOrigen|pnTipo|pnTD)$/.test(e.target.id)){firmaAviso='';avisoDup();}};h.onclick=function(e){var b=U.cerca(e.target,'data-a',h);if(b&&b.getAttribute('data-a')==='pnRevisar'){var x=Pedidos.porId(b.getAttribute('data-x'));UI.cerrarModal();editar(x);}};if(p.id)avisoDup();},html:
-      (p.id?Pestanas.aviso(Pestanas.ref(p.numero),'El pedido '+p.numero):'')+'<label class="lbl">ORIGEN</label><select id="pnOrigen" class="inp sm">'+U.map(origenes,function(x){return '<option'+(p.origen===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
-      '<label class="lbl">TIPO</label><select id="pnTipo" class="inp sm">'+U.map(tipos,function(x){return '<option'+(p.tipo===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
-      '<label class="lbl">N° PEDIDO / O.C.</label><input id="pnNumero" class="inp" value="'+U.esc(p.numero)+'">'+
-      '<label class="lbl">FECHA</label><input id="pnFecha" class="inp sm" type="date" value="'+U.esc(p.fecha)+'">'+
-      '<div class="fila"><div class="c"><label class="lbl">TIPO DOCUMENTO</label><select id="pnTD" class="inp sm"><option value=""></option>'+CubUI.tipos(p.tipoDocumento||'')+'</select></div><div class="c"><label class="lbl">N° DOCUMENTO</label><input id="pnND" class="inp sm" value="'+U.esc(p.numeroDocumento||'')+'"></div></div>'+
+      (p.id?Pestanas.aviso(Pestanas.ref(p.numero),'El pedido '+p.numero):'')+
+      '<div class="fila pn-fila"><div class="c"><label class="lbl" for="pnOrigen">ORIGEN</label><select id="pnOrigen" class="inp sm">'+U.map(origenes,function(x){return '<option'+(p.origen===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div>'+
+      '<div class="c"><label class="lbl" for="pnTipo">TIPO</label><select id="pnTipo" class="inp sm">'+U.map(tipos,function(x){return '<option'+(p.tipo===x?' selected':'')+'>'+x+'</option>';}).join('')+'</select></div></div>'+
+      '<div class="fila pn-fila"><div class="c"><label class="lbl" for="pnNumero">N° PEDIDO / O.C.</label><input id="pnNumero" class="inp sm" value="'+U.esc(p.numero)+'"></div>'+
+      '<div class="c"><label class="lbl" for="pnFecha">FECHA</label><input id="pnFecha" class="inp sm" type="date" value="'+U.esc(p.fecha)+'"></div></div>'+
+      '<div class="fila pn-fila"><div class="c"><label class="lbl" for="pnTD">TIPO DOCUMENTO</label><select id="pnTD" class="inp sm"><option value=""></option>'+CubUI.tipos(p.tipoDocumento||'')+'</select></div><div class="c"><label class="lbl" for="pnND">N° DOCUMENTO</label><input id="pnND" class="inp sm" value="'+U.esc(p.numeroDocumento||'')+'"></div></div>'+
+      '<div class="fila pn-fila"><div class="c"><label class="lbl" for="pnMonto">VALOR / TOTAL DEL PEDIDO $</label><input id="pnMonto" class="inp sm" inputmode="numeric" autocomplete="off" placeholder="Ej. 89.990" value="'+U.esc(Valores.num(p.monto)!=null?U.clp(Valores.num(p.monto)).replace(/^\$\s*/,''):'')+'"></div><div class="c pn-retc"><label class="chk pn-ret"><input type="checkbox" id="pnRetiro"'+(p.retiro?' checked':'')+'> PEDIDO PARA RETIRO <span class="unidad">el cliente lo retira; no se despacha por courier</span></label></div></div>'+
       est+
-      '<label class="chk pn-ret"><input type="checkbox" id="pnRetiro"'+(p.retiro?' checked':'')+'> PEDIDO PARA RETIRO <span class="unidad">el cliente lo retira; no se despacha por courier</span></label>'+
       '<label class="lbl">OBSERVACIÓN</label><input id="pnObs" class="inp sm" value="'+U.esc(p.observacion||'')+'"><div id="pnAviso"></div>',
       botones:[{txt:'CANCELAR',cls:'btn-sec'},{txt:'GUARDAR',cls:'btn-ok',fn:function(){
         if(!U.trim(U.$('pnNumero').value)){UI.toast('Falta número de pedido / O.C.','error');return false;}
+        if(U.trim(U.$('pnMonto').value)&&Valores.num(U.$('pnMonto').value)==null){UI.toast('Valor / total inválido: use solo números (ej. 89.990)','error');U.$('pnMonto').focus();return false;}
         var dups=avisoDup(), firma=U.map(dups,function(x){return x.p.id;}).join(',');
         if(p.id&&U.norm(p.numero)===U.norm(U.$('pnNumero').value)&&U.norm(p.numeroDocumento)===U.norm(U.$('pnND').value)&&U.norm(p.origen)===U.norm(U.$('pnOrigen').value)&&U.norm(p.tipo)===U.norm(U.$('pnTipo').value))dups=[];
         if(dups.length&&firmaAviso!==firma){firmaAviso=firma;UI.toast('Esta orden ya tiene registro'+(U.find(dups,function(x){return x.despacho;})?' con despacho asociado':'')+'. Si es otro despacho de la misma orden, pulse GUARDAR otra vez para registrarlo.','warn',5500);return false;}
@@ -5975,7 +6122,7 @@ Pantallas.pedidos = function (m) {
         var obs=U.$('pnObs').value;
         if(dups.length)obs=U.trim(obs+(obs?' · ':'')+'Registrado pese a aviso de duplicado ('+U.map(dups,function(x){return x.p.numero;}).join(', ')+')');
         var r=Pedidos.upsert({id:p.id,nuevo:!p.id,origen:U.$('pnOrigen').value,tipo:U.$('pnTipo').value,numero:U.$('pnNumero').value,fecha:U.$('pnFecha').value,
-          tipoDocumento:U.$('pnTD').value,numeroDocumento:U.$('pnND').value,estado:nuevoEstado,observacion:obs,retiro:U.$('pnRetiro').checked});
+          tipoDocumento:U.$('pnTD').value,numeroDocumento:U.$('pnND').value,estado:nuevoEstado,observacion:obs,retiro:U.$('pnRetiro').checked,monto:U.$('pnMonto').value});
         if(!r.ok){UI.toast(r.error,'error');return false;}
         if(r.avisoEstado){UI.toast(r.avisoEstado,'warn',5000);}
         if(Sync.modo()!=='local') Sync.programar(300);
@@ -6063,6 +6210,7 @@ Pantallas.cubicacion = function (m) {
     '<div class="cf-tit">BULTO</div><div class="cf-sec cf-med"><div class="cf cf-prod"><label class="lbl">PRODUCTO <span class="unidad">opcional · trae medidas y ubicación</span></label><input id="cuProd" class="inp sm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre o marca" data-enter="prodEnter"><div id="cuProdRes"></div><div id="cuProdSel"></div></div>' +
     '<div class="cf cf-dims fila num"><div class="c"><label class="lbl">ANCHO cm</label><input id="cuAncho" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuAlto"></div><div class="c"><label class="lbl">ALTO cm</label><input id="cuAlto" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuLargo"></div><div class="c"><label class="lbl">LARGO cm</label><input id="cuLargo" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuPeso"></div></div>' +
     '<div class="cf cf-peso num"><label class="lbl">PESO kg</label><input id="cuPeso" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="done" data-enter="agregar"></div>' +
+    '<div class="cf cf-valor num"><label class="lbl" for="cuValor">VALOR REF. $ <span class="unidad">opcional</span></label><input id="cuValor" class="inp" inputmode="numeric" autocomplete="off" enterkeyhint="done" data-enter="agregar"></div>' +
     '<div class="cf cf-add"><button class="btn btn-ok btn-xl" data-a="agregar">+ AGREGAR BULTO</button></div><div id="cuCalc" class="calc cf-calc"></div></div>' +
     '<div class="btns cf-acc"><button class="btn btn-sec" data-a="repetir">REPETIR MEDIDAS</button><button class="btn btn-sec" data-a="igual">OTRO IGUAL</button><button class="btn btn-sec" data-a="cotForm">COTIZAR</button><button class="btn btn-warn" data-a="limpiarDoc">LIMPIAR DOCUMENTO</button><button class="btn btn-sec" data-a="nuevo">NUEVO ID CUBICACIÓN</button></div></div>' +
     '<div class="card cub-lista"><div class="cl-head"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"></div><div id="cuPag"></div><div id="cuLista" class="lista-int"></div><div class="accbar"><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS DE VARIOS</button><button class="btn btn-sec" data-a="vouCub" id="cuVou">VOUCHER DE VARIOS</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button></div><div class="btns"><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn" data-a="packing">PACKING →</button></div></div></div>';
@@ -6081,11 +6229,13 @@ Pantallas.cubicacion = function (m) {
     if (!l.length) hh = '<div class="muted" style="padding:12px">Sin bultos.</div>';
     var grupos = {}, ordenG = [];
     U.each(l, function (b) { var k = CubUI.keyDe(b); if (!grupos[k]) { grupos[k] = []; ordenG.push(k); } grupos[k].push(b); });
-    CubUI.selDocs = {};
+    CubUI.selDocs = {}; CubUI._val = {};
     var pc = Pag.cortar('cub', ordenG);
     U.each(pc.items, function (k) {
-      var g = grupos[k], b0 = g[0], tot = CubUI.bultosDoc(k).length;
-      hh += '<div class="dochead"><div style="font-size:16px"><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s)</div>' +
+      var g = grupos[k], b0 = g[0], tot = CubUI.bultosDoc(k).length, gv = Valores.grupoCub(b0);
+      U.each(gv.bultos, function (x) { CubUI._val[x.id] = gv.rep.mapa[x.id]; });
+      hh += '<div class="dochead"><div style="font-size:16px"><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s)' + (gv.rep.suma != null ? ' · valor ' + Valores.txt(gv.rep.sinTotal ? gv.rep.suma : gv.rep.total) : '') + '</div>' +
+        (gv.rep.exceso ? '<div class="aviso amar" style="font-size:13px;margin:4px 0">Los valores de los bultos (' + Valores.txt(gv.rep.explicito) + ') superan el valor del pedido (' + Valores.txt(gv.rep.total) + ').</div>' : '') +
         EnvioDatos.linea(EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) +
         '<div class="btns"><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button><button class="btn btn-sec btn-sm" data-a="cotDoc" data-x="' + U.esc(k) + '">COTIZAR</button>' + EnvioDatos.boton('envDoc', k, EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) + '<button class="btn btn-sec btn-sm" data-a="rotDoc" data-x="' + U.esc(k) + '">RÓTULO A4</button></div></div>';
       U.each(g, function (b) { hh += CubUI.filaBulto(b); });
@@ -6097,7 +6247,7 @@ Pantallas.cubicacion = function (m) {
   CubUI.filaBulto = function (b) {
     var hh = '';
 
-      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + Plantillas.nTxt(b) + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + (b.productoDesc ? '<br>' + U.esc(b.productoDesc) : '') + (CorreosSat.deBulto(b) ? '<br><span class="est COMPLETO">CORREOS ' + U.esc(CorreosSat.deBulto(b).seguimiento || CorreosSat.deBulto(b).numeroEnvio) + '</span>' : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
+      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + Plantillas.nTxt(b) + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (function () { var vv = (CubUI._val && CubUI._val[b.id]) || Valores.deCub(b); return vv && vv.v != null ? ' · <b>' + Valores.txt(vv.v) + '</b>' + (vv.auto ? ' <span class="muted">(reparto)</span>' : '') : ''; })() + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + (b.productoDesc ? '<br>' + U.esc(b.productoDesc) : '') + (CorreosSat.deBulto(b) ? '<br><span class="est COMPLETO">CORREOS ' + U.esc(CorreosSat.deBulto(b).seguimiento || CorreosSat.deBulto(b).numeroEnvio) + '</span>' : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
 
     return hh;
   };
@@ -6130,6 +6280,8 @@ Pantallas.cubicacion = function (m) {
   var prodElegir = function (f) {
     CubUI.prod = { codigo: f.codigo, descripcion: f.descripcion, med: null };
     U.$('cuProd').value = ''; U.$('cuProdRes').innerHTML = ''; prodRes = [];
+    var cat = Catalogo.porCodigo(f.codigo), pr = Valores.num(f.precio != null && f.precio !== '' ? f.precio : (cat ? cat.precio : null));
+    if (pr != null && pr > 0 && U.$('cuValor')) U.$('cuValor').value = String(Math.round(pr));
     prodPintarSel(); prodUsar(true);
     var foco = U.$(Medidas.tiene(f.med) ? 'cuPeso' : 'cuAncho'); foco.focus(); if (foco.select) foco.select();
   };
@@ -6161,7 +6313,17 @@ Pantallas.cubicacion = function (m) {
     if (e.target.id === 'cuTipo') { CubUI.tipo = e.target.value; envioRes(); }
     if (e.target.id === 'cuPedido') { CubUI.pedidoId = e.target.value || null; App.ir('cubicacion'); }
   };
-  var leer = function () { return { pedidoId: CubUI.pedidoId || '', cubicacionId: CubUI.cubId, orden: U.$('cuOrden').value, tipoDocumento: U.$('cuTipo').value, numeroDocumento: U.$('cuDoc').value, ancho: U.num(U.$('cuAncho').value), alto: U.num(U.$('cuAlto').value), largo: U.num(U.$('cuLargo').value), peso: U.num(U.$('cuPeso').value), producto: CubUI.prod ? CubUI.prod.codigo : '', productoDesc: CubUI.prod ? CubUI.prod.descripcion : '' }; };
+  var leer = function () { return { pedidoId: CubUI.pedidoId || '', cubicacionId: CubUI.cubId, orden: U.$('cuOrden').value, tipoDocumento: U.$('cuTipo').value, numeroDocumento: U.$('cuDoc').value, ancho: U.num(U.$('cuAncho').value), alto: U.num(U.$('cuAlto').value), largo: U.num(U.$('cuLargo').value), peso: U.num(U.$('cuPeso').value), valor: U.$('cuValor') ? U.trim(U.$('cuValor').value) : '', producto: CubUI.prod ? CubUI.prod.codigo : '', productoDesc: CubUI.prod ? CubUI.prod.descripcion : '' }; };
+  var valorAyuda = function () {
+    var el = U.$('cuValor'); if (!el) return;
+    var pe = CubUI.pedidoId ? Pedidos.porId(CubUI.pedidoId) : EnvioDatos.buscarPedido(U.$('cuOrden').value, U.$('cuTipo').value, U.$('cuDoc').value), tot = pe ? Valores.num(pe.monto) : null;
+    if (tot == null) { el.placeholder = 'Opcional'; el.title = 'Valor referencial del bulto. El pedido no tiene valor/total registrado.'; return; }
+    var key = OT.docKey(U.$('cuOrden').value, U.$('cuTipo').value, U.$('cuDoc').value), S = 0;
+    U.each(CubPool.lista, function (x) { if (x.estado !== 'ELIMINADO' && OT.docKey(x.orden, x.tipoDocumento, x.numeroDocumento) === key) { var v = Valores.num(x.valor); if (v != null) S += v; } });
+    var resto = Math.max(0, Math.round(tot - S));
+    el.placeholder = 'Resto ' + Valores.txt(resto);
+    el.title = 'Valor del pedido ' + Valores.txt(tot) + '. Si lo deja vacío, el bulto toma el resto (repartido entre los bultos sin valor).';
+  };
   var envioRes = function () {
     var el = U.$('cuEnvioRes'); if (!el) return;
     var pe = CubUI.pedidoId ? Pedidos.porId(CubUI.pedidoId) : EnvioDatos.buscarPedido(U.$('cuOrden').value, U.$('cuTipo').value, U.$('cuDoc').value);
@@ -6171,6 +6333,7 @@ Pantallas.cubicacion = function (m) {
     el.innerHTML = (d && EnvioDatos.tieneDatos(d) ? 'Para: ' + U.esc(EnvioDatos.resumen(d)) : '') +
       (previos.length ? '<div class="aviso amar" style="margin:4px 0 0">Esta orden ya tiene despacho asociado: ' + U.esc(previos.slice(0, 4).join(' · ')) + (previos.length > 4 ? '…' : '') + '. Puede cubicar un nuevo despacho de la misma orden.</div>' : '');
     var bt = m.querySelector('[data-a="cuEnvio"]'); if (bt) bt.innerHTML = pe && pe.envio ? '✓ DATOS DE ENVÍO' : 'DATOS DE ENVÍO';
+    valorAyuda();
   };
   var acciones = {
     cuEnvio: function () { EnvioDatos.abrir({ pedidoId: CubUI.pedidoId || '', orden: U.$('cuOrden').value, tipoDocumento: U.$('cuTipo').value, numeroDocumento: U.$('cuDoc').value }, function () { envioRes(); }); },
@@ -6178,10 +6341,11 @@ Pantallas.cubicacion = function (m) {
       var now = +new Date(); if (now - CubUI.ultimoClick < 600) return; CubUI.ultimoClick = now;
       var d = leer(), er = CubPool.validar(d);
       if (er) { UI.toast(er.msg, 'error'); return; }
+      if (d.valor && Valores.num(d.valor) == null) { UI.toast('Valor referencial inválido: use solo números (ej. 45.990)', 'error'); U.$('cuValor').focus(); return; }
       if (!U.trim(d.numeroDocumento) && !d.pedidoId) { var pe0 = EnvioDatos.buscarPedido(d.orden, d.tipoDocumento, ''); if (pe0) d.pedidoId = pe0.id; }
       var b = CubPool.agregar(d); if (d.pedidoId) Pedidos.marcarCubicado(d.pedidoId);
-      U.each(['cuAncho', 'cuAlto', 'cuLargo', 'cuPeso'], function (id) { U.$(id).value = ''; });
-      calc(); pintar(); U.$('cuAncho').focus(); UI.toast('Bulto ' + Plantillas.nTxt(b) + ' del documento cubicado', 'ok');
+      U.each(['cuAncho', 'cuAlto', 'cuLargo', 'cuPeso', 'cuValor'], function (id) { if (U.$(id)) U.$(id).value = ''; });
+      calc(); pintar(); valorAyuda(); U.$('cuAncho').focus(); UI.toast('Bulto ' + Plantillas.nTxt(b) + ' del documento cubicado', 'ok');
       if (CubUI.prod && !CubUI.prod.repetido) CubUI.ofrecerFicha(d);
       CubUI.prod = null; prodPintarSel();
       if (U.$('cuProd')) U.$('cuProd').value = '';
@@ -6856,7 +7020,8 @@ Pantallas.packing = function (m) {
         UI.modal({ titulo: 'Imprimir ' + ot.numero, html: '<div class="muted">Mismo formato del manifiesto de transporte: una hoja por courier, con la dirección de envío de cada documento. Es un documento interno: no reemplaza al manifiesto.</div>' +
           (av.sinCourier.length ? '<div class="aviso rojo" style="font-size:14px">⚠ Sin courier: ' + U.esc(U.map(av.sinCourier, function (x) { return x.doc.orden; }).join(', ')) + '</div>' : '') +
           (av.sinDireccion.length ? '<div class="aviso amar" style="font-size:14px">⚠ Sin dirección de envío: ' + U.esc(U.map(av.sinDireccion, function (d) { return d.orden; }).join(', ')) + '</div>' : '') +
-          Manif.selectorCourier(ot, 'pkOtCour', '*'),
+          Manif.selectorCourier(ot, 'pkOtCour', '*') + '<div class="btns" style="margin-top:6px"><button type="button" class="btn btn-sec btn-sm" data-pk-cfg="1">DATOS A IMPRIMIR</button></div>',
+          alAbrir: function (hh) { hh.addEventListener('click', function (e) { if (U.cerca(e.target, 'data-pk-cfg', hh)) ManifCfg.editar(); }); },
           botones: [{ txt: '58 mm', cls: 'btn-sec', fn: function () { cour = U.$('pkOtCour').value; Impresion.imprimir(Plantillas.manifiesto58(ot, null, { tipo: 'OT', courier: Manif.opCourier(cour) }), { tipo: 'rollo', ancho: 58, margen: 2 }); } },
             { txt: '80 mm', cls: 'btn-sec', fn: function () { cour = U.$('pkOtCour').value; Impresion.imprimir(Plantillas.manifiesto58(ot, null, { tipo: 'OT', courier: Manif.opCourier(cour) }), { tipo: 'rollo', ancho: 80, margen: 3 }); } },
             { txt: 'A4', cls: 'btn-ok', fn: function () { cour = U.$('pkOtCour').value; Impresion.imprimir(Plantillas.manifiestoA4(ot, null, { tipo: 'OT', courier: Manif.opCourier(cour) }), { tipo: 'a4' }); } },
@@ -7244,7 +7409,7 @@ var DespachoGrupo = {
 Pantallas.despacho = function (m) { DespachoGrupo.pantalla(m); };
 
 var Compartida = {
-  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto', 'remitente', 'urlSeguimiento', 'rotuloFmt'],
+  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto', 'remitente', 'urlSeguimiento', 'rotuloFmt', 'manifCfg'],
   datos: function () { var o = {}; U.each(Compartida.CAMPOS, function (k) { if (DB.cfg[k] != null) o[k] = DB.cfg[k]; }); return o; },
   activo: function () { return Sync.modo() !== 'local' && !!DB.cfg.sync.token; },
   subir: function (cb) {
@@ -8498,10 +8663,10 @@ Pantallas.manifiesto = function (m) {
   });
   if (!Manif.otId || !OT.porId(Manif.otId) || !U.find(l, function (x) { return x.id === Manif.otId; })) Manif.otId = l.length ? l[0].id : null;
   var ot = Manif.otId ? OT.porId(Manif.otId) : null;
-  var h = '<div class="card mf-top"><div class="btns"><button class="btn ' + (Manif.vista === 'vigentes' ? 'btn-ok' : 'btn-sec') + '" data-a="mfVig">VIGENTES / EN GESTIÓN</button><button class="btn ' + (Manif.vista === 'historico' ? 'btn-ok' : 'btn-sec') + '" data-a="mfHist">HISTÓRICO</button></div>';
+  var h = '<div class="card mf-top"><div class="btns"><button class="btn ' + (Manif.vista === 'vigentes' ? 'btn-ok' : 'btn-sec') + '" data-a="mfVig">VIGENTES / EN GESTIÓN</button><button class="btn ' + (Manif.vista === 'historico' ? 'btn-ok' : 'btn-sec') + '" data-a="mfHist">HISTÓRICO</button><button class="btn btn-sec" data-a="mfCfg">DATOS A IMPRIMIR</button></div>';
   if (!ot) {
     m.innerHTML = h + '</div><div class="card"><h2>Sin OT en esta vista</h2><button class="btn btn-ok btn-xl" data-a="irPack">IR A PACKING</button></div>';
-    UI.delegar(m, { mfVig: function () { Manif.vista = 'vigentes'; Manif.otId = null; App.ir('manifiesto'); }, mfHist: function () { Manif.vista = 'historico'; Manif.otId = null; App.ir('manifiesto'); }, irPack: function () { App.ir('packing'); } });
+    UI.delegar(m, { mfCfg: function () { ManifCfg.editar(); }, mfVig: function () { Manif.vista = 'vigentes'; Manif.otId = null; App.ir('manifiesto'); }, mfHist: function () { Manif.vista = 'historico'; Manif.otId = null; App.ir('manifiesto'); }, irPack: function () { App.ir('packing'); } });
     return;
   }
   OT.recalcular(ot);
@@ -8582,6 +8747,7 @@ Pantallas.manifiesto = function (m) {
     mfNinguno: function () { Manif.sel.keys = []; U.each(U.qa(m, '.mfDoc'), function (x) { x.checked = false; }); selTxt(); },
     imp58: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiesto58(ot, keysImp(), { courier: Manif.opCourier(Manif.cour) }), { tipo: 'rollo', ancho: 58, margen: 2 }); },
     imp80: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiesto58(ot, keysImp(), { courier: Manif.opCourier(Manif.cour) }), { tipo: 'rollo', ancho: 80, margen: 3 }); },
+    mfCfg: function () { ManifCfg.editar(); },
     impA4: function () { if (!Manif.puedeImprimir(ot) || !Manif.sel.keys.length) { if (!Manif.sel.keys.length) UI.toast('Marque al menos un documento', 'error'); return; } Impresion.imprimir(Plantillas.manifiestoA4(ot, keysImp(), { courier: Manif.opCourier(Manif.cour) }), { tipo: 'a4' }); },
     reabrir: function () { Seguridad.admin('Reabrir ' + ot.numero, function (aut) { OT.reabrir(ot, aut); OT.setActiva(ot.id); App.ir('packing'); }); },
     todas: function () { Packing.imprimirTodas(ot); },
