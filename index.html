@@ -265,7 +265,7 @@ textarea.inp{font-size:13px;border-radius:8px}
 .btn{min-height:48px;border:1px solid transparent;border-radius:8px;font-size:15px;font-weight:600;letter-spacing:.3px;background:var(--pri);color:#fff;margin:8px 0 0;padding:8px 12px;-webkit-transition:background .15s,box-shadow .15s;transition:background .15s,box-shadow .15s}
 .btn:active{opacity:1;box-shadow:inset 0 0 0 100px rgba(0,0,0,.12)}
 .btn[disabled]{background:var(--dis-bg) !important;color:var(--dis-txt) !important;border-color:var(--dis-bg) !important;cursor:not-allowed}
-.btn-ok{background:var(--ok)}.btn-dan{background:var(--err)}.btn-warn{background:var(--warn)}
+.btn-ok{background:var(--ok)}.btn-dan{background:var(--err)}.btn-warn{background:var(--warn)}.btn-ent{background:#0b7fa3}
 .btn-sec{background:#fff;color:var(--pri);border:1px solid var(--borde-b)}
 .btn-sec:active{box-shadow:inset 0 0 0 100px rgba(107,42,114,.08)}
 .btn-xl{min-height:58px;font-size:18px;border-radius:10px}
@@ -629,7 +629,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.37.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.38.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -2467,54 +2467,98 @@ var EnvioDatos = {
       host.onchange = function (e) { if (e.target.id === 'edRemDef') U.$('edRemCampos').style.display = e.target.checked ? 'none' : ''; };
     } });
   },
-  selRetiro: function (on, dis) { return '<label class="chk ed-ret"><input type="checkbox" id="edRetSel"' + (on ? ' checked' : '') + (dis ? ' disabled' : '') + '> <b>PEDIDO PARA RETIRO</b> <span class="unidad">el cliente lo retira; no se despacha por courier</span></label>'; },
+  selRetiro: function (on, dis) { return '<label class="chk ed-ret"><input type="checkbox" id="edRetSel"' + (on ? ' checked' : '') + (dis ? ' disabled' : '') + '> <b>PEDIDO PARA RETIRO</b> <span class="unidad">se entrega o lo retira el cliente; no va por courier</span></label>'; },
+  bultosEntrega: function (p, ref) {
+    var ks = {}, id = p ? p.id : '';
+    if (p) ks[OT.docKey(p.numero, p.tipoDocumento, p.numeroDocumento)] = 1;
+    if (ref && ref.orden) ks[OT.docKey(ref.orden, ref.tipoDocumento, ref.numeroDocumento)] = 1;
+    var r = { libres: [], enOT: [], entregados: [], ots: [] };
+    U.each(CubPool.lista, function (b) {
+      if (b.estado === 'ELIMINADO') return;
+      if (!(id && b.pedidoId === id) && !ks[OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento)]) return;
+      if (b.estado === 'ENTREGADO') r.entregados.push(b);
+      else if (b.otId || b.estado !== 'DISPONIBLE') { r.enOT.push(b); if (b.otNumero && r.ots.indexOf(b.otNumero) < 0) r.ots.push(b.otNumero); }
+      else r.libres.push(b);
+    });
+    return r;
+  },
   abrirRetiro: function (ref, p, alGuardar, man) {
-    p = Pedidos.porId(p.id) || p;
-    var rd = p.retiroDatos || {}, dest = (p.envio && p.envio.destinatario) || {}, hecho = !!rd.fecha, orden = p.numero;
-    var docTxt = p.tipoDocumento ? p.tipoDocumento + ' ' + (p.numeroDocumento || 'sin número') : 'sin documento', refP = Pestanas.ref(orden);
+    p = p ? (Pedidos.porId(p.id) || p) : null;
+    ref = ref || {};
+    var rd = (p && p.retiroDatos) || {}, dest = (p && p.envio && p.envio.destinatario) || {}, hecho = !!(p && rd.fecha && p.estado === 'ENTREGADO'), orden = p ? p.numero : U.trim(ref.orden);
+    if (!orden) { UI.toast('Escriba primero la orden / ticket', 'error'); return; }
+    var docTxt = p ? (p.tipoDocumento ? p.tipoDocumento + ' ' + (p.numeroDocumento || 'sin número') : 'sin documento') : (ref.tipoDocumento || ref.numeroDocumento ? (ref.tipoDocumento || '') + ' ' + (ref.numeroDocumento || 'sin número') : 'sin documento');
+    var refP = Pestanas.ref(orden), bs = EnvioDatos.bultosEntrega(p, ref);
     var fh = function (iso) { var d = new Date(iso); return isNaN(d.getTime()) ? '' : U.fechaCL(U.fechaISO(d)) + ' ' + U.hora(d); };
     var nom = rd.nombre || (hecho ? '' : dest.nombre || ''), rut = rd.rut || (hecho ? '' : dest.rut || ''), tel = rd.telefono || (hecho ? '' : dest.telefono || '');
-    var html = '<div class="muted">Orden <b>' + U.esc(orden) + '</b> · ' + U.esc(docTxt) + '</div>' + EnvioDatos.selRetiro(true, hecho) +
-      (hecho ? '<div class="msg ed-guardado">Retiro registrado el ' + U.esc(fh(rd.fecha)) + (rd.usuario ? ' por ' + U.esc(rd.usuario) : '') + '. El pedido quedó <b>ENTREGADO</b>.</div>' : Pestanas.aviso(refP, 'La orden ' + orden)) +
-      '<div class="cf-tit ed-rtit">DATOS DE RETIRO</div>' +
-      '<div class="fila"><div class="c"><label class="lbl" for="erNom">QUIÉN RETIRA</label><input id="erNom" class="inp sm" maxlength="80" autocomplete="off" value="' + U.esc(nom) + '"></div>' +
+    var estBul = hecho ? (bs.entregados.length ? bs.entregados.length + ' bulto(s) cerrados como ENTREGADO, en el histórico de cubicación.' : '') :
+      (bs.libres.length ? '<b>' + bs.libres.length + ' bulto(s)</b> de cubicación pasan a ENTREGADO y salen de pendientes y de packing.' : 'No hay bultos pendientes en cubicación para esta orden.');
+    var html = '<div class="muted">Orden <b>' + U.esc(orden) + '</b> · ' + U.esc(docTxt) + (p ? '' : ' · <b>se registrará como pedido</b>') + '</div>' + EnvioDatos.selRetiro(true, hecho) +
+      (hecho ? '<div class="msg ed-guardado">Entrega registrada el ' + U.esc(fh(rd.fecha)) + (rd.usuario ? ' por ' + U.esc(rd.usuario) : '') + '. El pedido quedó <b>ENTREGADO</b> y su flujo está cerrado.</div>' : Pestanas.aviso(refP, 'La orden ' + orden)) +
+      '<div class="cf-tit ed-rtit">QUIÉN RECIBE O RETIRA</div>' +
+      '<div class="fila"><div class="c"><label class="lbl" for="erNom">NOMBRE</label><input id="erNom" class="inp sm" maxlength="80" autocomplete="off" value="' + U.esc(nom) + '"></div>' +
       '<div class="c"><label class="lbl" for="erRut">RUT <span class="unidad">opcional</span></label><input id="erRut" class="inp sm" maxlength="14" autocomplete="off" data-rut="1" placeholder="12.345.678-9" value="' + U.esc(rut ? Rut.formato(rut) : '') + '"></div></div>' +
       '<div class="fila"><div class="c"><label class="lbl" for="erTel">TELÉFONO <span class="unidad">opcional</span></label><input id="erTel" class="inp sm" maxlength="15" inputmode="tel" autocomplete="off" placeholder="56912345678" value="' + U.esc(tel) + '"></div>' +
       '<div class="c"><label class="lbl" for="erObs">OBSERVACIÓN</label><input id="erObs" class="inp sm" maxlength="200" autocomplete="off" value="' + U.esc(rd.obs || '') + '"></div></div>' +
-      (hecho ? '' : '<div class="muted" style="margin-top:6px">Al registrar el retiro el pedido queda <b>ENTREGADO</b> y se cierra su flujo.</div>');
+      (estBul ? '<div class="muted ed-rbul" style="margin-top:6px">' + estBul + '</div>' : '') +
+      (!hecho && bs.enOT.length ? '<div class="aviso amar" style="font-size:13px;margin-top:6px">' + bs.enOT.length + ' bulto(s) están en ' + U.esc(bs.ots.join(', ') || 'una OT') + ' y no se cierran aquí: quítelos de la OT si también se entregan.</div>' : '') +
+      (hecho ? '' : '<div class="muted" style="margin-top:6px">Al registrar la entrega el pedido queda <b>ENTREGADO</b>, pasa al histórico y se cierra su flujo.</div>');
     var leer = function () { return { nombre: U.norm(U.$('erNom').value).replace(/\s+/g, ' '), rut: U.trim(U.$('erRut').value), telefono: String(U.$('erTel').value || '').replace(/[^0-9+]/g, ''), obs: U.trim(U.$('erObs').value) }; };
     var validar = function (d, exigir) {
       Rut.revisarTodos(U.$('modalHost'));
-      if (exigir && !d.nombre) { UI.toast('Indique quién retira', 'error'); U.$('erNom').focus(); return false; }
+      if (exigir && !d.nombre) { UI.toast('Indique quién recibe o retira', 'error'); U.$('erNom').focus(); return false; }
       if (d.rut && !Rut.valido(d.rut)) { UI.toast(Rut.MSG, 'error', 5000); U.$('erRut').focus(); return false; }
       var dig = d.telefono.replace(/\D/g, ''); if (d.telefono && (dig.length < 8 || dig.length > 12)) { UI.toast('Teléfono: entre 8 y 12 dígitos', 'error'); return false; }
       return true;
     };
+    var pedido = function () {
+      var x = p ? Pedidos.porId(p.id) : EnvioDatos.buscarPedido(ref.orden, ref.tipoDocumento, ref.numeroDocumento);
+      if (x) return x;
+      var r = Pedidos.upsert({ origen: 'MANUAL', tipo: 'PEDIDO', numero: ref.orden, tipoDocumento: ref.tipoDocumento, numeroDocumento: ref.numeroDocumento });
+      if (!r.ok) { UI.toast(r.error, 'error'); return null; }
+      return r.pedido;
+    };
+    var fin = function (x) { if (Sync.modo() !== 'local') Sync.programar(300); UI.cerrarModal(); if (alGuardar) alGuardar(x); else if (App.pantalla) App.ir(App.pantalla); };
     var guardar = function (d, cerrar) {
-      var x = Pedidos.porId(p.id); if (!x) return;
-      var o = { nombre: d.nombre, rut: d.rut ? Rut.canon(d.rut) : '', telefono: d.telefono, obs: d.obs, fecha: cerrar ? new Date().toISOString() : '', usuario: cerrar ? (DB.cfg.operador || '') : '' };
+      var x = pedido(); if (!x) return;
+      var ahora = new Date().toISOString(), o = { nombre: d.nombre, rut: d.rut ? Rut.canon(d.rut) : '', telefono: d.telefono, obs: d.obs, fecha: cerrar ? ahora : '', usuario: cerrar ? (DB.cfg.operador || '') : '' };
       if (!o.nombre && !o.rut && !o.telefono && !o.obs && !o.fecha) delete x.retiroDatos; else x.retiroDatos = o;
       x.retiro = true;
-      if (cerrar) x.estado = 'ENTREGADO';
-      x.actualizado = new Date().toISOString(); SyncReg.marcar(x); Pedidos.guardar();
-      if (Sync.modo() !== 'local') Sync.programar(300);
-      UI.cerrarModal();
-      UI.toast(cerrar ? 'Retiro registrado: el pedido ' + orden + ' quedó ENTREGADO' : 'Datos de retiro guardados', 'ok', 4000);
-      if (alGuardar) alGuardar(x);
+      var n = 0;
+      if (cerrar) {
+        x.estado = 'ENTREGADO';
+        U.each(EnvioDatos.bultosEntrega(x, ref).libres, function (b) { b.estado = 'ENTREGADO'; b.entregado = ahora; if (!b.pedidoId) b.pedidoId = x.id; b.act = ahora; SyncReg.marcar(b); n++; });
+        if (n) StorageManager.guardar(CLAVES.cubicacion, CubPool.lista);
+      }
+      x.actualizado = ahora; SyncReg.marcar(x); Pedidos.guardar();
+      UI.toast(cerrar ? 'Entrega registrada: el pedido ' + orden + ' quedó ENTREGADO' + (n ? ' y ' + n + ' bulto(s) pasaron al histórico' : '') : 'Datos de entrega guardados', 'ok', 4500);
+      fin(x);
+    };
+    var anular = function () {
+      var x = Pedidos.porId(p.id); if (!x) return;
+      var ahora = new Date().toISOString();
+      U.each(EnvioDatos.bultosEntrega(x, ref).entregados, function (b) { b.estado = 'DISPONIBLE'; delete b.entregado; b.act = ahora; SyncReg.marcar(b); });
+      StorageManager.guardar(CLAVES.cubicacion, CubPool.lista);
+      if (x.retiroDatos) { x.retiroDatos.fecha = ''; x.retiroDatos.usuario = ''; }
+      x.estado = 'RECIBIDO'; x.estado = Pedidos.estadoOperativo(x);
+      x.actualizado = ahora; SyncReg.marcar(x); Pedidos.guardar();
+      UI.toast('Entrega anulada: la orden ' + orden + ' vuelve a pendientes', 'ok', 4000);
+      fin(x);
     };
     var botones = [{ txt: hecho ? 'CERRAR' : 'CANCELAR', cls: 'btn-sec' }];
-    if (!hecho) {
+    if (hecho) botones.unshift({ txt: 'ANULAR ENTREGA', cls: 'btn-warn', fn: function () { UI.confirmar('¿Anular la entrega de la orden ' + orden + '? El pedido y sus bultos vuelven a quedar pendientes.', anular, { titulo: 'Anular entrega', si: 'SÍ, ANULAR' }); return false; } });
+    else {
       botones.push({ txt: 'GUARDAR', cls: 'btn-sec', fn: function () { var d = leer(); if (!validar(d, false)) return false; guardar(d, false); return false; } });
-      botones.push({ txt: 'REGISTRAR RETIRO', cls: 'btn-ok', fn: function () { var d = leer(); if (!validar(d, true)) return false; UI.confirmar('¿Registrar el retiro de la orden ' + orden + ' por ' + d.nombre + '? El pedido quedará ENTREGADO y se cierra su flujo.', function () { guardar(d, true); }, { titulo: 'Registrar retiro', si: 'SÍ, REGISTRAR' }); return false; } });
+      botones.push({ txt: 'REGISTRAR ENTREGA', cls: 'btn-ok', fn: function () { var d = leer(); if (!validar(d, true)) return false; UI.confirmar('¿Registrar la entrega de la orden ' + orden + ' a ' + d.nombre + '? El pedido quedará ENTREGADO' + (bs.libres.length ? ', sus ' + bs.libres.length + ' bulto(s) pasan al histórico' : '') + ' y se cierra su flujo.', function () { guardar(d, true); }, { titulo: 'Registrar entrega', si: 'SÍ, REGISTRAR' }); return false; } });
     }
-    UI.modal({ titulo: 'Datos de retiro', html: html, botones: botones, alAbrir: function (host) {
+    UI.modal({ titulo: 'Entrega o retiro', html: html, botones: botones, alAbrir: function (host) {
       if (hecho) U.each(U.qa(host, '#erNom, #erRut, #erTel, #erObs'), function (el) { el.disabled = true; el.removeAttribute('placeholder'); });
       else Pestanas.edita(refP, 'La orden ' + orden);
       var selR = U.$('edRetSel');
       if (selR) selR.onchange = function () {
         if (selR.checked) return;
-        var r = Pedidos.marcarRetiro(p.id, false); if (r.ok && Sync.modo() !== 'local') Sync.programar(300);
-        EnvioDatos.abrir({ pedidoId: p.id }, alGuardar, man);
+        if (p) { var r = Pedidos.marcarRetiro(p.id, false); if (r.ok && Sync.modo() !== 'local') Sync.programar(300); }
+        EnvioDatos.abrir(p ? { pedidoId: p.id } : ref, alGuardar, man, { envio: true });
       };
     } });
   },
@@ -5669,6 +5713,16 @@ var CubUI = {
   pedidoId: null, cubId: '', tipo: 'FACTURA', ultimoClick: 0, vista: 'pendientes', selDocs: {} };
 
 CubUI.keyDe = function (b) { return OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento); };
+CubUI.botonEntrega = function (k, g) {
+  var b0 = g[0], p = CubPool.pedidoDe(b0) || EnvioDatos.buscarPedido(b0.orden, b0.tipoDocumento, b0.numeroDocumento), ok = p && p.estado === 'ENTREGADO' && p.retiroDatos && p.retiroDatos.fecha;
+  return '<button class="btn btn-sm ' + (ok ? 'btn-sec' : 'btn-ent') + '" data-a="entDoc" data-x="' + U.esc(k) + '">' + (ok ? '✓ ENTREGADO' : 'ENTREGA / RETIRO') + '</button>';
+};
+CubUI.entrega = function (k, alFin) {
+  var l = CubUI.bultosDoc(k), b0 = l[0];
+  if (!b0) return;
+  var ref = EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, l), p = (ref.pedidoId && Pedidos.porId(ref.pedidoId)) || EnvioDatos.buscarPedido(ref.orden, ref.tipoDocumento, ref.numeroDocumento);
+  EnvioDatos.abrirRetiro(ref, p, alFin);
+};
 CubUI.bultosDoc = function (key) {
   var l = U.filter(CubPool.lista, function (b) { return b.estado !== 'ELIMINADO' && CubUI.keyDe(b) === key; });
   l.sort(function (a, b) { return (a.numero || 0) - (b.numero || 0) || ((a.act || '') < (b.act || '') ? -1 : 1); });
@@ -5769,7 +5823,9 @@ CubUI.editarBulto = function (id) {
     (hermanos.length ? '<label class="chk"><input type="checkbox" id="ceTodos"> Aplicar pedido, orden y documento también a los otros ' + hermanos.length + ' bulto(s) de ' + U.esc(b.orden) + '</label>' : '') +
     '<div class="msg">Estado: <b>' + U.esc(b.estado) + '</b>' + (b.otNumero ? ' · OT ' + U.esc(b.otNumero) : '') + '</div>';
   var botones = [];
-  if (b.estado === 'DISPONIBLE') {
+  if (b.estado === 'ENTREGADO') {
+    botones.push({ txt: 'VER ENTREGA', cls: 'btn-sec', fn: function () { UI.cerrarModal(); CubUI.entrega(CubUI.keyDe(b)); return false; } });
+  } else if (b.estado === 'DISPONIBLE') {
     botones.push({ txt: 'ELIMINAR', cls: 'btn-dan', fn: function () {
       UI.confirmar('¿Eliminar definitivamente este bulto?', function () {
         var r = CubPool.borrar(id);
@@ -6148,7 +6204,7 @@ Pantallas.pedidos = function (m) {
         return;
       }
       hh +='<!--pe--><div class="doc'+(p.retiro?' pe-retiro':'')+'" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(Listas.etq('ESTADO',p.estado))+'</span><label class="pe-ret" title="Marcar si el cliente retira el pedido"><input type="checkbox" data-ret="'+p.id+'"'+(p.retiro?' checked':'')+'> RETIRO</label></div><div class="o">'+U.esc(p.numero)+(p.retiro?' <span class="tag-ret">PARA RETIRO</span>':'')+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(Valores.num(p.monto)!=null?' · '+U.esc(Valores.txt(Valores.num(p.monto))):'')+'</div></div>'+
-        '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.retiro?(p.retiroDatos&&p.retiroDatos.fecha?'✓ RETIRADO':'DATOS DE RETIRO'):(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO'))+'</button>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<button class="btn btn-sec btn-sm" data-a="pedRotulo" data-x="'+p.id+'">RÓTULO</button>':'')+'<button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
+        '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.retiro?(p.retiroDatos&&p.retiroDatos.fecha&&p.estado==='ENTREGADO'?'✓ ENTREGADO':'ENTREGA / RETIRO'):(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO'))+'</button>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<button class="btn btn-sec btn-sm" data-a="pedRotulo" data-x="'+p.id+'">RÓTULO</button>':'')+'<button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
     });
     var bloques = hh ? hh.split('<!--pe-->') : [];
     if (bloques.length && !bloques[0]) bloques.shift();
@@ -6313,7 +6369,7 @@ Pantallas.cubicacion = function (m) {
       hh += '<div class="dochead"><div style="font-size:16px"><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s)' + (gv.rep.suma != null ? ' · valor ' + Valores.txt(gv.rep.sinTotal ? gv.rep.suma : gv.rep.total) : '') + '</div>' +
         (gv.rep.exceso ? '<div class="aviso amar" style="font-size:13px;margin:4px 0">Los valores de los bultos (' + Valores.txt(gv.rep.explicito) + ') superan el valor del pedido (' + Valores.txt(gv.rep.total) + ').</div>' : '') +
         EnvioDatos.linea(EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) +
-        '<div class="btns"><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button><button class="btn btn-sec btn-sm" data-a="cotDoc" data-x="' + U.esc(k) + '">COTIZAR</button>' + EnvioDatos.boton('envDoc', k, EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) + '<button class="btn btn-sec btn-sm" data-a="rotDoc" data-x="' + U.esc(k) + '">RÓTULO A4</button></div></div>';
+        '<div class="btns"><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button><button class="btn btn-sec btn-sm" data-a="cotDoc" data-x="' + U.esc(k) + '">COTIZAR</button>' + EnvioDatos.boton('envDoc', k, EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) + '<button class="btn btn-sec btn-sm" data-a="rotDoc" data-x="' + U.esc(k) + '">RÓTULO A4</button>' + CubUI.botonEntrega(k, g) + '</div></div>';
       U.each(g, function (b) { hh += CubUI.filaBulto(b); });
     });
     var cl = U.$('cuLista'), sc = cl.scrollTop; cl.innerHTML = hh; cl.scrollTop = sc;
@@ -6502,6 +6558,7 @@ Pantallas.cubicacion = function (m) {
     vouDoc: function (k) { CubUI.voucherDocs([k]); },
     etqDoc: function (k) { CubUI.imprimirDocs([k]); },
     rotDoc: function (k) { var l = CubUI.bultosDoc(k), b0 = l[0]; if (b0) RotuloDir.abrir([{ ot: null, d: { orden: b0.orden, tipoDocumento: b0.tipoDocumento, numeroDocumento: b0.numeroDocumento, pedidoId: b0.pedidoId }, bultos: l }]); },
+    entDoc: function (k) { CubUI.entrega(k, function () { if (U.$('cuLista')) { pintar(); envioRes(); } }); },
     envDoc: function (k) {
       var l = CubUI.bultosDoc(k), b0 = l[0];
       if (!b0) return;
@@ -6974,7 +7031,7 @@ Pantallas.packing = function (m) {
           '<input type="checkbox" data-bid="' + b.id + '" style="width:24px;height:24px;vertical-align:middle;margin-right:8px"' + (PackUI.seleccion[b.id] ? ' checked' : '') + '>' +
           'BULTO ' + Plantillas._posBulto(null, b).pos + '/' + Plantillas._posBulto(null, b).tot + ' &nbsp; ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm &nbsp; ' + U.fx(b.peso, 2) + ' kg</label>';
       });
-      hh += '</div>';
+      hh += '<div class="btns" style="margin-top:8px">' + CubUI.botonEntrega(CubUI.keyDe(b0), g) + '</div></div>';
     }
     hh += '<div class="card"><div id="paSelRes" class="msg" style="font-size:17px"></div>' +
       '<div class="btns"><button class="btn btn-sec" data-a="limpiar">LIMPIAR SELECCIÓN</button>' +
@@ -7026,6 +7083,7 @@ Pantallas.packing = function (m) {
     },
     ots: PackingUI.elegirOT,
     historico: PackingUI.historico,
+    entDoc: function (k) { CubUI.entrega(k, function () { PackUI.seleccion = {}; App.ir('packing'); }); },
     limpiar: function () { PackUI.seleccion = {}; var cs = U.qa(m, 'input[data-bid]'); U.each(cs, function (c) { c.checked = false; }); PackingUI.actualizarSeleccion(); },
     incorporar: function () {
       var ot2 = OT.activa();
