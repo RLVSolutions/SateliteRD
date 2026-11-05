@@ -580,7 +580,14 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 .ip-av.info{color:var(--txt2)}
 .pn-ret{margin-top:10px;font-weight:700;color:#0a5f7a}
 .pn-retc{display:-webkit-flex;display:flex;-webkit-align-items:flex-end;align-items:flex-end}
-.pn-retc .pn-ret{margin:0 0 8px}
+.pn-retc .pn-ret{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;gap:8px;box-sizing:border-box;width:100%;min-height:36px;margin:0;padding:0 10px;border:1px solid var(--borde-b);border-radius:var(--radio);background:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pn-retc .pn-ret .unidad{display:none}
+.pn-retc .pn-ret input{margin:0;width:18px;height:18px;flex:0 0 auto;accent-color:#0b7fa3}
+.ed-ret{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;gap:8px;margin:8px 0 6px;padding:8px 10px;border:1px solid var(--borde-b);border-radius:var(--radio);color:#0a5f7a;background:#f5fbfd}
+.ed-ret input{margin:0;width:18px;height:18px;flex:0 0 auto;accent-color:#0b7fa3}
+.ed-ret .unidad{color:var(--txt2)}
+.ed-rtit{margin-top:8px}
+.rl-al{width:92px;flex:0 0 92px}
 .ed-guardado{font-size:13px;background:var(--ok-suave);color:var(--ok-txt);border-left:4px solid var(--ok)}
 .ed-cmp td{vertical-align:top}
 .ed-cmp td.ed-nuevo{color:var(--ok-txt);font-weight:600}
@@ -622,7 +629,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.36.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.37.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -952,7 +959,11 @@ var FORMATOS_BULTO_DEFECTO = [
   { id: 'bul-60x40', uso: 'bulto', nombre: 'Bulto troquelada 60×40', tipo: 'troquel', ancho: 60, alto: 40, barra: false, campoBarra: 'orden', altoBarra: 8, textoBarra: false,
     campos: [{ k: 'bulto', pt: 28, b: true }, { k: 'orden', pt: 18, b: true }, { k: 'documento', pt: 10, b: false }, { k: 'seguimiento', pt: 10, b: true }, { k: 'courier', pt: 9, b: true }, { k: 'ot', pt: 8, b: false }] },
   { id: 'bul-58-rollo', uso: 'bulto', nombre: 'Bulto rollo 58 mm completo', tipo: 'rollo', ancho: 58, alto: 0, barra: true, campoBarra: 'orden', altoBarra: 11, textoBarra: false,
-    campos: [{ k: 'empresa', pt: 12, b: true }, { k: 'bulto', pt: 28, b: true }, { k: 'ot', pt: 9, b: false }, { k: 'orden', pt: 16, b: true }, { k: 'documento', pt: 14, b: true }, { k: 'seguimiento', pt: 12, b: true }, { k: 'courier', pt: 11, b: true }, { k: 'medidas', pt: 12, b: true }, { k: 'peso', pt: 12, b: true }, { k: 'producto', pt: 9, b: false }, { k: 'fecha', pt: 9, b: false }] }
+    campos: [{ k: 'empresa', pt: 12, b: true }, { k: 'bulto', pt: 28, b: true }, { k: 'ot', pt: 9, b: false }, { k: 'orden', pt: 16, b: true }, { k: 'documento', pt: 14, b: true }, { k: 'seguimiento', pt: 12, b: true }, { k: 'courier', pt: 11, b: true }, { k: 'medidas', pt: 12, b: true }, { k: 'peso', pt: 12, b: true }, { k: 'producto', pt: 9, b: false }, { k: 'fecha', pt: 9, b: false }] },
+  { id: 'bul-60x100', uso: 'bulto', nombre: 'Bulto troquelada 60×100 (vertical)', tipo: 'troquel', ancho: 60, alto: 100, barra: true, campoBarra: 'orden', altoBarra: 12, textoBarra: true, act: '2026-11-05T00:00:00.000Z',
+    campos: [{ k: 'empresa', pt: 14, b: true }, { k: 'bulto', pt: 40, b: true }, { k: 'orden', pt: 24, b: true }, { k: 'documento', pt: 14, b: true }, { k: 'seguimiento', pt: 12, b: true }, { k: 'courier', pt: 12, b: true }, { k: 'ot', pt: 10, b: false }, { k: 'medidas', pt: 11, b: false }, { k: 'peso', pt: 11, b: false }] },
+  { id: 'bul-60x100h', uso: 'bulto', nombre: 'Bulto troquelada 60×100 (horizontal)', tipo: 'troquel', ancho: 60, alto: 100, horizontal: true, barra: true, campoBarra: 'orden', altoBarra: 10, textoBarra: true, act: '2026-11-05T00:00:00.000Z',
+    campos: [{ k: 'empresa', pt: 12, b: true }, { k: 'bulto', pt: 34, b: true }, { k: 'orden', pt: 22, b: true }, { k: 'documento', pt: 12, b: true }, { k: 'courier', pt: 11, b: true }, { k: 'seguimiento', pt: 11, b: true }] }
 ];
 var ROTULO_LIBRE_DEFECTO = { cantidad: 1, prefijo: '', orden: '', cliente: '',
   lineas: [{ t: '{bulto}', pt: 26, b: true }, { t: '{orden}', pt: 16, b: true }, { t: '{cliente}', pt: 12, b: false }, { t: '{fecha}', pt: 10, b: false }] };
@@ -969,6 +980,9 @@ var DB = {
     var f = StorageManager.leer(CLAVES.formatos, null);
     DB.formatos = (U.esArray(f) && f.length) ? f : U.clone(FORMATOS_DEFECTO);
     if (!U.find(DB.formatos, function (x) { return x.uso === 'bulto'; })) { DB.formatos = DB.formatos.concat(U.clone(FORMATOS_BULTO_DEFECTO)); DB.guardarFormatos(); }
+    var agr = U.esArray(DB.cfg.fmtAgregados) ? DB.cfg.fmtAgregados : [], elimF = DB.cfg.formatosElim || {}, nuevosF = false;
+    U.each(['bul-60x100', 'bul-60x100h'], function (id) { if (agr.indexOf(id) >= 0) return; agr.push(id); nuevosF = true; var fd = U.find(FORMATOS_BULTO_DEFECTO, function (x) { return x.id === id; }); if (fd && !elimF[id] && !U.find(DB.formatos, function (x) { return x.id === id; })) DB.formatos.push(U.clone(fd)); });
+    if (nuevosF) { DB.cfg.fmtAgregados = agr; DB.guardarFormatos(); }
     if (!U.esArray(f) || !f.length) DB.guardarFormatos();
     if (StorageManager.leer(CLAVES.config, null) == null) DB.guardarCfg();
     OT.cargar();
@@ -1285,7 +1299,7 @@ var Pestanas = {
     var ref = el.getAttribute('data-ref');
     el.style.display = ref && Pestanas.enOtra(ref) ? '' : 'none';
   },
-  aviso: function (ref, txt) { return '<div id="pestAviso" class="aviso amar" data-ref="' + U.esc(ref) + '" style="font-size:13px' + (Pestanas.enOtra(ref) ? '' : ';display:none') + '">' + U.esc(txt || 'Este registro') + ' también está abierto para edición en otra pestaña. Se conserva lo último que se guarde.</div>'; },
+  aviso: function (ref, txt) { return '<div id="pestAviso" class="aviso amar" data-ref="' + U.esc(ref) + '" style="font-size:13px' + (Pestanas.enOtra(ref) ? '' : ';display:none') + '">' + U.esc(txt || 'Este registro') + ' también se está editando en otra pestaña. Se conserva lo último que se guarde.</div>'; },
   ref: function (numero) { return 'orden:' + U.norm(numero || ''); },
   RECARGAR: {
     rdm_pedidos: function () { Pedidos.cargar(); },
@@ -2385,6 +2399,7 @@ var EnvioDatos = {
     if (!p) p = EnvioDatos.buscarPedido(ref.orden, ref.tipoDocumento, ref.numeroDocumento);
     var orden = p ? p.numero : U.trim(ref.orden);
     if (!orden) { UI.toast('Escriba primero la orden / ticket', 'error'); return; }
+    if (p && p.retiro && !op.envio) { EnvioDatos.abrirRetiro(ref, p, alGuardar, man); return; }
     var env = (p && p.envio) || {}, dest = EnvioDatos.limpiar(env.destinatario || {}), remP = env.remitente && env.remitente.usarDefecto === false;
     var rem = remP ? EnvioDatos.limpiar(env.remitente) : EnvioDatos.remitenteDefecto(), remDef = EnvioDatos.remitenteDefecto();
     var guardado = !!(p && p.envio && (EnvioDatos.tieneDatos(p.envio.destinatario) || remP)), bloqueado = guardado && !op.editar, refP = Pestanas.ref(orden);
@@ -2392,6 +2407,7 @@ var EnvioDatos = {
     var inicial = op.inicial || EnvioDatos.comparable(p && p.envio);
     var docTxt = p ? (p.tipoDocumento ? p.tipoDocumento + ' ' + (p.numeroDocumento || 'sin número') : 'sin documento') : ((ref.tipoDocumento || '') + ' ' + (ref.numeroDocumento || 'sin número'));
     var html = '<div class="muted">Orden <b>' + U.esc(orden) + '</b> · ' + U.esc(docTxt) + (p ? '' : ' · <b>se registrará como pedido</b>') + '</div>' +
+      (p ? EnvioDatos.selRetiro(false) : '') +
       (bloqueado ? '<div class="msg ed-guardado">Datos de envío guardados' + (env.act ? ' el ' + U.esc(U.fechaCL(U.fechaISO(new Date(env.act))) + ' ' + U.hora(new Date(env.act))) : '') + (env.usuario ? ' por ' + U.esc(env.usuario) : '') + '. Para modificarlos pulse <b>EDITAR</b>.</div>' : '<div class="muted">Todos los campos son opcionales. La extensión los traspasa al formulario de Correos.</div>' + Pestanas.aviso(refP, 'La orden ' + orden)) +
       (man && man.length ? '<div class="aviso amar" style="font-size:13px">Este documento ya está en el manifiesto de ' + U.esc(man.join(', ')) + '. Si cambia la dirección, reimprímalo.</div>' : '') +
       '<div class="btns" style="margin-top:8px"><button type="button" class="btn btn-ok btn-sm" data-tab="ed">DESTINATARIO</button><button type="button" class="btn btn-sec btn-sm" data-tab="er">REMITENTE</button></div>' +
@@ -2439,6 +2455,8 @@ var EnvioDatos = {
     UI.modal({ titulo: 'Datos de envío', html: html, botones: botones, alAbrir: function (host) {
       if (bloqueado) U.each(U.qa(host, '#edPanel input, #edPanel select, #edPanel textarea, #erPanel input, #erPanel select'), function (el) { el.disabled = true; el.removeAttribute('placeholder'); });
       else Pestanas.edita(refP, 'La orden ' + orden);
+      var selR = U.$('edRetSel');
+      if (selR) selR.onchange = function () { if (!selR.checked) return; var r = Pedidos.marcarRetiro(p.id, true); if (r.ok && Sync.modo() !== 'local') Sync.programar(300); EnvioDatos.abrirRetiro(ref, Pedidos.porId(p.id), alGuardar, man); };
       host.onclick = function (e) {
         var t = U.cerca(e.target, 'data-tab', host);
         if (!t) return;
@@ -2447,6 +2465,57 @@ var EnvioDatos = {
         U.each(host.querySelectorAll('[data-tab]'), function (b) { b.className = 'btn btn-sm ' + (b.getAttribute('data-tab') === k ? 'btn-ok' : 'btn-sec'); });
       };
       host.onchange = function (e) { if (e.target.id === 'edRemDef') U.$('edRemCampos').style.display = e.target.checked ? 'none' : ''; };
+    } });
+  },
+  selRetiro: function (on, dis) { return '<label class="chk ed-ret"><input type="checkbox" id="edRetSel"' + (on ? ' checked' : '') + (dis ? ' disabled' : '') + '> <b>PEDIDO PARA RETIRO</b> <span class="unidad">el cliente lo retira; no se despacha por courier</span></label>'; },
+  abrirRetiro: function (ref, p, alGuardar, man) {
+    p = Pedidos.porId(p.id) || p;
+    var rd = p.retiroDatos || {}, dest = (p.envio && p.envio.destinatario) || {}, hecho = !!rd.fecha, orden = p.numero;
+    var docTxt = p.tipoDocumento ? p.tipoDocumento + ' ' + (p.numeroDocumento || 'sin número') : 'sin documento', refP = Pestanas.ref(orden);
+    var fh = function (iso) { var d = new Date(iso); return isNaN(d.getTime()) ? '' : U.fechaCL(U.fechaISO(d)) + ' ' + U.hora(d); };
+    var nom = rd.nombre || (hecho ? '' : dest.nombre || ''), rut = rd.rut || (hecho ? '' : dest.rut || ''), tel = rd.telefono || (hecho ? '' : dest.telefono || '');
+    var html = '<div class="muted">Orden <b>' + U.esc(orden) + '</b> · ' + U.esc(docTxt) + '</div>' + EnvioDatos.selRetiro(true, hecho) +
+      (hecho ? '<div class="msg ed-guardado">Retiro registrado el ' + U.esc(fh(rd.fecha)) + (rd.usuario ? ' por ' + U.esc(rd.usuario) : '') + '. El pedido quedó <b>ENTREGADO</b>.</div>' : Pestanas.aviso(refP, 'La orden ' + orden)) +
+      '<div class="cf-tit ed-rtit">DATOS DE RETIRO</div>' +
+      '<div class="fila"><div class="c"><label class="lbl" for="erNom">QUIÉN RETIRA</label><input id="erNom" class="inp sm" maxlength="80" autocomplete="off" value="' + U.esc(nom) + '"></div>' +
+      '<div class="c"><label class="lbl" for="erRut">RUT <span class="unidad">opcional</span></label><input id="erRut" class="inp sm" maxlength="14" autocomplete="off" data-rut="1" placeholder="12.345.678-9" value="' + U.esc(rut ? Rut.formato(rut) : '') + '"></div></div>' +
+      '<div class="fila"><div class="c"><label class="lbl" for="erTel">TELÉFONO <span class="unidad">opcional</span></label><input id="erTel" class="inp sm" maxlength="15" inputmode="tel" autocomplete="off" placeholder="56912345678" value="' + U.esc(tel) + '"></div>' +
+      '<div class="c"><label class="lbl" for="erObs">OBSERVACIÓN</label><input id="erObs" class="inp sm" maxlength="200" autocomplete="off" value="' + U.esc(rd.obs || '') + '"></div></div>' +
+      (hecho ? '' : '<div class="muted" style="margin-top:6px">Al registrar el retiro el pedido queda <b>ENTREGADO</b> y se cierra su flujo.</div>');
+    var leer = function () { return { nombre: U.norm(U.$('erNom').value).replace(/\s+/g, ' '), rut: U.trim(U.$('erRut').value), telefono: String(U.$('erTel').value || '').replace(/[^0-9+]/g, ''), obs: U.trim(U.$('erObs').value) }; };
+    var validar = function (d, exigir) {
+      Rut.revisarTodos(U.$('modalHost'));
+      if (exigir && !d.nombre) { UI.toast('Indique quién retira', 'error'); U.$('erNom').focus(); return false; }
+      if (d.rut && !Rut.valido(d.rut)) { UI.toast(Rut.MSG, 'error', 5000); U.$('erRut').focus(); return false; }
+      var dig = d.telefono.replace(/\D/g, ''); if (d.telefono && (dig.length < 8 || dig.length > 12)) { UI.toast('Teléfono: entre 8 y 12 dígitos', 'error'); return false; }
+      return true;
+    };
+    var guardar = function (d, cerrar) {
+      var x = Pedidos.porId(p.id); if (!x) return;
+      var o = { nombre: d.nombre, rut: d.rut ? Rut.canon(d.rut) : '', telefono: d.telefono, obs: d.obs, fecha: cerrar ? new Date().toISOString() : '', usuario: cerrar ? (DB.cfg.operador || '') : '' };
+      if (!o.nombre && !o.rut && !o.telefono && !o.obs && !o.fecha) delete x.retiroDatos; else x.retiroDatos = o;
+      x.retiro = true;
+      if (cerrar) x.estado = 'ENTREGADO';
+      x.actualizado = new Date().toISOString(); SyncReg.marcar(x); Pedidos.guardar();
+      if (Sync.modo() !== 'local') Sync.programar(300);
+      UI.cerrarModal();
+      UI.toast(cerrar ? 'Retiro registrado: el pedido ' + orden + ' quedó ENTREGADO' : 'Datos de retiro guardados', 'ok', 4000);
+      if (alGuardar) alGuardar(x);
+    };
+    var botones = [{ txt: hecho ? 'CERRAR' : 'CANCELAR', cls: 'btn-sec' }];
+    if (!hecho) {
+      botones.push({ txt: 'GUARDAR', cls: 'btn-sec', fn: function () { var d = leer(); if (!validar(d, false)) return false; guardar(d, false); return false; } });
+      botones.push({ txt: 'REGISTRAR RETIRO', cls: 'btn-ok', fn: function () { var d = leer(); if (!validar(d, true)) return false; UI.confirmar('¿Registrar el retiro de la orden ' + orden + ' por ' + d.nombre + '? El pedido quedará ENTREGADO y se cierra su flujo.', function () { guardar(d, true); }, { titulo: 'Registrar retiro', si: 'SÍ, REGISTRAR' }); return false; } });
+    }
+    UI.modal({ titulo: 'Datos de retiro', html: html, botones: botones, alAbrir: function (host) {
+      if (hecho) U.each(U.qa(host, '#erNom, #erRut, #erTel, #erObs'), function (el) { el.disabled = true; el.removeAttribute('placeholder'); });
+      else Pestanas.edita(refP, 'La orden ' + orden);
+      var selR = U.$('edRetSel');
+      if (selR) selR.onchange = function () {
+        if (selR.checked) return;
+        var r = Pedidos.marcarRetiro(p.id, false); if (r.ok && Sync.modo() !== 'local') Sync.programar(300);
+        EnvioDatos.abrir({ pedidoId: p.id }, alGuardar, man);
+      };
     } });
   },
   comparable: function (env) {
@@ -4603,7 +4672,9 @@ var Impresion = {
     if (!hojas.length) { tmp.innerHTML = '<div class="hoja">' + html + '</div>'; hojas = U.qa(tmp, '.hoja'); }
     for (i = 0; i < hojas.length; i++) {
       var st = tipo === 'troquel' ? 'width:' + ancho + 'mm;height:' + alto + 'mm' : (tipo === 'a4' ? 'width:100%' : 'width:' + ancho + 'mm;padding:' + margen + 'mm');
-      out += '<div class="pg" style="' + st + '">' + (tipo === 'a4' ? '' : Impresion.FONDO) + envolver(hojas[i].outerHTML) + '</div>';
+      var cont = envolver(hojas[i].outerHTML);
+      if (tipo === 'troquel' && /(^|\s)girar(\s|$)/.test(hojas[i].className)) cont = '<div class="pgr" style="width:' + alto + 'mm;height:' + ancho + 'mm;transform-origin:0 0;-webkit-transform:translate(' + ancho + 'mm,0) rotate(90deg);transform:translate(' + ancho + 'mm,0) rotate(90deg)">' + cont + '</div>';
+      out += '<div class="pg" style="' + st + '">' + (tipo === 'a4' ? '' : Impresion.FONDO) + cont + '</div>';
     }
     return out;
   },
@@ -4834,8 +4905,9 @@ var Plantillas = {
     if (f.campoBarra === 'bulto') return String(b.origenCubicacionId || b.id || '').replace(/^cub-/, '').toUpperCase();
     return String(b.orden || '');
   },
+  dims: function (f) { var h = !!(f && f.horizontal && f.tipo === 'troquel'); return { w: h ? f.alto : f.ancho, h: h ? f.ancho : f.alto, girar: h }; },
   etiquetaBulto: function (ot, b, fmtId) {
-    var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto), pb = Plantillas._posBulto(ot, b), mg = Plantillas.margen(f), util = f.ancho - 4 - 2 * mg, ls = [], i, total = 0;
+    var f = Plantillas.formatoBulto(fmtId || DB.cfg.formatoBulto), dm = Plantillas.dims(f), pb = Plantillas._posBulto(ot, b), mg = Plantillas.margen(f), util = dm.w - 4 - 2 * mg, ls = [], i, total = 0;
     for (i = 0; i < f.campos.length; i++) {
       var c = f.campos[i], v = Plantillas.valorBulto(ot, b, c.k, c, pb);
       if (!U.trim(v)) continue;
@@ -4845,14 +4917,14 @@ var Plantillas = {
     }
     var bar = f.barra ? Plantillas.codigoBulto(f, b) : '', altoBar = bar ? (f.altoBarra || 8) + (f.textoBarra ? 4 : 0) + 1 : 0;
     if (f.tipo === 'troquel') {
-      var disp = f.alto - 2.6 - 2 * mg - altoBar - (ls.length ? 0.4 * (ls.length - 1) : 0);
+      var disp = dm.h - 2.6 - 2 * mg - altoBar - (ls.length ? 0.4 * (ls.length - 1) : 0);
       if (total > disp && total > 0) { var k2 = disp / total; U.each(ls, function (x) { x.pt = Math.max(6, Math.floor(x.pt * k2 * 2) / 2); }); }
     }
     var h = '';
     U.each(ls, function (x, j) { h += '<div class="ln" style="font-size:' + x.pt + 'pt;line-height:1.12;font-weight:' + (x.b ? 'bold' : 'normal') + ';white-space:nowrap;overflow:hidden' + (j && (x.k === 'orden' || x.k === 'seguimiento' || x.k === 'medidas') ? ';border-top:0.3mm solid #000' : '') + '">' + U.esc(x.v) + '</div>'; });
     if (bar) h += Code128.svg(bar, f.altoBarra || 8, !!f.textoBarra);
-    var st = f.tipo === 'troquel' ? 'width:' + f.ancho + 'mm;height:' + f.alto + 'mm;padding:' + (1.2 + mg) + 'mm ' + (2 + mg) + 'mm;box-sizing:border-box;overflow:hidden;' : 'width:' + (util + 2 * mg) + 'mm;max-width:' + (util + 2 * mg) + 'mm;padding:' + (1 + mg) + 'mm ' + mg + 'mm ' + (3 + mg) + 'mm;';
-    return '<div class="hoja ep" style="' + st + 'text-align:center;font-family:Arial,Helvetica,sans-serif">' + (h || '&nbsp;') + '</div>';
+    var st = f.tipo === 'troquel' ? 'width:' + dm.w + 'mm;height:' + dm.h + 'mm;padding:' + (1.2 + mg) + 'mm ' + (2 + mg) + 'mm;box-sizing:border-box;overflow:hidden;' : 'width:' + (util + 2 * mg) + 'mm;max-width:' + (util + 2 * mg) + 'mm;padding:' + (1 + mg) + 'mm ' + mg + 'mm ' + (3 + mg) + 'mm;';
+    return '<div class="hoja ep' + (dm.girar ? ' girar' : '') + '" style="' + st + 'text-align:center;font-family:Arial,Helvetica,sans-serif">' + (h || '&nbsp;') + '</div>';
   },
   etiquetasDe: function (ot, bultos, fmtId) { return U.map(bultos, function (b) { return Plantillas.etiquetaBulto(ot, b, fmtId); }).join(''); },
   imprimirBultos: function (ot, bultos, fmtId) {
@@ -5156,10 +5228,10 @@ var Plantillas = {
         (Catalogo.esBarcodeValido(p.codigoBarra) ? p.codigoBarra : p.codigo));
       h += Code128.svg(vb, fmt.altoBarra || 10, fmt.textoBarra);
     }
-    var mg = Plantillas.margen(fmt);
-    if (fmt.tipo === 'troquel') st = 'width:' + fmt.ancho + 'mm;height:' + fmt.alto + 'mm;padding:' + (1.5 + mg) + 'mm;';
+    var mg = Plantillas.margen(fmt), dm = Plantillas.dims(fmt);
+    if (fmt.tipo === 'troquel') st = 'width:' + dm.w + 'mm;height:' + dm.h + 'mm;padding:' + (1.5 + mg) + 'mm;';
     else st = 'width:' + (fmt.ancho - 4) + 'mm;max-width:' + (fmt.ancho - 4) + 'mm;padding:' + (1 + mg) + 'mm ' + mg + 'mm ' + (3 + mg) + 'mm;';
-    return '<div class="hoja ep" style="' + st + '">' + h + '</div>';
+    return '<div class="hoja ep' + (dm.girar ? ' girar' : '') + '" style="' + st + '">' + h + '</div>';
   },
   margen: function (f) { var m = f ? Number(f.margen) : 0; return m > 0 ? Math.min(15, Math.round(m * 2) / 2) : 0; },
   ajuste: function (f) {
@@ -5181,20 +5253,24 @@ var Plantillas = {
     return '<div class="hoja ep" style="width:' + w + 'mm;height:' + h + 'mm;padding:0;overflow:hidden"><svg xmlns="http://www.w3.org/2000/svg" width="' + w + 'mm" height="' + h + 'mm" viewBox="0 0 ' + w + ' ' + h + '" style="display:block">' + s + '</svg></div>';
   },
   marcadores: function (t, conf, i, n) {
+    var pe = conf.pedidoId && typeof Pedidos !== 'undefined' ? Pedidos.porId(conf.pedidoId) : null, de = (pe && pe.envio && pe.envio.destinatario) || {};
+    var dir = U.trim([de.calle, de.numero].join(' ')) + (de.referencia ? ', ' + de.referencia : '');
+    t = String(t || '').replace(/\{documento\}/g, pe && pe.numeroDocumento ? pe.tipoDocumento + ' ' + pe.numeroDocumento : '').replace(/\{destinatario\}/g, de.nombre || '').replace(/\{rut\}/g, de.rut ? Rut.formato(de.rut) : '')
+      .replace(/\{direccion\}/g, dir).replace(/\{comuna\}/g, U.trim([de.comuna, de.region].filter(function (x) { return !!x; }).join(', '))).replace(/\{telefono\}/g, de.telefono || '');
     return String(t || '').replace(/\{bulto\}/g, i + '/' + n).replace(/\{prefijo\}/g, conf.prefijo || '').replace(/\{orden\}/g, conf.orden || '')
       .replace(/\{cliente\}/g, conf.cliente || '').replace(/\{fecha\}/g, U.fechaCL(U.fechaISO())).replace(/\{empresa\}/g, DB.cfg.empresa || '');
   },
   rotuloLibre: function (conf, i, n, fmt) {
-    var h = '', st;
+    var h = '', st, libre = conf.modo === 'libre';
     fmt = fmt || DB.formato(DB.cfg.formatoRotulo);
     U.each(conf.lineas, function (l) {
-      var v = Plantillas.marcadores(l.t, conf, i, n);
-      if (U.trim(v)) h += '<div class="ln" style="font-size:' + (l.pt || 12) + 'pt;font-weight:' + (l.b ? 'bold' : 'normal') + '">' + U.esc(v) + '</div>';
+      var v = libre ? String(l.t || '') : Plantillas.marcadores(l.t, conf, i, n);
+      if (U.trim(v)) h += '<div class="ln" style="font-size:' + (l.pt || 12) + 'pt;font-weight:' + (l.b ? 'bold' : 'normal') + (l.al === 'l' ? ';text-align:left' : (l.al === 'r' ? ';text-align:right' : '')) + '">' + U.esc(v) + '</div>';
     });
-    var mg = Plantillas.margen(fmt);
-    if (fmt && fmt.tipo === 'troquel') st = 'width:' + fmt.ancho + 'mm;height:' + fmt.alto + 'mm;padding:' + (1.5 + mg) + 'mm;box-sizing:border-box;overflow:hidden;';
+    var mg = Plantillas.margen(fmt), dm = Plantillas.dims(fmt);
+    if (fmt && fmt.tipo === 'troquel') st = 'width:' + dm.w + 'mm;height:' + dm.h + 'mm;padding:' + (1.5 + mg) + 'mm;box-sizing:border-box;overflow:hidden;';
     else { var an = (fmt && fmt.ancho ? fmt.ancho : 58) - 4; st = 'width:' + an + 'mm;max-width:' + an + 'mm;padding:' + (2 + mg) + 'mm ' + mg + 'mm ' + (4 + mg) + 'mm;'; }
-    return '<div class="hoja ep" style="' + st + 'border-bottom:0">' + (h || '&nbsp;') + '</div>';
+    return '<div class="hoja ep' + (dm.girar ? ' girar' : '') + '" style="' + st + 'border-bottom:0">' + (h || '&nbsp;') + '</div>';
   }
 };
 
@@ -6072,7 +6148,7 @@ Pantallas.pedidos = function (m) {
         return;
       }
       hh +='<!--pe--><div class="doc'+(p.retiro?' pe-retiro':'')+'" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(Listas.etq('ESTADO',p.estado))+'</span><label class="pe-ret" title="Marcar si el cliente retira el pedido"><input type="checkbox" data-ret="'+p.id+'"'+(p.retiro?' checked':'')+'> RETIRO</label></div><div class="o">'+U.esc(p.numero)+(p.retiro?' <span class="tag-ret">PARA RETIRO</span>':'')+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(Valores.num(p.monto)!=null?' · '+U.esc(Valores.txt(Valores.num(p.monto))):'')+'</div></div>'+
-        '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO')+'</button>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<button class="btn btn-sec btn-sm" data-a="pedRotulo" data-x="'+p.id+'">RÓTULO</button>':'')+'<button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
+        '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.retiro?(p.retiroDatos&&p.retiroDatos.fecha?'✓ RETIRADO':'DATOS DE RETIRO'):(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO'))+'</button>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<button class="btn btn-sec btn-sm" data-a="pedRotulo" data-x="'+p.id+'">RÓTULO</button>':'')+'<button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
     });
     var bloques = hh ? hh.split('<!--pe-->') : [];
     if (bloques.length && !bloques[0]) bloques.shift();
@@ -8932,41 +9008,56 @@ Rotulado.disponibles = function () {
 };
 
 Rotulado.libre = function (c, acc, m) {
-  var conf = DB.cfg.rotuloLibre, h = '<div class="card"><div class="muted">Rótulos numerados 1/N … N/N sin registrar bultos. Marcadores: {bulto} {orden} {prefijo} {cliente} {fecha} {empresa}</div>' +
-    '<div class="fila"><div class="c num"><label class="lbl">CANTIDAD</label><input id="rlCant" class="inp sm" type="number" min="1" step="1" inputmode="numeric" value="' + conf.cantidad + '"></div>' +
-    '<div class="c2"><label class="lbl">PREFIJO / N° DOC.</label><input id="rlPre" class="inp sm" value="' + U.esc(conf.prefijo) + '"></div></div>' +
-    '<label class="lbl">ORDEN</label><input id="rlOrd" class="inp sm" value="' + U.esc(conf.orden) + '">' +
-    '<label class="lbl">CLIENTE</label><input id="rlCli" class="inp sm" value="' + U.esc(conf.cliente) + '">' +
-    '<label class="lbl" for="rlFmt">FORMATO</label><select id="rlFmt" class="inp sm">' + Rotulado.opcionesFormato(DB.formato(DB.cfg.formatoRotulo).id) + '</select></div>' +
-    '<div class="card"><h2>Líneas del rótulo</h2><div class="frow cab"><span class="fx">Texto</span><span class="ptIn">Tamaño pt</span><span class="tg">Negrita</span></div>';
+  var conf = DB.cfg.rotuloLibre, libre = conf.modo === 'libre';
+  var peds = U.filter(Pedidos.lista, function (p) { return p.estado !== 'ELIMINADO' && p.estado !== 'CANCELADO'; });
+  peds.sort(function (a, b) { return String(a.fecha || '') < String(b.fecha || '') ? 1 : -1; });
+  var h = '<div class="card"><div class="btns"><button type="button" class="btn ' + (libre ? 'btn-ok' : 'btn-sec') + '" data-a="rlModo" data-x="libre">SOLO TEXTO LIBRE</button><button type="button" class="btn ' + (libre ? 'btn-sec' : 'btn-ok') + '" data-a="rlModo" data-x="datos">CON DATOS (orden, cliente, N° de bulto, fecha)</button></div>' +
+    (libre ? '<div class="muted">Se imprime exactamente lo que escriba en cada cuadro: sin datos de la base, sin fecha ni número de bulto.</div>' :
+      '<div class="muted">Marcadores que se reemplazan al imprimir: {bulto} (1/N … N/N) {orden} {prefijo} {cliente} {fecha} {empresa} y, si elige un pedido, {documento} {destinatario} {rut} {direccion} {comuna} {telefono}. También puede escribir texto fijo.</div>') +
+    '<div class="fila"><div class="c num"><label class="lbl" for="rlCant">' + (libre ? 'COPIAS' : 'CANTIDAD (N° de bultos)') + '</label><input id="rlCant" class="inp sm" type="number" min="1" step="1" inputmode="numeric" value="' + conf.cantidad + '"></div>' +
+    '<div class="c2"><label class="lbl" for="rlFmt">FORMATO</label><select id="rlFmt" class="inp sm">' + Rotulado.opcionesFormato(DB.formato(DB.cfg.formatoRotulo).id) + '</select></div></div>' +
+    (libre ? '' : '<label class="lbl" for="rlPed">TRAER DATOS DE UN PEDIDO <span class="unidad">opcional</span></label><select id="rlPed" class="inp sm"><option value="">— Sin pedido —</option>' + U.map(peds.slice(0, 300), function (p) { return '<option value="' + p.id + '"' + (conf.pedidoId === p.id ? ' selected' : '') + '>' + U.esc(p.numero + (p.numeroDocumento ? ' · ' + p.tipoDocumento + ' ' + p.numeroDocumento : '') + (p.envio && p.envio.destinatario && p.envio.destinatario.nombre ? ' · ' + p.envio.destinatario.nombre : '')) + '</option>'; }).join('') + '</select>' +
+      '<div class="fila"><div class="c2"><label class="lbl" for="rlPre">PREFIJO / N° DOC.</label><input id="rlPre" class="inp sm" value="' + U.esc(conf.prefijo) + '"></div><div class="c2"><label class="lbl" for="rlOrd">ORDEN</label><input id="rlOrd" class="inp sm" value="' + U.esc(conf.orden) + '"></div></div>' +
+      '<label class="lbl" for="rlCli">CLIENTE</label><input id="rlCli" class="inp sm" value="' + U.esc(conf.cliente) + '">') + '</div>' +
+    '<div class="card"><h2>' + (libre ? 'Cuadros de texto' : 'Líneas del rótulo') + '</h2><div class="frow cab"><span class="fx">Texto</span><span class="ptIn">Tamaño pt</span><span class="tg">Negrita</span><span class="rl-al">Alineación</span></div>';
   U.each(conf.lineas, function (l, i) {
-    h += '<div class="frow"><input class="inp sm fx rlT" data-i="' + i + '" value="' + U.esc(l.t) + '">' + Pt.input('rlP', l.pt || 12, 'ptListaR', ' data-i="' + i + '"') +
-      '<label class="tg"><input type="checkbox" class="rlB" data-i="' + i + '"' + (l.b ? ' checked' : '') + '>N</label></div>';
+    h += '<div class="frow"><input class="inp sm fx rlT" data-i="' + i + '" value="' + U.esc(l.t) + '" placeholder="' + (libre ? 'Texto libre' : 'Texto o marcador') + '">' + Pt.input('rlP', l.pt || 12, 'ptListaR', ' data-i="' + i + '"') +
+      '<label class="tg"><input type="checkbox" class="rlB" data-i="' + i + '"' + (l.b ? ' checked' : '') + '>N</label>' +
+      '<select class="inp sm rl-al rlA" data-i="' + i + '"><option value="c"' + (l.al !== 'l' && l.al !== 'r' ? ' selected' : '') + '>Centro</option><option value="l"' + (l.al === 'l' ? ' selected' : '') + '>Izq.</option><option value="r"' + (l.al === 'r' ? ' selected' : '') + '>Der.</option></select></div>';
   });
-  h += Pt.lista('ptListaR') + '<div class="muted">Tamaño en puntos: elija de la lista o escriba el valor (' + PT_MIN + ' a ' + PT_MAX + ', p. ej. 48 o 72). N = negrita.</div>';
-  h += '<div class="btns"><button class="btn btn-sec btn-sm" data-a="addLn">+ LÍNEA</button><button class="btn btn-sec btn-sm" data-a="delLn">− LÍNEA</button><button class="btn btn-sec btn-sm" data-a="resetLn">RESTAURAR</button></div></div>' +
+  h += Pt.lista('ptListaR') + '<div class="muted">Tamaño en puntos: elija de la lista o escriba el valor (' + PT_MIN + ' a ' + PT_MAX + ', p. ej. 48 o 72). N = negrita. Los cuadros vacíos no se imprimen.</div>';
+  h += '<div class="btns"><button class="btn btn-sec btn-sm" data-a="addLn">+ LÍNEA</button><button class="btn btn-sec btn-sm" data-a="delLn">− LÍNEA</button><button class="btn btn-sec btn-sm" data-a="resetLn">' + (libre ? 'VACIAR' : 'RESTAURAR') + '</button></div></div>' +
     '<div class="card"><button class="btn btn-ok btn-xl" data-a="impLibre">IMPRIMIR</button></div>' +
     '<div class="card"><h2>Vista previa (primero)</h2>' + ZoomImp.html() + '<div class="prev zprev" id="rlPrev"></div><div id="rlAviso"></div></div>';
   c.innerHTML = h;
   ZoomImp.activar(c);
   var leer = function () {
     conf.cantidad = Math.max(1, Math.min(500, parseInt(U.$('rlCant').value, 10) || 1));
-    conf.prefijo = U.$('rlPre').value; conf.orden = U.$('rlOrd').value; conf.cliente = U.$('rlCli').value;
-    var t = U.qa(c, '.rlT'), p = U.qa(c, '.rlP'), b = U.qa(c, '.rlB');
-    for (var i = 0; i < t.length; i++) conf.lineas[i] = { t: t[i].value, pt: Pt.leer(p[i], 12), b: b[i].checked };
+    if (!libre) { conf.prefijo = U.$('rlPre').value; conf.orden = U.$('rlOrd').value; conf.cliente = U.$('rlCli').value; conf.pedidoId = U.$('rlPed').value || ''; }
+    var t = U.qa(c, '.rlT'), p = U.qa(c, '.rlP'), b = U.qa(c, '.rlB'), a = U.qa(c, '.rlA');
+    for (var i = 0; i < t.length; i++) conf.lineas[i] = { t: t[i].value, pt: Pt.leer(p[i], 12), b: b[i].checked, al: a[i].value === 'c' ? '' : a[i].value };
     if (U.$('rlFmt')) DB.cfg.formatoRotulo = U.$('rlFmt').value;
     DB.guardarCfg();
     var fmt = DB.formato(DB.cfg.formatoRotulo);
     U.$('rlPrev').innerHTML = Plantillas.rotuloLibre(conf, 1, conf.cantidad, fmt);
     var hj = U.$('rlPrev').querySelector('.hoja'), av = U.$('rlAviso');
-    av.innerHTML = fmt.tipo === 'troquel' && hj && hj.scrollHeight > hj.clientHeight + 2 ? '<div class="aviso amar" style="margin-top:8px">El texto no cabe en la etiqueta ' + fmt.ancho + '×' + fmt.alto + ' mm: reduzca el tamaño de las líneas o quite alguna.</div>' : '';
+    av.innerHTML = fmt.tipo === 'troquel' && hj && hj.scrollHeight > hj.clientHeight + 2 ? '<div class="aviso amar" style="margin-top:8px">El texto no cabe en la etiqueta ' + Plantillas.dims(fmt).w + '×' + Plantillas.dims(fmt).h + ' mm: reduzca el tamaño de las líneas o quite alguna.</div>' : '';
   };
-  m.oninput = leer; m.onchange = leer;
-  acc.addLn = function () { leer(); if (conf.lineas.length < 8) conf.lineas.push({ t: '', pt: 12, b: false }); DB.guardarCfg(); App.ir('rotulado'); };
+  m.oninput = leer;
+  m.onchange = function (e) {
+    if (e.target && e.target.id === 'rlPed') {
+      var p = Pedidos.porId(e.target.value);
+      if (p) { U.$('rlOrd').value = p.numero || ''; U.$('rlPre').value = p.numeroDocumento ? TiposDoc.abrev(p.tipoDocumento) + ' ' + p.numeroDocumento : ''; U.$('rlCli').value = (p.envio && p.envio.destinatario && p.envio.destinatario.nombre) || ''; }
+    }
+    leer();
+  };
+  acc.rlModo = function (x) { leer(); conf.modo = x === 'libre' ? 'libre' : 'datos'; if (conf.modo === 'libre' && U.find(conf.lineas, function (l) { return /\{[a-z]+\}/.test(l.t); })) conf.lineas = U.map(conf.lineas, function (l) { return { t: l.t.replace(/\{[a-z]+\}/g, '').replace(/\s+/g, ' ').trim(), pt: l.pt, b: l.b, al: l.al }; }); DB.guardarCfg(); App.ir('rotulado'); };
+  acc.addLn = function () { leer(); if (conf.lineas.length < 12) conf.lineas.push({ t: '', pt: 12, b: false }); DB.guardarCfg(); App.ir('rotulado'); };
   acc.delLn = function () { leer(); if (conf.lineas.length > 1) conf.lineas.pop(); DB.guardarCfg(); App.ir('rotulado'); };
-  acc.resetLn = function () { conf.lineas = U.clone(ROTULO_LIBRE_DEFECTO.lineas); DB.guardarCfg(); App.ir('rotulado'); };
+  acc.resetLn = function () { conf.lineas = libre ? [{ t: '', pt: 24, b: true }, { t: '', pt: 16, b: false }, { t: '', pt: 12, b: false }] : U.clone(ROTULO_LIBRE_DEFECTO.lineas); DB.guardarCfg(); App.ir('rotulado'); };
   acc.impLibre = function () {
     leer();
+    if (!U.find(conf.lineas, function (l) { return U.trim(l.t); })) { UI.toast('Escriba al menos un texto', 'error'); return; }
     var h2 = '';
     var fmt = DB.formato(DB.cfg.formatoRotulo);
     for (var i = 1; i <= conf.cantidad; i++) h2 += Plantillas.rotuloLibre(conf, i, conf.cantidad, fmt);
@@ -9065,6 +9156,7 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
     '<div class="fila"><div class="c"><label class="lbl">ALTO mm</label><input id="efAl" class="inp sm" type="number" min="0" max="200" value="' + (f.alto || 0) + '"></div>' +
     '<div class="c"><label class="lbl">MARGEN mm</label><input id="efMg" class="inp sm" type="number" min="0" max="15" step="0.5" inputmode="decimal" value="' + Plantillas.margen(f) + '"></div></div>' +
     '<div class="muted">Alto solo aplica a troqueladas. Rollo: el alto se ajusta al contenido. Margen: espacio en blanco adicional en los cuatro bordes (0 = como hasta ahora).</div>' +
+    '<label class="chk"><input type="checkbox" id="efHor"' + (f.horizontal ? ' checked' : '') + '> Impresión horizontal <span class="unidad">solo troqueladas: el texto va a lo largo de la etiqueta y se gira 90° al imprimir (ej. 60×100 se diseña como 100×60)</span></label>' +
     '<div class="fila"><div class="c"><label class="lbl">MOVER X mm</label><input id="efDX" class="inp sm" type="number" min="-15" max="15" step="0.5" inputmode="decimal" value="' + Plantillas.ajuste(f).x + '"></div>' +
     '<div class="c"><label class="lbl">MOVER Y mm</label><input id="efDY" class="inp sm" type="number" min="-15" max="15" step="0.5" inputmode="decimal" value="' + Plantillas.ajuste(f).y + '"></div>' +
     '<div class="c"><label class="lbl">ESCALA %</label><input id="efEs" class="inp sm" type="number" min="50" max="200" step="1" inputmode="numeric" value="' + Plantillas.ajuste(f).e + '"></div></div>' +
@@ -9113,7 +9205,7 @@ Rotulado.editarFormato = function (idx, usoNuevo) {
     var nf = { id: f.id || U.uid(esBulto ? 'bul-' : 'fmt-'), uso: esBulto ? 'bulto' : 'producto', nombre: U.trim(U.$('efNom').value) || 'Formato', tipo: U.$('efTipo').value,
       ancho: Math.max(20, Math.min(120, parseInt(U.$('efAn').value, 10) || 58)), alto: Math.max(0, parseInt(U.$('efAl').value, 10) || 0),
       margen: Plantillas.margen({ margen: parseFloat(String(U.$('efMg').value).replace(',', '.')) || 0 }), desX: aj.x, desY: aj.y, escala: aj.e,
-      barra: U.$('efBar').checked, campoBarra: U.$('efCB').value, altoBarra: Math.max(5, Math.min(30, parseInt(U.$('efBA').value, 10) || 10)), textoBarra: U.$('efBT').checked, campos: campos, act: new Date().toISOString() };
+      horizontal: U.$('efTipo').value === 'troquel' && U.$('efHor').checked, barra: U.$('efBar').checked, campoBarra: U.$('efCB').value, altoBarra: Math.max(5, Math.min(30, parseInt(U.$('efBA').value, 10) || 10)), textoBarra: U.$('efBT').checked, campos: campos, act: new Date().toISOString() };
     if (nf.tipo === 'troquel' && nf.alto < 10) { UI.toast('Una troquelada necesita ALTO (mm)', 'error'); return false; }
     if (!campos.length && !nf.barra) { UI.toast('Marque al menos un campo o el código de barras', 'error'); return false; }
     if (idx >= 0) DB.formatos[idx] = nf; else DB.formatos.push(nf);
