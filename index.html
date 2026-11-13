@@ -305,6 +305,23 @@ textarea.inp{font-size:13px;border-radius:8px}
 .pagbar select.inp{width:auto;display:inline-block;height:36px;padding:2px 6px;font-size:15px}
 .pagbar .mini{height:36px;margin-left:0}
 .dochead{margin:12px 0 4px;padding:8px;background:#f6f0f7;border-radius:8px}
+.ordblk{position:relative;margin:12px 0;padding:6px 8px 4px;border-radius:12px;border:1px solid transparent;border-left:7px solid #8a5aa8;background:#f8f4fb;-webkit-transition:box-shadow .12s,border-color .12s;transition:box-shadow .12s,border-color .12s}
+.ordblk.z1{border-left-color:#2f8a6c;background:#eef7f3}
+.ordblk:hover,.ordblk:focus-within,.ordblk:active{border-color:#8a5aa8;box-shadow:0 0 0 2px rgba(138,90,168,.35)}
+.ordblk.z1:hover,.ordblk.z1:focus-within,.ordblk.z1:active{border-color:#2f8a6c;box-shadow:0 0 0 2px rgba(47,138,108,.35)}
+.ordblk .dochead{margin:2px 0 6px;background:transparent;padding:6px 4px}
+.ordblk>.doc{margin:6px 0 6px 6px;background:#fff}
+.ordblk.card{margin:12px 0}
+.ordblk.ped{padding:3px;border:2px solid #d9c6e6;background:#f3ebf8}
+.ordblk.ped.z1{border-color:#bfe0d3;background:#e8f4ef}
+.ordblk.ped>.doc{margin:0}
+.ord-tag{display:inline-block;-webkit-align-self:center;align-self:center;padding:4px 10px;border-radius:14px;background:#5b2c83;color:#fff;font-weight:800;font-size:13px;letter-spacing:.3px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.ordblk.z1 .ord-tag{background:#1f6b52}
+.cf-envref{margin-top:4px}
+.envref{position:relative;display:inline-block;max-width:100%;padding:3px 10px;border-radius:12px;background:#eef6fb;border:1px solid #b9d9ea;color:#0a4f6e;font-size:12px;font-weight:600;cursor:pointer;line-height:1.35;vertical-align:middle}
+.envref.falta{background:#f6f6f6;border-color:#ddd;color:#6c757d;font-weight:500;cursor:default}
+.envref .envdet{display:none;position:absolute;left:0;top:100%;z-index:30;margin-top:4px;min-width:240px;max-width:320px;padding:8px 10px;border:1px solid #b9d9ea;border-radius:8px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.15);font-weight:400;color:#1f3b4d;white-space:normal}
+.envref.abierto .envdet{display:block}
 .dochead .chk{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-align:center;-webkit-align-items:center;align-items:center;padding:0;font-size:16px}
 .dochead .chk input{width:22px;height:22px;margin-right:8px}
 .dochead .btns{margin-top:6px}
@@ -629,7 +646,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.40.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.41.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1848,7 +1865,7 @@ var RotuloDir = {
       U.each(U.qa(U.$('modalHost'), '[data-rf]'), function (b) { b.className = 'btn btn-sm ' + (b.getAttribute('data-rf') === est.formato ? 'btn-ok' : 'btn-sec'); });
     };
     var conPdf = function (fn) { PdfLib.cargar(function () { if (!pdfListo) { pdfListo = true; pintar(); } fn(RotuloDir.pdf(pags, est)); }, function () { UI.toast('No se pudo cargar el generador de PDF (requiere internet). Use IMPRIMIR DESDE EL NAVEGADOR.', 'error', 6000); }); };
-    UI.modal({ titulo: 'Rótulos de dirección', html: h, botones: [
+    UI.modal({ titulo: 'Rótulos de dirección' + (items.length === 1 ? ' · ' + items[0].orden : ' · ' + items.length + ' documentos'), html: h, botones: [
       { txt: 'CERRAR', cls: 'btn-sec', fn: function () { UI.cerrarModal(); if (alCerrar) alCerrar(); return false; } },
       { txt: 'IMPRIMIR DESDE EL NAVEGADOR', cls: 'btn-sec', fn: function () { var hj = RotuloDir.hoja(est); Impresion.imprimir(U.map(pags, function (P) { return '<div class="hoja" style="width:' + hj.W + 'mm;height:' + hj.H + 'mm;margin:0;padding:0;overflow:hidden">' + RotuloDir.svg(P, null, est) + '</div>'; }).join(''), { tipo: 'a4', margen: 0, pagW: hj.W, pagH: hj.H }); return false; } },
       { txt: 'VER / IMPRIMIR PDF', cls: 'btn-sec', fn: function () { conPdf(function (d) { var u = d.output('bloburl'), w = null; try { w = window.open(u, '_blank'); } catch (e) {} if (!w) { RotuloDir.descargar(d, items); UI.toast('El navegador bloqueó la ventana: se descargó el PDF', 'warn', 5000); } }); return false; } },
@@ -3848,6 +3865,153 @@ var CotERP = {
   rango: function (conf) { return conf >= 85 ? 0.05 : (conf >= 70 ? 0.12 : 0.25); }
 };
 
+var CotCorreos = {
+  COURIER: 'CORREOS DE CHILE',
+  FUENTE: 'Resolución Exenta N° 66/2025 de Correos de Chile (Diario Oficial, 01-10-2025)',
+  ZONAS: ['INTRA', 'CERCA', 'LEJOS'],
+  SERV: { PAQUETE: 'Paquete', EXPRESS: 'Express' },
+  CANAL: { WEB: 'Web / contrato empresa', SUCURSAL: 'Mostrador en sucursal' },
+  RED: { ARRIBA: 'Kilo adicional completo (hacia arriba)', MEDIO: 'Medio kilo hacia arriba', EXACTO: 'Proporcional, sin redondeo' },
+  DEF: {
+    activo: true, canal: 'WEB', servicio: 'PAQUETE', fv: 4000, red: 'ARRIBA', maxKg: 50, maxLado: 200, maxSuma: 300, aereoLado: 100,
+    lejos: ['ARICA Y PARINACOTA', 'TARAPACÁ', 'ANTOFAGASTA', 'AYSÉN', 'MAGALLANES'], intra: [],
+    t: [
+      ['PAQUETE', 'DOMICILIO', 'INTRA', 5420, 9900, 15110, 2290, 0], ['PAQUETE', 'DOMICILIO', 'CERCA', 5420, 9900, 15110, 2290, 0], ['PAQUETE', 'DOMICILIO', 'LEJOS', 5420, 9900, 15110, 2290, 1],
+      ['PAQUETE', 'SUCURSAL', 'INTRA', 4900, 9380, 14590, 2290, 0], ['PAQUETE', 'SUCURSAL', 'CERCA', 4900, 9380, 14590, 2290, 0], ['PAQUETE', 'SUCURSAL', 'LEJOS', 4900, 9380, 14590, 2290, 1],
+      ['EXPRESS', 'DOMICILIO', 'INTRA', 3120, 4160, 5000, 420, 1], ['EXPRESS', 'DOMICILIO', 'CERCA', 4160, 5200, 7610, 1040, 1], ['EXPRESS', 'DOMICILIO', 'LEJOS', 13030, 19800, 29180, 3130, 1],
+      ['EXPRESS', 'SUCURSAL', 'INTRA', 2710, 3960, 4480, 420, 1], ['EXPRESS', 'SUCURSAL', 'CERCA', 3960, 5000, 7090, 1040, 1], ['EXPRESS', 'SUCURSAL', 'LEJOS', 12500, 19280, 28130, 3130, 1]
+    ]
+  },
+  cfg: function () {
+    var c = DB.cfg.correosTab, d = CotCorreos.DEF, o = {}, k;
+    for (k in d) o[k] = c && c[k] != null ? c[k] : U.clone(d[k]);
+    o.fv = Number(o.fv) > 0 ? Number(o.fv) : 4000;
+    if (!CotCorreos.CANAL[o.canal]) o.canal = 'WEB';
+    if (!CotCorreos.RED[o.red]) o.red = 'ARRIBA';
+    if (!CotCorreos.SERV[o.servicio]) o.servicio = 'PAQUETE';
+    if (!U.esArray(o.t) || !o.t.length) o.t = U.clone(d.t);
+    if (!U.esArray(o.lejos)) o.lejos = U.clone(d.lejos);
+    if (!U.esArray(o.intra)) o.intra = [];
+    return o;
+  },
+  guardar: function (c) { DB.cfg.correosTab = c; DB.guardarCfg(); if (typeof Compartida !== 'undefined' && Compartida.activo()) Compartida.subir(function () {}); },
+  activo: function () { return CotCorreos.cfg().activo !== false; },
+  zona: function (dest, ori, c) {
+    var r = Geo.region(dest.region || '') || dest.region || '', o = ori && ori.region ? ori.region : '';
+    if (!r) return '';
+    if (c.lejos.indexOf(r) >= 0 || (o && c.lejos.indexOf(o) >= 0 && r !== o)) return 'LEJOS';
+    if (c.intra.length ? c.intra.indexOf(r) >= 0 : r === o) return 'INTRA';
+    return 'CERCA';
+  },
+  fila: function (c, s, m, z) { return U.find(c.t, function (x) { return x[0] === s && x[1] === m && x[2] === z; }) || null; },
+  extra: function (kg, red) {
+    var e = 1e-9, x = Math.max(0, kg - 6);
+    if (red === 'EXACTO') return Math.round(x * 100) / 100;
+    if (red === 'MEDIO') return Math.ceil(x * 2 - e) / 2;
+    return Math.ceil(x - e);
+  },
+  tramo: function (f, kg, red) {
+    if (kg <= 0.5) return { n: 1, txt: '0–0,5 kg', monto: Number(f[3]) || 0, ad: 0 };
+    if (kg <= 3) return { n: 2, txt: '0,51–3 kg', monto: Number(f[4]) || 0, ad: 0 };
+    if (kg <= 6) return { n: 3, txt: '3,1–6 kg', monto: Number(f[5]) || 0, ad: 0 };
+    var ad = CotCorreos.extra(kg, red);
+    return { n: 4, txt: '3,1–6 kg + ' + CotCorreos.n(ad, ad % 1 ? 1 : 0) + ' kg adicional(es)', monto: (Number(f[5]) || 0) + Math.round(ad * (Number(f[6]) || 0)), ad: ad };
+  },
+  bulto: function (b, c, canal, aereo) {
+    var a = Number(b.ancho) || 0, al = Number(b.alto) || 0, la = Number(b.largo) || 0, real = Number(b.peso) || 0, ls = [a, al, la].sort(function (x, y) { return x - y; });
+    var vol = a * al * la / c.fv, kg = canal === 'SUCURSAL' ? real : Math.max(real, vol), no = '';
+    if (!(real > 0) || !(ls[0] > 0)) no = 'faltan medidas o peso';
+    else if (c.maxKg && real > c.maxKg) no = 'pesa más de ' + c.maxKg + ' kg';
+    else if (c.maxLado && ls[2] > c.maxLado) no = 'un lado supera ' + c.maxLado + ' cm';
+    else if (c.maxSuma && a + al + la > c.maxSuma) no = 'la suma de lados supera ' + c.maxSuma + ' cm';
+    else if (aereo && c.aereoLado && ls[2] > c.aereoLado) no = 'destino aéreo: un lado supera ' + c.aereoLado + ' cm';
+    return { real: real, vol: Math.round(vol * 100) / 100, kg: Math.round(kg * 100) / 100, dom: vol > real ? 'vol' : 'real', usaVol: canal !== 'SUCURSAL', sd: false, no: no };
+  },
+  calcular: function (op, dest, ori, base) {
+    var c = CotCorreos.cfg(), canal = CotCorreos.CANAL[op.canal] ? op.canal : c.canal, mod = op.modalidad === 'SUCURSAL' ? 'SUCURSAL' : 'DOMICILIO', z = CotCorreos.zona(dest, ori, c);
+    var ps = U.map(op.bultos, function (b) { return CotCorreos.bulto(b, c, canal, z === 'LEJOS'); }), tr = 0, tv = 0, tk = 0;
+    U.each(ps, function (x) { tr += x.real; tv += x.vol; tk += x.kg; });
+    var pesos = { factor: c.fv, fOk: true, soloFis: canal === 'SUCURSAL', bultos: ps, real: Math.round(tr * 100) / 100, vol: Math.round(tv * 100) / 100, kg: Math.round(tk * 100) / 100 };
+    var p = U.assign(U.clone(base.p), { cobro: 'BULTO', fv: c.fv, volDesde: 0, sucFisico: true, fuente: CotCorreos.FUENTE, desde: '2025-10-01', hasta: '' });
+    var b0 = U.assign(U.clone(base), { p: p, pesos: pesos, kg: pesos.kg, avisos: [], canal: canal, zona: z, modalidad: mod });
+    var noAd = U.find(ps, function (x) { return !!x.no; });
+    if (noAd) return [U.assign(b0, { servicio: '', estado: 'NO_ADMITE', total: 0, motivo: 'Bulto ' + (ps.indexOf(noAd) + 1) + ': ' + noAd.no })];
+    if (!z) return [U.assign(b0, { servicio: '', estado: 'SIN_DESTINO', total: 0, motivo: 'indique la comuna o región de destino' })];
+    var out = [];
+    U.each(['PAQUETE', 'EXPRESS'], function (s) {
+      var f = CotCorreos.fila(c, s, mod, z);
+      if (!f) return;
+      var total = 0, trs = [];
+      U.each(ps, function (x) { var t = CotCorreos.tramo(f, x.kg, c.red); total += t.monto; trs.push(t.txt); });
+      var r = U.assign(U.clone(b0), { serv: s, servicio: (s + ' ' + mod).toUpperCase(), fuente: 'CORREOS', estado: 'CORREOS', total: total, sub: total, d: { flete: total }, plazo: null, avisos: [], tramos: trs, publicada: !!f[7] });
+      r.p = p; r.pesos = pesos;
+      r.nota = CotCorreos.SERV[s] + ' ' + mod.toLowerCase() + ' · zona ' + z.toLowerCase() + ' · canal ' + CotCorreos.CANAL[canal].toLowerCase() + ' · tramo ' + trs.join(' / ') + ' · valores exentos de IVA';
+      r.conf = f[7] ? 88 : 62;
+      if (!f[7]) r.avisos.push('Tarifa de zona ' + z.toLowerCase() + ' no publicada en la resolución: se usa la cargada en Datos → Cotizador (precargada con la zona lejos). Confírmela con un cobro real.');
+      if (op.porPagar) r.avisos.push('Por pagar: la tabla de Correos no lo incluye.');
+      if (op.retiro) r.avisos.push('Retiro en bodega: la tabla de Correos no lo incluye.');
+      if (op.valor > 0) r.avisos.push('Seguro / valor declarado: la tabla de Correos no lo incluye.');
+      var pct = CotRef.rango(r.conf); r.min = Math.round(total * (1 - pct) / 10) * 10; r.max = Math.round(total * (1 + pct) / 10) * 10;
+      out.push(r);
+    });
+    return out;
+  },
+  referencia: function (b, dest, courier) {
+    courier = courier || DB.cfg.courierRef || CotCorreos.COURIER;
+    if (!b || !(Number(b.peso) > 0) || !(Number(b.ancho) > 0 && Number(b.alto) > 0 && Number(b.largo) > 0)) return { falta: 'Faltan medidas/peso' };
+    if (!dest || (!dest.comuna && !dest.region)) return { falta: 'Falta destino' };
+    var res = Cotizador.calcular({ bultos: [b], comuna: dest.comuna || '', region: dest.region || '', valor: 0, modalidad: DB.cfg.cotModalidad === 'SUCURSAL' ? 'SUCURSAL' : 'DOMICILIO' });
+    var sv = CotCorreos.cfg().servicio, mios = U.filter(res, function (r) { return r.courier === courier; }), r = U.find(mios, function (x) { return x.total > 0 && (!x.serv || x.serv === sv); }) || U.find(mios, function (x) { return x.total > 0; }) || mios[0];
+    if (!r) return { falta: 'Courier ' + courier + ' no habilitado en el cotizador' };
+    if (!(r.total > 0)) return { falta: r.motivo || 'Sin tarifa', r: r };
+    return { r: r };
+  },
+  n: function (v, d) { return U.fx(v, d).replace('.', ','); },
+  panel: function () {
+    var c = CotCorreos.cfg(), op = function (v, t, sel) { return '<option value="' + v + '"' + (v === sel ? ' selected' : '') + '>' + U.esc(t) + '</option>'; };
+    var sel = function (id, m, v) { var h = ''; for (var k in m) h += op(k, m[k], v); return '<select id="' + id + '" class="inp sm">' + h + '</select>'; };
+    var fila = function (t, i) { return '<tr data-i="' + i + '"><td>' + U.esc(CotCorreos.SERV[t[0]]) + '</td><td>' + (t[1] === 'SUCURSAL' ? 'Sucursal' : 'Domicilio') + '</td><td>' + t[2].charAt(0) + t[2].slice(1).toLowerCase() + (t[7] ? '' : ' <span class="muted">*</span>') + '</td>' +
+      U.map([3, 4, 5, 6], function (j) { return '<td><input class="inp sm cco-n" data-j="' + j + '" type="number" min="0" step="1" value="' + (Number(t[j]) || 0) + '" style="min-width:70px"></td>'; }).join('') + '</tr>'; };
+    return '<div class="tot" style="font-weight:normal;font-size:13px"><b>Tabla oficial de Correos de Chile</b> · ' + U.esc(CotCorreos.FUENTE) + '. Sin tarifa propia cargada, el cotizador usa esta tabla en vez de la fórmula del ERP. Valores en CLP exentos de IVA; el resultado es referencial (el precio final lo fija la medición de Correos).</div>' +
+      '<label class="chk"><input type="checkbox" id="ccoAct"' + (c.activo !== false ? ' checked' : '') + '> Usar la tabla oficial para Correos</label>' +
+      '<div class="fila"><div class="c"><label class="lbl" for="ccoCanal">CANAL POR DEFECTO</label>' + sel('ccoCanal', CotCorreos.CANAL, c.canal) + '</div><div class="c"><label class="lbl" for="ccoFv">DIVISOR VOLUMÉTRICO</label><input id="ccoFv" class="inp sm" type="number" min="1000" max="10000" step="1" value="' + c.fv + '"></div></div>' +
+      '<div class="muted">Web o contrato empresa: se cobra el mayor entre peso físico y volumétrico (largo × ancho × alto / divisor). Mostrador en sucursal: solo el peso físico.</div>' +
+      '<div class="fila"><div class="c"><label class="lbl" for="ccoRed">REDONDEO DEL KILO ADICIONAL</label>' + sel('ccoRed', CotCorreos.RED, c.red) + '</div><div class="c"><label class="lbl" for="ccoServ">SERVICIO DEL VALOR REFERENCIAL</label>' + sel('ccoServ', CotCorreos.SERV, c.servicio) + '</div></div>' +
+      '<label class="lbl" for="ccoLejos">REGIONES ZONA LEJOS / DESTINO AÉREO</label><input id="ccoLejos" class="inp sm" value="' + U.esc(c.lejos.join(', ')) + '">' +
+      '<label class="lbl" for="ccoIntra">REGIONES ZONA INTRA <span class="unidad">vacío = la región del remitente</span></label><input id="ccoIntra" class="inp sm" value="' + U.esc(c.intra.join(', ')) + '">' +
+      '<div class="muted">El resto de las regiones es zona Cerca. En destino aéreo ningún lado puede superar el máximo indicado.</div>' +
+      '<div class="fila"><div class="c"><label class="lbl" for="ccoKg">MÁX. kg FÍSICOS</label><input id="ccoKg" class="inp sm" type="number" min="0" step="any" value="' + c.maxKg + '"></div><div class="c"><label class="lbl" for="ccoLado">MÁX. LADO cm</label><input id="ccoLado" class="inp sm" type="number" min="0" step="any" value="' + c.maxLado + '"></div></div>' +
+      '<div class="fila"><div class="c"><label class="lbl" for="ccoSuma">MÁX. SUMA LADOS cm</label><input id="ccoSuma" class="inp sm" type="number" min="0" step="any" value="' + c.maxSuma + '"></div><div class="c"><label class="lbl" for="ccoAereo">MÁX. LADO AÉREO cm</label><input id="ccoAereo" class="inp sm" type="number" min="0" step="any" value="' + c.aereoLado + '"></div></div>' +
+      '<div style="overflow-x:auto"><table class="tbl" id="ccoTab" style="font-size:13px"><tr><th>Servicio</th><th>Entrega</th><th>Zona</th><th>0–0,5 kg</th><th>0,51–3 kg</th><th>3,1–6 kg</th><th>+ kg</th></tr>' + U.map(c.t, fila).join('') + '</table></div>' +
+      '<div class="muted">* Zona no publicada en la resolución: precargada con los valores de la zona Lejos. Corríjala con cobros reales.</div>' +
+      '<div class="btns"><button class="btn btn-ok btn-sm" data-a="ccoGuardar">GUARDAR TABLA CORREOS</button><button class="btn btn-sec btn-sm" data-a="ccoReset">RESTABLECER VALORES OFICIALES</button></div><div id="ccoMsg"></div>';
+  },
+  leerPanel: function () {
+    var c = CotCorreos.cfg(), n = function (id, d) { var v = Number(U.$(id).value); return v >= 0 && U.trim(U.$(id).value) !== '' ? v : d; };
+    var regs = function (t) { var r = []; U.each(String(t || '').split(/[,;\n]+/), function (x) { var g = Geo.region(x); if (g && r.indexOf(g) < 0) r.push(g); }); return r; };
+    var o = { activo: U.$('ccoAct').checked, canal: U.$('ccoCanal').value, servicio: U.$('ccoServ').value, fv: n('ccoFv', 4000) || 4000, red: U.$('ccoRed').value, lejos: regs(U.$('ccoLejos').value), intra: regs(U.$('ccoIntra').value),
+      maxKg: n('ccoKg', 50), maxLado: n('ccoLado', 200), maxSuma: n('ccoSuma', 300), aereoLado: n('ccoAereo', 100), t: U.clone(c.t) };
+    U.each(U.qa(U.$('ccoTab'), 'tr[data-i]'), function (tr) { var i = Number(tr.getAttribute('data-i')); U.each(U.qa(tr, '.cco-n'), function (inp) { o.t[i][Number(inp.getAttribute('data-j'))] = Math.max(0, Math.round(Number(inp.value) || 0)); }); });
+    return o;
+  },
+  chip: function (b, dest) {
+    var x = CotCorreos.referencia(b, dest), nom = (Listas.etq('COURIER', DB.cfg.courierRef || CotCorreos.COURIER) || '').replace(/ DE CHILE$/i, '');
+    nom = nom ? nom.charAt(0) + nom.slice(1).toLowerCase() : 'Courier';
+    if (!x.r || !(x.r.total > 0)) return '<span class="envref falta" title="' + U.esc(x.falta) + '">Envío ref. ' + U.esc(nom) + ' · ' + U.esc(x.falta) + '</span>';
+    var r = x.r, bb = r.pesos.bultos[0] || {}, vol = bb.dom === 'vol' && !r.pesos.soloFis;
+    var N = CotCorreos.n, det = ['Peso físico: ' + N(bb.real, 2) + ' kg', 'Peso volumétrico: ' + N(bb.vol, 2) + ' kg (÷' + r.pesos.factor + ')', 'Peso cobrado: ' + N(bb.kg != null ? bb.kg : r.kg, 2) + ' kg'];
+    if (r.fuente === 'CORREOS') det.push('Zona: ' + r.zona.toLowerCase(), 'Canal: ' + CotCorreos.CANAL[r.canal].toLowerCase(), 'Entrega: ' + r.modalidad.toLowerCase(), 'Servicio: ' + r.servicio.toLowerCase(), 'Tramo: ' + (r.tramos || []).join(' / '));
+    else det.push('Servicio: ' + (r.servicio || '-').toLowerCase(), 'Fuente: ' + (r.fuente === 'ERP' ? 'fórmula del ERP' : 'tarifa cargada'));
+    det.push('Valor referencial: el precio final lo fija la medición de Correos.');
+    var mod = r.fuente === 'CORREOS' ? (r.modalidad === 'SUCURSAL' ? 'Sucursal' : 'Domicilio') : (r.servicio || '');
+    return '<span class="envref" tabindex="0" role="button" data-envref="1" title="' + U.esc(det.join('\n')) + '">Envío ref. ' + U.esc(nom) + ' · ' + U.esc(mod) + ' · ' + N(vol ? bb.vol : bb.real, 1) + ' kg ' + (vol ? 'vol.' : 'reales') + ' · ≈ ' + U.clp(r.total) + '<span class="envdet">' + U.map(det, function (x) { return U.esc(x); }).join('<br>') + '</span></span>';
+  }
+};
+
+if (typeof document !== 'undefined') document.addEventListener('click', function (e) {
+  var t = e.target; while (t && t !== document && !(t.getAttribute && t.getAttribute('data-envref'))) t = t.parentNode;
+  if (t && t !== document) t.className = /\babierto\b/.test(t.className) ? t.className.replace(/\s*abierto/, '') : t.className + ' abierto';
+});
 var Cotizador = {
   datos: { couriers: {}, tarifas: [], act: '' },
   _idx: null,
@@ -3969,6 +4133,7 @@ var Cotizador = {
       var noAd = U.find(ps.bultos, function (x) { return !!x.no; });
       if (noAd) { out.push(U.assign(base, { servicio: '', estado: 'NO_ADMITE', total: 0, motivo: 'Bulto ' + (U.map(ps.bultos, function (x) { return x.no; }).indexOf(noAd.no) + 1) + ': ' + noAd.no })); return; }
       var hechos = 0, motivoRef = '';
+      if (!ts.length && c.v === CotCorreos.COURIER && CotCorreos.activo()) { U.each(CotCorreos.calcular(op, dest, ori, base), function (r) { out.push(r); }); return; }
       if (ts.length) {
         var porS = {}, ordS = [];
         U.each(ts, function (t) { if (!porS[t.s]) { porS[t.s] = []; ordS.push(t.s); } porS[t.s].push(t); });
@@ -4019,7 +4184,7 @@ var Cotizador = {
       if (CotRef.INTERNO.test(c.v)) { out.push(U.assign(base, { servicio: '', estado: 'INTERNO', total: 0, motivo: 'servicio propio: cargue su costo como tarifa en Datos' })); return; }
       out.push(U.assign(base, { servicio: '', estado: 'SIN_TARIFA', total: 0, motivo: (motivoRef ? motivoRef + '; ' : '') + 'sin tarifa cargada ni tarifa en el ERP: cárguela en Datos → Cotizador o consulte en el sitio del courier' }));
     });
-    var rango = function (x) { return x.total > 0 ? (x.estado === 'OK' || x.estado === 'ERP' ? 0 : 1) : 2; };
+    var rango = function (x) { return x.total > 0 ? (x.estado === 'OK' || x.estado === 'ERP' || x.estado === 'CORREOS' ? 0 : 1) : 2; };
     out.sort(function (a, b) { var d = rango(a) - rango(b); if (d) return d; if (a.total && b.total) return a.total - b.total; return a.nombre < b.nombre ? -1 : 1; });
     return out;
   },
@@ -4043,7 +4208,7 @@ var Cotizador = {
     for (k in acc) out[k] = { nR: acc[k].R.length, rR: acc[k].R.length ? Math.max(0.5, Math.min(2, med(acc[k].R))) : 1, nT: acc[k].T.length, eT: acc[k].T.length ? med(acc[k].T) : 0, nE: acc[k].E.length, eE: acc[k].E.length ? med(acc[k].E) : 0 };
     return out;
   },
-  ESTADOS: { OK: ['ABIERTA', 'TARIFA CARGADA'], VENCIDA: ['ANULADO', 'TARIFA VENCIDA'], FUTURA: ['PENDIENTE', 'TARIFA AÚN NO VIGENTE'], REF: ['PARCIAL', 'REFERENCIA PÚBLICA'], ERP: ['ABIERTA', 'FÓRMULA DEL ERP'], SIN_TARIFA: ['CERRADA', 'SIN TARIFA'], SIN_DESTINO: ['CERRADA', 'FALTA DESTINO'], INTERNO: ['CERRADA', 'SERVICIO PROPIO'], NO_ADMITE: ['ANULADO', 'NO ADMITE ESTE BULTO'] },
+  ESTADOS: { OK: ['ABIERTA', 'TARIFA CARGADA'], VENCIDA: ['ANULADO', 'TARIFA VENCIDA'], FUTURA: ['PENDIENTE', 'TARIFA AÚN NO VIGENTE'], REF: ['PARCIAL', 'REFERENCIA PÚBLICA'], ERP: ['ABIERTA', 'FÓRMULA DEL ERP'], CORREOS: ['ABIERTA', 'TABLA OFICIAL CORREOS'], SIN_TARIFA: ['CERRADA', 'SIN TARIFA'], SIN_DESTINO: ['CERRADA', 'FALTA DESTINO'], INTERNO: ['CERRADA', 'SERVICIO PROPIO'], NO_ADMITE: ['ANULADO', 'NO ADMITE ESTE BULTO'] },
   DESGLOSE: [['base', 'Base'], ['flete', 'flete'], ['sobredim', 'sobredimensión'], ['bultos', 'bultos adicionales'], ['combustible', 'recargo'], ['zona', 'zona extrema'], ['porPagar', 'por pagar'], ['retiro', 'retiro'], ['seguro', 'seguro'], ['iva', 'IVA']],
   PUBLICADOS: {
     CHILEXPRESS: { fuente: 'Guía de Servicios Chilexpress (cxpgdastprod.blob.core.windows.net/mdn/documentos/Guia_de_servicios.pdf) y enviafacil.cl/chilexpress/tarifas', v: { fv: 4000, volDesde: 60, sdDims: '80x80x120', sdKg: 50, sdCargo: 3500, ppSuc: 10, ppDom: 15, maxKg: 100, maxLado: 200 },
@@ -4107,7 +4272,7 @@ var CotUI = {
     UI.modal({ titulo: 'COTIZADOR DE ENVÍO', html: '<div id="cotRaiz"></div>', botones: [{ txt: 'CERRAR', cls: 'btn-sec' }], alAbrir: function () { CotUI.montar(U.$('cotRaiz'), op || {}); } });
   },
   estado: function (op) {
-    var st = { bultos: [], comuna: '', region: '', valor: 0, modalidad: 'DOMICILIO', porPagar: false, retiro: false, ref: op.ref || '', docKey: op.docKey || '', id: '', obs: {}, res: [], aviso: op.aviso || '' };
+    var st = { bultos: [], comuna: '', region: '', valor: 0, canal: CotCorreos.cfg().canal, modalidad: DB.cfg.cotModalidad === 'SUCURSAL' ? 'SUCURSAL' : 'DOMICILIO', porPagar: false, retiro: false, ref: op.ref || '', docKey: op.docKey || '', id: '', obs: {}, res: [], aviso: op.aviso || '' };
     U.each(op.bultos || [], function (b) { var x = { ancho: U.num(b.ancho), alto: U.num(b.alto), largo: U.num(b.largo), peso: U.num(b.peso), desc: b.desc || b.productoDesc || '' }; if (x.ancho > 0 && x.alto > 0 && x.largo > 0 && x.peso > 0) st.bultos.push(x); });
     var d = op.destino || {};
     st.comuna = U.norm(d.comuna || ''); st.region = d.region || '';
@@ -4125,6 +4290,7 @@ var CotUI = {
       '<div id="ctDestInfo" class="muted"></div>' +
       '<label class="lbl" for="ctValor">VALOR DECLARADO $ <span class="unidad">opcional · para seguro</span></label><input id="ctValor" class="inp sm" type="number" inputmode="numeric" min="0" step="1" value="' + (st.valor || '') + '" data-next="ctA">' +
       '<label class="lbl" for="ctMod">ENTREGA AL DESTINATARIO</label><select id="ctMod" class="inp sm"><option value="DOMICILIO"' + (st.modalidad !== 'SUCURSAL' ? ' selected' : '') + '>En su domicilio</option><option value="SUCURSAL"' + (st.modalidad === 'SUCURSAL' ? ' selected' : '') + '>Retira en sucursal del courier</option></select>' +
+      '<label class="lbl" for="ctCanal">ADMISIÓN EN CORREOS <span class="unidad">define el peso que se cobra</span></label><select id="ctCanal" class="inp sm">' + U.map(['WEB', 'SUCURSAL'], function (k) { return '<option value="' + k + '"' + (k === st.canal ? ' selected' : '') + '>' + CotCorreos.CANAL[k] + '</option>'; }).join('') + '</select>' +
       '<label class="lbl">CONDICIONES DEL ENVÍO <span class="unidad">opcionales</span></label><div class="fila"><div class="c"><label class="chk" style="margin:0"><input type="checkbox" id="ctPP"' + (st.porPagar ? ' checked' : '') + '> Por pagar</label></div>' +
       '<div class="c"><label class="chk" style="margin:0"><input type="checkbox" id="ctRet"' + (st.retiro ? ' checked' : '') + '> Retiro en bodega</label></div></div>' +
       '<h2 style="margin-top:12px">BULTOS</h2><div id="ctBultos"></div>' +
@@ -4134,7 +4300,7 @@ var CotUI = {
       '<label class="lbl" for="ctProd">…O DESDE UN PRODUCTO <span class="unidad">usa las medidas de su ficha</span></label><input id="ctProd" class="inp sm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra o nombre" data-enter="ctProdEnter"><div id="ctProdRes"></div>' +
       '<h2 style="margin-top:12px">RESULTADO POR COURIER</h2><div id="ctRes"></div>' +
       '<div class="btns"><button class="btn btn-ok btn-sm" data-a="ctGuardar">GUARDAR COTIZACIÓN</button><button class="btn btn-sec btn-sm" data-a="ctLimpiar">LIMPIAR BULTOS</button></div><div id="ctMsg" class="muted"></div>';
-    var leerDest = function () { st.comuna = U.norm(U.$('ctComuna').value); st.region = Geo.region(U.$('ctRegion').value) || ''; st.valor = Math.max(0, Math.round(U.num(U.$('ctValor').value) || 0)); st.modalidad = U.$('ctMod').value; st.porPagar = U.$('ctPP').checked; st.retiro = U.$('ctRet').checked; };
+    var leerDest = function () { st.comuna = U.norm(U.$('ctComuna').value); st.region = Geo.region(U.$('ctRegion').value) || ''; st.valor = Math.max(0, Math.round(U.num(U.$('ctValor').value) || 0)); st.modalidad = U.$('ctMod').value; st.canal = U.$('ctCanal').value; st.porPagar = U.$('ctPP').checked; st.retiro = U.$('ctRet').checked; };
     var infoDest = function () {
       var el = U.$('ctDestInfo'), v = U.$('ctComuna').value;
       if (!Comunas.lista.length) { el.innerHTML = 'Sin lista de comunas cargada: escriba la comuna y elija la región (Datos → Cotizador para cargarla).'; return; }
@@ -4154,7 +4320,7 @@ var CotUI = {
     var pintarRes = function () {
       var el = U.$('ctRes');
       if (!st.bultos.length) { el.innerHTML = ''; st.res = []; return; }
-      st.res = Cotizador.calcular({ bultos: st.bultos, comuna: st.comuna, region: st.region, valor: st.valor, modalidad: st.modalidad, porPagar: st.porPagar, retiro: st.retiro });
+      st.res = Cotizador.calcular({ bultos: st.bultos, comuna: st.comuna, region: st.region, valor: st.valor, modalidad: st.modalidad, canal: st.canal, porPagar: st.porPagar, retiro: st.retiro });
       if (!st.res.length) { el.innerHTML = '<div class="aviso amar">No hay couriers habilitados en el cotizador (Datos → Listas de selección y Cotizador).</div>'; return; }
       var sinDest = !st.comuna && !st.region;
       var conP = [], sinP = [];
@@ -4175,10 +4341,10 @@ var CotUI = {
         var h = '<div class="doc"><div class="dh"><div><b style="font-size:17px">' + U.esc(r.nombre) + '</b>' + (r.servicio ? ' · ' + U.esc(r.servicio) : '') + '</div><span class="est ' + e[0] + '">' + e[1] + '</span></div>';
         var cc = r.conf >= 85 ? '#0a7d24' : (r.conf >= 70 ? '#0b4fb3' : (r.conf >= 50 ? '#9a5b00' : '#c00000'));
         if (r.total > 0) h += '<div style="font-size:24px;font-weight:bold;margin:4px 0">' + U.clp(r.total) + ' <span class="muted" style="font-size:13px;font-weight:normal">estimado · entre ' + U.clp(r.min) + ' y ' + U.clp(r.max) + '</span></div>' +
-          '<div style="margin:2px 0 4px"><span class="est" style="background:' + cc + ';color:#fff">CONFIANZA ' + r.conf + ' %</span> <span class="muted">' + (r.fuente === 'TARIFA' ? 'tarifa cargada en Datos' : 'sin tarifa cargada: fórmula del ERP') + '</span></div>' +
+          '<div style="margin:2px 0 4px"><span class="est" style="background:' + cc + ';color:#fff">CONFIANZA ' + r.conf + ' %</span> <span class="muted">' + (r.fuente === 'TARIFA' ? 'tarifa cargada en Datos' : (r.fuente === 'CORREOS' ? 'tabla oficial de Correos' + (r.publicada ? '' : ' · zona no publicada') : 'sin tarifa cargada: fórmula del ERP')) + '</span></div>' +
           '<div class="s">' + U.map(U.filter(Cotizador.DESGLOSE, function (k) { return r.d[k[0]] > 0; }), function (k, n) { return (n ? '+ ' : '') + k[1] + ' ' + U.clp(r.d[k[0]]); }).join(' ') + (r.plazo != null ? ' · plazo ' + (r.fuente === 'ERP' ? '≈ ' : '') + r.plazo + ' día(s) hábil(es)' : '') + (r.fuente === 'TARIFA' ? ' · tarifa por ' + (r.nivel === 3 ? 'comuna' : (r.nivel === 2 ? 'región' : 'todo Chile')) : '') + '</div>';
         h += '<div class="s">' + U.esc(kgTxt) + '</div>';
-        if (r.fuente === 'ERP') h += '<div class="muted">Cálculo: ' + U.esc(r.nota) + '.</div>';
+        if (r.fuente === 'ERP' || r.fuente === 'CORREOS') h += '<div class="muted">Cálculo: ' + U.esc(r.nota) + '.' + (r.fuente === 'CORREOS' ? ' Fuente: ' + U.esc(CotCorreos.FUENTE) + '. Referencial: el precio final lo fija la medición del sorter de Correos.' : '') + '</div>';
         else if (r.total > 0) h += '<div class="muted">Fuente: ' + U.esc(p.fuente || 'sin registrar') + (p.desde ? ' · vigente desde ' + U.esc(U.fechaCL(p.desde)) : '') + (p.hasta ? ' hasta ' + U.esc(U.fechaCL(p.hasta)) : '') + (p.verPor ? ' · cargada por ' + U.esc(p.verPor) + (p.verFecha ? ' el ' + U.esc(U.fechaCL(p.verFecha)) : '') : '') + '</div>';
         U.each(r.avisos || [], function (a) { h += '<div class="muted" style="color:#9a5b00">⚠ ' + U.esc(a) + '</div>'; });
         if (ob) { var dif = r.total > 0 ? Math.round((ob.precio - r.total) / r.total * 100) : null; h += '<div class="s" style="color:#0a7d24"><b>Precio real registrado: ' + U.clp(ob.precio) + '</b>' + (dif != null ? ' (' + (dif > 0 ? '+' : '') + dif + '% vs. estimado)' : '') + '</div>'; }
@@ -4216,7 +4382,7 @@ var CotUI = {
       if (!st.bultos.length) { if (!silencio) UI.toast('Agregue bultos', 'error'); return; }
       if (!Cotizador.activo()) { if (!silencio) UI.toast('Equipo sin conexión a la planilla: la cotización no se guardó', 'warn', 4000); if (cb) cb(null); return; }
       var cot = { id: st.id, referencia: st.ref, docKey: st.docKey, origen: origen, comuna: st.comuna, region: st.region, valorDeclarado: st.valor, bultos: st.bultos,
-        opciones: { modalidad: st.modalidad, porPagar: st.porPagar, retiro: st.retiro }, resultado: U.map(st.res, function (r) { return { courier: r.courier, servicio: r.servicio, total: r.total, kg: r.kg, estado: r.estado, fuente: r.fuente, conf: r.conf }; }) };
+        opciones: { modalidad: st.modalidad, canal: st.canal, porPagar: st.porPagar, retiro: st.retiro }, resultado: U.map(st.res, function (r) { return { courier: r.courier, servicio: r.servicio, total: r.total, kg: r.kg, estado: r.estado, fuente: r.fuente, conf: r.conf }; }) };
       U.$('ctMsg').innerHTML = 'Guardando…';
       Sync.llamar('satCotizacionGuardar', { cot: cot, usuario: DB.cfg.operador || '' }, function (r) {
         st.id = r.cotizacion.id; st.obs = r.cotizacion.observados || {};
@@ -4267,7 +4433,7 @@ var CotUI = {
     host.onchange = function (e) {
       var id = e.target.id;
       if (id === 'ctComuna') { var o = Comunas.buscar(e.target.value, ''); if (o) { e.target.value = o.c; U.$('ctRegion').value = REGIONES_CL.indexOf(o.r) >= 0 ? o.r : ''; } }
-      if (id === 'ctComuna' || id === 'ctRegion' || id === 'ctValor' || id === 'ctMod' || id === 'ctPP' || id === 'ctRet') { leerDest(); infoDest(); pintarRes(); }
+      if (id === 'ctComuna' || id === 'ctRegion' || id === 'ctValor' || id === 'ctMod' || id === 'ctCanal' || id === 'ctPP' || id === 'ctRet') { leerDest(); infoDest(); pintarRes(); }
     };
     host.onkeydown = function (e) {
       if (!UI.esEnter(e)) return;
@@ -6355,12 +6521,12 @@ Pantallas.pedidos = function (m) {
         return;
       }
       hh +='<!--pe--><div class="doc'+(Modos.de(p)?' '+Modos.CLS[Modos.de(p)]:'')+'" style="'+(cls==='COMPLETO'?'border-left:7px solid #198754;background:#f1fff6':(cls==='PARCIAL'?'border-left:7px solid #f0ad00;background:#fffaf0':'border-left:7px solid #dc3545;background:#fff5f5'))+'"><div class="dh"><div class="cnt"><span class="est '+cls+'">'+U.esc(Listas.etq('ESTADO',p.estado))+'</span><select class="pe-mod" data-modo="'+p.id+'" title="Modalidad de entrega">'+U.map(Modos.L,function(o){return '<option value="'+o[0]+'"'+(o[0]===Modos.de(p)?' selected':'')+'>'+(o[0]?Modos.N[o[0]]:'COURIER')+'</option>';}).join('')+'</select></div><div class="o">'+U.esc(p.numero)+(Modos.de(p)?' '+Modos.tag(p)+(p.modoObs?' <span class="muted">'+U.esc(p.modoObs)+'</span>':''):'')+'</div><div class="s">'+U.esc(p.origen)+' · '+U.esc(U.fechaCL(p.fecha))+(p.numeroDocumento?' · '+U.esc(p.tipoDocumento)+' '+U.esc(p.numeroDocumento):' · SIN DOCUMENTO')+(Valores.num(p.monto)!=null?' · '+U.esc(Valores.txt(Valores.num(p.monto))):'')+'</div></div>'+
-        '<div class="db"><div class="btns"><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.retiro?(p.retiroDatos&&p.retiroDatos.fecha&&p.estado==='ENTREGADO'?'✓ ENTREGADO':'ENTREGA / RETIRO'):(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO'))+'</button>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<button class="btn btn-sec btn-sm" data-a="pedRotulo" data-x="'+p.id+'">RÓTULO</button>':'')+'<button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
+        '<div class="db"><div class="btns"><span class="ord-tag">'+U.esc(p.numero)+'</span><button class="btn btn-sec btn-sm" data-a="pedEditar" data-x="'+p.id+'">EDITAR</button><button class="btn btn-sec btn-sm" data-a="pedEliminar" data-x="'+p.id+'" style="color:#b02a37;border-color:#e4a5ab">ELIMINAR</button><button class="btn btn-sec btn-sm" data-a="pedEnvio" data-x="'+p.id+'">'+(p.retiro?(p.retiroDatos&&p.retiroDatos.fecha&&p.estado==='ENTREGADO'?'✓ ENTREGADO':'ENTREGA / RETIRO'):(p.envio?'✓ DATOS ENVÍO':'DATOS ENVÍO'))+'</button>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<button class="btn btn-sec btn-sm" data-a="pedRotulo" data-x="'+p.id+'">RÓTULO</button>':'')+'<button class="btn '+(cubYa?'btn-sec':'btn-ok')+' btn-sm" data-a="pedCubicar" data-x="'+p.id+'">'+(cubYa?'VER CUBICACIÓN':'CUBICAR →')+'</button></div>'+(p.envio&&EnvioDatos.tieneDatos(p.envio.destinatario)?'<div class="muted" style="margin-top:4px">Para: '+U.esc(EnvioDatos.resumen(p.envio.destinatario))+'</div>':'')+'</div></div>';
     });
     var bloques = hh ? hh.split('<!--pe-->') : [];
     if (bloques.length && !bloques[0]) bloques.shift();
     var pp = Pag.cortar('ped', bloques);
-    U.$('peLista').innerHTML = pp.items.join('') || '<div class="muted" style="padding:12px">Sin pedidos en este filtro.</div>';
+    U.$('peLista').innerHTML = U.map(pp.items, function (x, i) { return '<div class="ordblk ped z' + (i % 2) + '">' + x + '</div>'; }).join('') || '<div class="muted" style="padding:12px">Sin pedidos en este filtro.</div>';
     U.$('peConteo').innerHTML = n+' registro(s)' + Pag.html('ped', pp, 'pedido(s)');
   };
   m.innerHTML = '<div class="otbar"><div class="n">PEDIDOS / ÓRDENES DE COMPRA</div><div class="muted">Registro previo a Cubicación. El documento de venta puede agregarse después.</div></div>'+
@@ -6491,7 +6657,7 @@ Pantallas.cubicacion = function (m) {
     '<div class="cf cf-tipo"><label class="lbl">TIPO DOCUMENTO <span class="unidad">opcional · se exige al pasar a Packing</span></label><select id="cuTipo" class="inp sm" data-next="cuDoc"><option value=""' + ((pedSel ? !pedSel.tipoDocumento : CubUI.tipo === '') ? ' selected' : '') + '>(SIN DOCUMENTO AÚN)</option>' + CubUI.tipos(pedSel ? pedSel.tipoDocumento : CubUI.tipo) + '</select></div>' +
     '<div class="cf cf-num"><label class="lbl">N° DOCUMENTO</label><input id="cuDoc" class="inp" autocomplete="off" enterkeyhint="next" placeholder="Puede quedar vacío si aún no existe" value="'+U.esc(pedSel?pedSel.numeroDocumento:'')+'" data-next="cuProd"></div>' +
     '<div class="cf cf-env"><div class="btns"><button class="btn btn-sec btn-sm" data-a="cuEnvio">'+(function(){var pe=pedSel||null;return pe&&pe.envio?'✓ DATOS DE ENVÍO':'DATOS DE ENVÍO';})()+'</button></div></div><div id="cuEnvioRes" class="muted cf-envres"></div></div>' +
-    '<div class="cf-tit">BULTO</div><div class="cf-sec cf-med"><div class="cf cf-prod"><label class="lbl">PRODUCTO <span class="unidad">opcional · trae medidas y ubicación</span></label><input id="cuProd" class="inp sm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre o marca" data-enter="prodEnter"><div id="cuProdRes"></div><div id="cuProdSel"></div></div>' +
+    '<div class="cf-tit">BULTO</div><div class="cf-sec cf-med"><div class="cf cf-prod"><label class="lbl">PRODUCTO <span class="unidad">opcional · trae medidas y ubicación</span></label><input id="cuProd" class="inp sm" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código, barra, nombre o marca" data-enter="prodEnter"><div id="cuProdRes"></div><div id="cuProdSel"></div><div id="cuEnvRef" class="cf-envref"></div></div>' +
     '<div class="cf cf-dims fila num"><div class="c"><label class="lbl">ANCHO cm</label><input id="cuAncho" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuAlto"></div><div class="c"><label class="lbl">ALTO cm</label><input id="cuAlto" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuLargo"></div><div class="c"><label class="lbl">LARGO cm</label><input id="cuLargo" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="next" data-next="cuPeso"></div></div>' +
     '<div class="cf cf-peso num"><label class="lbl">PESO kg</label><input id="cuPeso" class="inp" type="number" step="any" inputmode="decimal" enterkeyhint="done" data-enter="agregar"></div>' +
     '<div class="cf cf-valor num"><label class="lbl" for="cuValor">VALOR REF. $ <span class="unidad">opcional</span></label><input id="cuValor" class="inp" inputmode="numeric" autocomplete="off" enterkeyhint="done" data-enter="agregar"></div>' +
@@ -6499,7 +6665,12 @@ Pantallas.cubicacion = function (m) {
     '<div class="btns cf-acc"><button class="btn btn-sec" data-a="repetir">REPETIR MEDIDAS</button><button class="btn btn-sec" data-a="igual">OTRO IGUAL</button><button class="btn btn-sec" data-a="cotForm">COTIZAR</button><button class="btn btn-warn" data-a="limpiarDoc">LIMPIAR DOCUMENTO</button><button class="btn btn-sec" data-a="nuevo">NUEVO ID CUBICACIÓN</button></div></div>' +
     '<div class="card cub-lista"><div class="cl-head"><div class="btns"><button class="btn btn-ok" data-a="cuPend">PENDIENTES</button><button class="btn btn-sec" data-a="cuHist">HISTÓRICO</button></div><h2 id="cuTitulo">BULTOS PENDIENTES DE PACKING</h2><input id="cuBuscar" class="inp" placeholder="Buscar orden, ticket o documento…"></div><div id="cuPag"></div><div id="cuLista" class="lista-int"></div><div class="accbar"><div class="btns"><button class="btn btn-ok" data-a="etiqCub" id="cuEtq">ETIQUETAS DE VARIOS</button><button class="btn btn-sec" data-a="vouCub" id="cuVou">VOUCHER DE VARIOS</button><button class="btn btn-ok" data-a="compartir">COMPARTIR</button></div><div class="btns"><button class="btn btn-sec" data-a="pdfA4">PDF A4</button><button class="btn btn-sec" data-a="pdf80">PDF 80</button><button class="btn btn-sec" data-a="pdf58">PDF 58</button><button class="btn" data-a="packing">PACKING →</button></div></div></div>';
   m.innerHTML = h;
-  var calc = function () { var a = U.num(U.$('cuAncho').value), al = U.num(U.$('cuAlto').value), l = U.num(U.$('cuLargo').value); if (a && al && l) { var c = OT.calcular(a, al, l); U.$('cuCalc').innerHTML = 'Volumen <b>' + U.fx(c.volumen, 3) + ' m³</b> · Peso vol. <b>' + U.fx(c.pesoVol, 2) + ' kg</b>'; } else U.$('cuCalc').innerHTML = ''; };
+  var envRef = function () {
+    var el = U.$('cuEnvRef'); if (!el) return;
+    var pe = CubUI.pedidoId ? Pedidos.porId(CubUI.pedidoId) : EnvioDatos.buscarPedido(U.$('cuOrden').value, U.$('cuTipo').value, U.$('cuDoc').value), d = pe && pe.envio ? pe.envio.destinatario : null;
+    el.innerHTML = CotCorreos.chip({ ancho: U.num(U.$('cuAncho').value), alto: U.num(U.$('cuAlto').value), largo: U.num(U.$('cuLargo').value), peso: U.num(U.$('cuPeso').value) }, d && (d.comuna || d.region) ? { comuna: d.comuna || '', region: d.region || '' } : null);
+  };
+  var calc = function () { envRef(); var a = U.num(U.$('cuAncho').value), al = U.num(U.$('cuAlto').value), l = U.num(U.$('cuLargo').value); if (a && al && l) { var c = OT.calcular(a, al, l); U.$('cuCalc').innerHTML = 'Volumen <b>' + U.fx(c.volumen, 3) + ' m³</b> · Peso vol. <b>' + U.fx(c.pesoVol, 2) + ' kg</b>'; } else U.$('cuCalc').innerHTML = ''; };
   var pintar = function () {
     var q = U.norm(U.$('cuBuscar').value), l = U.filter(CubPool.lista, function (b) {
       var pend = b.estado === 'DISPONIBLE' && !b.otId;
@@ -6515,14 +6686,16 @@ Pantallas.cubicacion = function (m) {
     U.each(l, function (b) { var k = CubUI.keyDe(b); if (!grupos[k]) { grupos[k] = []; ordenG.push(k); } grupos[k].push(b); });
     CubUI.selDocs = {}; CubUI._val = {};
     var pc = Pag.cortar('cub', ordenG);
-    U.each(pc.items, function (k) {
+    U.each(pc.items, function (k, zi) {
       var g = grupos[k], b0 = g[0], tot = CubUI.bultosDoc(k).length, gv = Valores.grupoCub(b0);
+      hh += '<div class="ordblk z' + (zi % 2) + '" data-ord="' + U.esc(b0.orden) + '">';
       U.each(gv.bultos, function (x) { CubUI._val[x.id] = gv.rep.mapa[x.id]; });
       hh += '<div class="dochead"><div style="font-size:16px"><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s)' + (gv.rep.suma != null ? ' · valor ' + Valores.txt(gv.rep.sinTotal ? gv.rep.suma : gv.rep.total) : '') + '</div>' +
         (gv.rep.exceso ? '<div class="aviso amar" style="font-size:13px;margin:4px 0">Los valores de los bultos (' + Valores.txt(gv.rep.explicito) + ') superan el valor del pedido (' + Valores.txt(gv.rep.total) + ').</div>' : '') +
         EnvioDatos.linea(EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) +
-        '<div class="btns"><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button><button class="btn btn-sec btn-sm" data-a="cotDoc" data-x="' + U.esc(k) + '">COTIZAR</button>' + EnvioDatos.boton('envDoc', k, EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) + '<button class="btn btn-sec btn-sm" data-a="rotDoc" data-x="' + U.esc(k) + '">RÓTULO</button>' + CubUI.botonEntrega(k, g) + '</div></div>';
+        '<div class="btns"><span class="ord-tag" title="Las acciones de esta fila son de la orden ' + U.esc(b0.orden) + '">' + U.esc(b0.orden || 'SIN ORDEN') + '</span><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button><button class="btn btn-sec btn-sm" data-a="cotDoc" data-x="' + U.esc(k) + '">COTIZAR</button>' + EnvioDatos.boton('envDoc', k, EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) + '<button class="btn btn-sec btn-sm" data-a="rotDoc" data-x="' + U.esc(k) + '">RÓTULO</button>' + CubUI.botonEntrega(k, g) + '</div></div>';
       U.each(g, function (b) { hh += CubUI.filaBulto(b); });
+      hh += '</div>';
     });
     var cl = U.$('cuLista'), sc = cl.scrollTop; cl.innerHTML = hh; cl.scrollTop = sc;
     U.$('cuPag').innerHTML = Pag.html('cub', pc, 'documento(s)');
@@ -6592,7 +6765,7 @@ Pantallas.cubicacion = function (m) {
       } }
     ] });
   };
-  m.oninput = function (e) { if (e.target.id === 'cuOrden' || e.target.id === 'cuDoc') envioRes(); if (e.target.id === 'cuAncho' || e.target.id === 'cuAlto' || e.target.id === 'cuLargo') calc(); if (e.target.id === 'cuBuscar') { Pag.reiniciar('cub'); pintar(); } if (e.target.id === 'cuProd') { clearTimeout(tp); tp = setTimeout(prodBuscar, 120); } };
+  m.oninput = function (e) { if (e.target.id === 'cuOrden' || e.target.id === 'cuDoc') envioRes(); if (e.target.id === 'cuAncho' || e.target.id === 'cuAlto' || e.target.id === 'cuLargo' || e.target.id === 'cuPeso') calc(); if (e.target.id === 'cuBuscar') { Pag.reiniciar('cub'); pintar(); } if (e.target.id === 'cuProd') { clearTimeout(tp); tp = setTimeout(prodBuscar, 120); } };
   m.onchange = function (e) {
     if (e.target.id === 'cuTipo') { CubUI.tipo = e.target.value; envioRes(); }
     if (e.target.id === 'cuPedido') { CubUI.pedidoId = e.target.value || null; App.ir('cubicacion'); }
@@ -6617,7 +6790,7 @@ Pantallas.cubicacion = function (m) {
     el.innerHTML = (d && EnvioDatos.tieneDatos(d) ? 'Para: ' + U.esc(EnvioDatos.resumen(d)) : '') +
       (previos.length ? '<div class="aviso amar" style="margin:4px 0 0">Esta orden ya tiene despacho asociado: ' + U.esc(previos.slice(0, 4).join(' · ')) + (previos.length > 4 ? '…' : '') + '. Puede cubicar un nuevo despacho de la misma orden.</div>' : '');
     var bt = m.querySelector('[data-a="cuEnvio"]'); if (bt) bt.innerHTML = pe && pe.envio ? '✓ DATOS DE ENVÍO' : 'DATOS DE ENVÍO';
-    valorAyuda();
+    valorAyuda(); envRef();
   };
   var acciones = {
     cuEnvio: function () { EnvioDatos.abrir({ pedidoId: CubUI.pedidoId || '', orden: U.$('cuOrden').value, tipoDocumento: U.$('cuTipo').value, numeroDocumento: U.$('cuDoc').value }, function () { envioRes(); }); },
@@ -6893,7 +7066,7 @@ var PackingUI = {
     ops += '<div class="muted" style="margin:4px 0 8px">Los formatos se crean y modifican en ROTULADO › FORMATOS.</div>';
     var prev = function (id) { var p = U.$('fmtPrev'); if (p) p.innerHTML = Plantillas.etiquetaBulto(ot, bultos[0], id); };
     UI.modal({
-      titulo: 'Etiqueta de bulto · ' + bultos.length + ' bulto(s)',
+      titulo: 'Etiquetas · ' + (function () { var o = []; U.each(bultos, function (b) { var t = U.trim(b.orden) || '(sin orden)'; if (o.indexOf(t) < 0) o.push(t); }); return o.slice(0, 3).join(', ') + (o.length > 3 ? ' y ' + (o.length - 3) + ' más' : ''); })() + ' · ' + bultos.length + ' bulto(s)',
       html: ops + '<label class="lbl">VISTA PREVIA</label>' + ZoomImp.html() + '<div class="fmt-prev zprev" id="fmtPrev"></div>',
       botones: [
         { txt: 'IMPRIMIR ' + bultos.length, cls: 'btn-ok', fn: function () {
@@ -7174,16 +7347,17 @@ Pantallas.packing = function (m) {
     }
     var grupos = {};
     U.each(bs, function (b) { var k = b.orden + '|' + b.tipoDocumento + '|' + b.numeroDocumento; if (!grupos[k]) grupos[k] = []; grupos[k].push(b); });
+    var zi = 0;
     for (var k in grupos) {
       var g = grupos[k], b0 = g[0];
-      hh += '<div class="card"><div style="font-size:21px;font-weight:900">' + U.esc(b0.orden) + '</div>' +
+      hh += '<div class="card ordblk z' + (zi++ % 2) + '" data-ord="' + U.esc(b0.orden) + '"><div style="font-size:21px;font-weight:900">' + U.esc(b0.orden) + '</div>' +
         '<div style="font-size:19px;font-weight:800;margin:3px 0 8px">' + (U.trim(b0.numeroDocumento) ? U.esc(b0.tipoDocumento) + ' ' + U.esc(b0.numeroDocumento) : '<span style="color:#b02a37">SIN DOCUMENTO · se pedirá al incorporar</span>') + '</div>';
       U.each(g, function (b) {
         hh += '<label style="display:block;padding:12px 8px;border-top:1px solid #ddd;font-size:18px;font-weight:700;cursor:pointer">' +
           '<input type="checkbox" data-bid="' + b.id + '" style="width:24px;height:24px;vertical-align:middle;margin-right:8px"' + (PackUI.seleccion[b.id] ? ' checked' : '') + '>' +
           'BULTO ' + Plantillas._posBulto(null, b).pos + '/' + Plantillas._posBulto(null, b).tot + ' &nbsp; ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm &nbsp; ' + U.fx(b.peso, 2) + ' kg</label>';
       });
-      hh += '<div class="btns" style="margin-top:8px">' + CubUI.botonEntrega(CubUI.keyDe(b0), g) + '</div></div>';
+      hh += '<div class="btns" style="margin-top:8px"><span class="ord-tag">' + U.esc(b0.orden || 'SIN ORDEN') + '</span>' + CubUI.botonEntrega(CubUI.keyDe(b0), g) + '</div></div>';
     }
     hh += '<div class="card"><div id="paSelRes" class="msg" style="font-size:17px"></div>' +
       '<div class="btns"><button class="btn btn-sec" data-a="limpiar">LIMPIAR SELECCIÓN</button>' +
@@ -7695,7 +7869,7 @@ var DespachoGrupo = {
 Pantallas.despacho = function (m) { DespachoGrupo.pantalla(m); };
 
 var Compartida = {
-  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto', 'remitente', 'urlSeguimiento', 'rotuloFmt', 'manifCfg'],
+  CAMPOS: ['empresa', 'subtitulo', 'factorVol', 'whatsapp', 'claveAdmin', 'nombreAdmin', 'formatoBulto', 'barraBulto', 'remitente', 'urlSeguimiento', 'rotuloFmt', 'manifCfg', 'correosTab', 'courierRef'],
   datos: function () { var o = {}; U.each(Compartida.CAMPOS, function (k) { if (DB.cfg[k] != null) o[k] = DB.cfg[k]; }); return o; },
   activo: function () { return Sync.modo() !== 'local' && !!DB.cfg.sync.token; },
   subir: function (cb) {
@@ -9889,7 +10063,10 @@ Pantallas.datos = function (m) {
     '<h3 style="margin-top:10px">COMUNAS</h3><div id="cmEst" class="tot"></div>' +
     '<label class="lbl" for="cmFile">CARGAR EXCEL O CSV <span class="unidad">columnas COMUNA y REGIÓN · opcionales PROVINCIA y CÓDIGO</span></label><input id="cmFile" type="file" accept=".xlsx,.xls,.csv,.txt" class="inp sm" style="padding:8px">' +
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="cmPlantilla">PLANTILLA</button><button class="btn btn-sec btn-sm" data-a="cmExportar">DESCARGAR LISTA</button></div>' +
-    '<h3 style="margin-top:12px">COURIER</h3><div class="muted">Los couriers salen de «Listas de selección». Aquí se registran sus parámetros y tarifas.</div><label class="lbl" for="ccSel">COURIER</label><select id="ccSel" class="inp sm">' + U.map(Listas.get('COURIER'), function (x) { return '<option value="' + U.esc(x.v) + '">' + U.esc(Listas.etq('COURIER', x.v)) + (x.on === false ? ' (inactivo)' : '') + (Cotizador.tarifas(x.v).length ? ' · con tarifa' : '') + '</option>'; }).join('') + '</select>' +
+    '<h3 style="margin-top:12px">COURIER</h3><div class="muted">Los couriers salen de «Listas de selección». Aquí se registran sus parámetros y tarifas.</div><div class="fila"><div class="c"><label class="lbl" for="ccRef">COURIER PARA EL VALOR REFERENCIAL</label><select id="ccRef" class="inp sm">' + U.map(Listas.get('COURIER'), function (x) { return '<option value="' + U.esc(x.v) + '"' + (x.v === (DB.cfg.courierRef || CotCorreos.COURIER) ? ' selected' : '') + '>' + U.esc(Listas.etq('COURIER', x.v)) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="c"><label class="lbl" for="ccRefMod">ENTREGA PARA EL VALOR REFERENCIAL</label><select id="ccRefMod" class="inp sm"><option value="DOMICILIO">Domicilio</option><option value="SUCURSAL"' + (DB.cfg.cotModalidad === 'SUCURSAL' ? ' selected' : '') + '>Sucursal</option></select></div></div>' +
+    '<div class="muted">Se muestra en Cubicación junto a la ubicación del producto y las medidas («Envío ref.»). Queda guardado en este equipo y se comparte con los demás.</div>' +
+    '<label class="lbl" for="ccSel">COURIER</label><select id="ccSel" class="inp sm">' + U.map(Listas.get('COURIER'), function (x) { return '<option value="' + U.esc(x.v) + '">' + U.esc(Listas.etq('COURIER', x.v)) + (x.on === false ? ' (inactivo)' : '') + (Cotizador.tarifas(x.v).length ? ' · con tarifa' : '') + '</option>'; }).join('') + '</select>' +
     '<div id="ccForm"></div></div>';
   h += '<div class="card"><h2>Asistente con IA (Gemini)</h2><div class="muted">Agrega «✨ Analizar con IA» al asistente. La consulta la hace la planilla con la clave guardada en Apps Script → Configuración del proyecto → Propiedades del script → <b>GEMINI_API_KEY</b> (opcionales: <b>GEMINI_MODELO</b>, si no se indica se usa el modelo Flash estable más reciente disponible para la clave, y <b>GEMINI_TOPE_DIA</b>, por defecto 50 consultas al día). Se envían solo datos operativos: órdenes, documentos, fechas, etapas, couriers, comunas, bultos, pesos y montos; nunca nombres, RUT, teléfonos, correos ni direcciones. Cada consulta queda en la hoja <b>SAT_IA_Log</b>.</div>' +
     '<label class="chk"><input type="checkbox" id="cfIA"' + (c.iaAsistente ? ' checked' : '') + '> Permitir «Analizar con IA» en este equipo</label>' +
@@ -9956,6 +10133,7 @@ Pantallas.datos = function (m) {
   m.onchange = function (e) {
     if (e.target && e.target.id === 'lsSel') { lsCargar(e.target.value); return; }
     if (e.target && e.target.id === 'ccSel') { ccCargar(e.target.value); return; }
+    if (e.target && (e.target.id === 'ccRef' || e.target.id === 'ccRefMod')) { DB.cfg.courierRef = U.$('ccRef').value; DB.cfg.cotModalidad = U.$('ccRefMod').value; DB.guardarCfg(); if (Compartida.activo()) Compartida.subir(function () {}); UI.toast('Valor referencial: ' + Listas.etq('COURIER', DB.cfg.courierRef) + ' · ' + DB.cfg.cotModalidad.toLowerCase(), 'ok'); return; }
     if (e.target && e.target.id === 'cfIA') { DB.cfg.iaAsistente = e.target.checked; DB.guardarCfg(); UI.toast(e.target.checked ? 'Análisis con IA habilitado en este equipo' : 'Análisis con IA deshabilitado en este equipo', 'ok'); return; }
     if (e.target && e.target.id === 'cmFile') { cmArchivo(e.target.files && e.target.files[0]); return; }
     if (e.target && e.target.id === 'ccFile') { ccTarifasArchivo(e.target.files && e.target.files[0]); return; }
@@ -10035,6 +10213,7 @@ Pantallas.datos = function (m) {
   var ccResumen = function (c) {
     var ts = Cotizador.tarifas(c), sv = {}, nd = { TODO: 0, REGION: 0, COMUNA: 0 };
     U.each(ts, function (t) { sv[t.s] = 1; nd[t.dt] = (nd[t.dt] || 0) + 1; });
+    if (!ts.length && c === CotCorreos.COURIER && CotCorreos.activo()) return '<div class="muted">Sin tarifa propia cargada: el cotizador usa la tabla oficial de Correos (arriba). Si carga una tarifa de convenio, esa tiene prioridad.</div>';
     if (!ts.length) return '<div class="aviso amar" style="font-size:13px">Sin tarifa cargada: ' + (CotERP.op(c) ? 'el cotizador estima con la fórmula del cotizador del ERP (base por zona + precio por kg del tramo + recargos).' : 'este courier no está en el ERP y queda sin estimación.') + ' Si carga el tarifario real, se usa ese.</div>';
     var p = Cotizador.param(c), hoy = U.fechaISO();
     return '<div class="tot"><b>' + ts.length + '</b> fila(s) de tarifa · servicios: <b>' + U.esc(Object.keys(sv).join(', ')) + '</b><br>Por comuna: ' + nd.COMUNA + ' · por región: ' + nd.REGION + ' · todo Chile: ' + nd.TODO +
@@ -10074,6 +10253,7 @@ Pantallas.datos = function (m) {
       ccFila('NOTAS', 'ccNotas', '<input id="ccNotas" class="inp sm" maxlength="300" value="' + U.esc(p.notas) + '">') +
       (p.act ? '<div class="muted">Parámetros guardados el ' + U.esc(U.fechaLocal(p.act)) + (p.usuario ? ' por ' + U.esc(p.usuario) : '') + '.</div>' : '') +
       '<button class="btn btn-ok btn-sm" data-a="ccGuardar">GUARDAR PARÁMETROS</button>' +
+      (c === CotCorreos.COURIER ? '<h3 style="margin-top:12px">TABLA OFICIAL DE CORREOS</h3><div id="ccoBox">' + CotCorreos.panel() + '</div>' : '') +
       '<h3 style="margin-top:12px">TARIFAS DE ' + U.esc(Listas.etq('COURIER', c)) + '</h3><div id="ccRes">' + ccResumen(c) + '</div>' +
       '<label class="lbl" for="ccFile">CARGAR TARIFAS (EXCEL O CSV) <span class="unidad">reemplaza las de este courier</span></label><input id="ccFile" type="file" accept=".xlsx,.xls,.csv,.txt" class="inp sm" style="padding:8px">' +
       '<div class="btns"><button class="btn btn-sec btn-sm" data-a="ccPlantilla">PLANTILLA</button><button class="btn btn-sec btn-sm" data-a="ccExportar"' + (Cotizador.tarifas(c).length ? '' : ' disabled') + '>DESCARGAR TARIFAS</button></div>' +
@@ -10146,6 +10326,8 @@ Pantallas.datos = function (m) {
       U.$('ccMsg').innerHTML = '<div class="aviso amar" style="font-size:13px">Valores publicados cargados en el formulario. Revíselos contra su contrato y presione GUARDAR PARÁMETROS.' + (pu.ze ? ' Para aplicar zona extrema, indique a qué comunas o regiones aplica.' : '') + '</div>';
     },
     ccExportar: function () { UI.descargar('tarifas_' + U.sinAcentos(ccCual).replace(/[^A-Z0-9]+/g, '_') + '_' + U.sello() + '.csv', Cotizador.exportar(ccCual), 'text/csv'); },
+    ccoGuardar: function () { var o = CotCorreos.leerPanel(); if (!o.lejos.length && U.trim(U.$('ccoLejos').value)) { UI.toast('Regiones no reconocidas en zona Lejos', 'error'); return; } CotCorreos.guardar(o); U.$('ccoBox').innerHTML = CotCorreos.panel(); U.$('ccRes').innerHTML = ccResumen(ccCual); U.$('ccoMsg').innerHTML = '<div class="msg ok">Tabla de Correos guardada' + (Compartida.activo() ? ' y compartida' : '') + '.</div>'; },
+    ccoReset: function () { UI.confirmar('¿Restablecer la tabla de Correos con los valores de la Resolución Exenta N° 66/2025? Se pierden los valores editados.', function () { CotCorreos.guardar(U.clone(CotCorreos.DEF)); U.$('ccoBox').innerHTML = CotCorreos.panel(); U.$('ccRes').innerHTML = ccResumen(ccCual); }, { titulo: 'Restablecer tabla', si: 'RESTABLECER' }); },
     ccGuardar: function () {
       var c = ccCual, q = ccLeerForm(), e = ccValidar(q);
       if (e) { UI.toast(e, 'error', 4000); return; }
