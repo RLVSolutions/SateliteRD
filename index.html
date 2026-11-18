@@ -646,7 +646,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.41.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.42.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -3033,7 +3033,7 @@ var OT = {
   generarManifiesto: function (ot) {
     if (!ot.bultos.length) return 'La OT no tiene bultos.';
     var m = ot.manifiesto, d = new Date();
-    if (!m.generado || m.desactualizado) { m.version = (m.version || 0) + 1; m.fecha = U.fechaISO(d); m.hora = U.hora(d); }
+    if (!m.generado || m.desactualizado) { m.version = (m.version || 0) + 1; m.fecha = U.fechaISO(d); m.hora = U.hora(d); OT.recalcPV(ot); }
     m.generado = true; m.desactualizado = false;
     ot.estado = 'CERRADA';
     OT.recalcular(ot); ot.actualizado = d.toISOString();
@@ -3042,8 +3042,22 @@ var OT = {
     if (typeof Pedidos !== 'undefined') Pedidos.reconciliarEstados();
     return '';
   },
+  recalcPV: function (ot) {
+    var f = Number(DB.cfg.factorVol) || 5000, k = 0, ahora = new Date().toISOString(), cub = false;
+    U.each(ot.bultos, function (b) {
+      var c = OT.calcular(b.ancho, b.alto, b.largo);
+      if (c.pesoVol !== b.pesoVol || c.volumen !== b.volumen) { b.pesoVol = c.pesoVol; b.volumen = c.volumen; b.act = ahora; k++; }
+      var cb = b.origenCubicacionId ? U.find(CubPool.lista, function (x) { return x.id === b.origenCubicacionId; }) : null;
+      if (cb && (cb.pesoVol !== c.pesoVol || cb.volumen !== c.volumen)) { cb.pesoVol = c.pesoVol; cb.volumen = c.volumen; cb.act = ahora; SyncReg.marcar(cb); cub = true; }
+    });
+    ot.factorVol = f;
+    if (cub) StorageManager.guardar(CLAVES.cubicacion, CubPool.lista);
+    if (k) { OT.recalcular(ot); OT.modificada(ot); if (typeof Sync !== 'undefined') Sync.marcarOT(ot.id); }
+    return k;
+  },
   reabrir: function (ot, aut) {
     ot.estado = 'ABIERTA';
+    OT.recalcPV(ot);
     if (ot.manifiesto && ot.manifiesto.generado) ot.manifiesto.desactualizado = true;
     if (!ot.despacho) ot.despacho = { estado: 'PENDIENTE', cerrado: '', cambiosForzados: [] };
     if (ot.despacho.estado === 'COMPLETO' || ot.despacho.estado === 'ANULADO') ot.despacho.estado = 'PARCIAL';
@@ -3056,13 +3070,17 @@ var OT = {
     var n = 0;
     U.each(OT.lista, function (ot) {
       if (ot.estado !== 'ABIERTA') return;
-      var k = 0;
-      U.each(ot.bultos, function (b) { var c = OT.calcular(b.ancho, b.alto, b.largo); if (c.pesoVol !== b.pesoVol) { b.pesoVol = c.pesoVol; b.act = new Date().toISOString(); k++; } });
-      if (k) { OT.modificada(ot); if (typeof Sync !== 'undefined') Sync.marcarOT(ot.id); }
-      n += k;
+      n += OT.recalcPV(ot);
     });
+    var ahora = new Date().toISOString(), m = 0;
+    U.each(CubPool.lista, function (b) {
+      if (b.estado !== 'DISPONIBLE' || b.otId) return;
+      var c = OT.calcular(b.ancho, b.alto, b.largo);
+      if (c.pesoVol !== b.pesoVol || c.volumen !== b.volumen) { b.pesoVol = c.pesoVol; b.volumen = c.volumen; b.act = ahora; SyncReg.marcar(b); m++; }
+    });
+    if (m) StorageManager.guardar(CLAVES.cubicacion, CubPool.lista);
     OT.guardar();
-    return n;
+    return n + m;
   }
 };
 
@@ -7883,8 +7901,10 @@ var Compartida = {
     Sync.llamar('satConfigLeer', {}, function (r) {
       var cambio = false;
       if (r && r.config && String(r.actualizado || '') > String(DB.cfg.compartidaAct || '')) {
+        var fv0 = DB.cfg.factorVol;
         U.each(Compartida.CAMPOS, function (k) { if (r.config[k] != null) DB.cfg[k] = U.clone(r.config[k]); });
         DB.cfg.compartidaAct = r.actualizado; DB.guardarCfg(); cambio = true;
+        if (DB.cfg.factorVol !== fv0) OT.recalcularPesoVol();
       } else if (r && !r.config && DB.cfg.claveAdmin) Compartida.subir();
       if (cb) cb(true, cambio);
     }, function (m) { if (cb) cb(false, m); });
@@ -8255,6 +8275,81 @@ var Seguimiento = {
     bt.push({ txt: 'CERRAR', cls: 'btn-sec' });
     UI.modal({ titulo: 'Seguimiento de documento', html: h, botones: bt });
   },
+  COLS: [['FECHA', 'Fecha manifiesto (u OT si no hay)'], ['HORA', ''], ['OT', ''], ['ESTADO_OT', ''], ['COURIER', ''], ['N_ORDEN_COURIER', ''], ['ORDEN_TICKET', ''], ['TIPO_DOC', ''], ['N_DOCUMENTO', ''],
+    ['DESTINATARIO', ''], ['RUT', ''], ['COMUNA', ''], ['REGION', ''], ['MODALIDAD', ''], ['BULTO', ''], ['BULTOS_DOC', ''], ['ANCHO_CM', ''], ['ALTO_CM', ''], ['LARGO_CM', ''], ['SUMA_LADOS_CM', ''],
+    ['PESO_REAL_KG', ''], ['VOLUMEN_M3', ''], ['FACTOR_SATELITE', ''], ['PESO_VOL_KG', ''], ['FACTOR_COURIER', ''], ['PESO_VOL_COURIER_KG', ''], ['PESO_COBRABLE_KG', ''],
+    ['SERVICIO_REF', ''], ['COTIZACION_REF', ''], ['FUENTE_REF', ''], ['VALOR_DECLARADO', ''], ['ETAPA', ''], ['COBRO_COURIER', ''], ['DIFERENCIA', '']],
+  filasReporte: function (vista, courier) {
+    var filas = [], fv = Number(DB.cfg.factorVol) || 5000, cache = {}, mod = DB.cfg.cotModalidad === 'SUCURSAL' ? 'SUCURSAL' : 'DOMICILIO';
+    var destDe = function (p) { var de = p && p.envio && p.envio.destinatario; return de || {}; };
+    var cotiz = function (b, de, cou) {
+      if (!cou || !(Number(b.peso) > 0) || !(Number(b.ancho) > 0) || !(de.comuna || de.region)) return null;
+      var k = [cou, b.ancho, b.alto, b.largo, b.peso, de.comuna, de.region].join('|');
+      if (cache[k] !== undefined) return cache[k];
+      var res = Cotizador.calcular({ bultos: [{ ancho: Number(b.ancho), alto: Number(b.alto), largo: Number(b.largo), peso: Number(b.peso) }], comuna: de.comuna || '', region: de.region || '', valor: 0, modalidad: mod });
+      var mios = U.filter(res, function (r) { return r.courier === cou; }), sv = cou === CotCorreos.COURIER ? CotCorreos.cfg().servicio : '';
+      var r = U.find(mios, function (x) { return x.total > 0 && (!sv || x.serv === sv); }) || U.find(mios, function (x) { return x.total > 0; }) || mios[0] || null;
+      return (cache[k] = r);
+    };
+    var fila = function (o) {
+      var b = o.b, de = o.de, cou = U.norm(o.courier), r = cotiz(b, de, cou), pb = r && r.pesos && r.pesos.bultos ? r.pesos.bultos[0] : null;
+      var a = Number(b.ancho) || 0, al = Number(b.alto) || 0, la = Number(b.largo) || 0, real = Number(b.peso) || 0, c = OT.calcular(a, al, la);
+      var pv = b.pesoVol != null && b.pesoVol !== '' ? Number(b.pesoVol) : c.pesoVol, fvo = o.factor || fv;
+      filas.push({ FECHA: o.fecha ? U.fechaCL(o.fecha) : '', HORA: o.hora || '', OT: o.ot || '', ESTADO_OT: o.estOT || '', COURIER: cou, N_ORDEN_COURIER: U.norm(b.ordenCourierEscaneada || b.ordenCourier || ''),
+        ORDEN_TICKET: o.d.orden, TIPO_DOC: o.d.numeroDocumento ? o.d.tipoDocumento : '', N_DOCUMENTO: o.d.numeroDocumento || '', DESTINATARIO: U.trim(de.nombre || ''), RUT: de.rut ? Rut.formato(de.rut) : '',
+        COMUNA: U.trim(de.comuna || ''), REGION: U.trim(de.region || ''), MODALIDAD: o.d.pedido && Modos.de(o.d.pedido) ? Modos.N[Modos.de(o.d.pedido)] : 'COURIER', BULTO: o.pos, BULTOS_DOC: o.tot,
+        ANCHO_CM: a, ALTO_CM: al, LARGO_CM: la, SUMA_LADOS_CM: a + al + la, PESO_REAL_KG: real, VOLUMEN_M3: U.red(a * al * la / 1000000, 6), FACTOR_SATELITE: fvo, PESO_VOL_KG: pv,
+        FACTOR_COURIER: r && r.pesos ? r.pesos.factor : '', PESO_VOL_COURIER_KG: pb ? pb.vol : '', PESO_COBRABLE_KG: pb ? pb.kg : U.red(Math.max(real, pv), 2),
+        SERVICIO_REF: r && r.total > 0 ? r.servicio || '' : '', COTIZACION_REF: r && r.total > 0 ? r.total : '', FUENTE_REF: r ? (r.total > 0 ? ({ CORREOS: 'TABLA OFICIAL CORREOS', ERP: 'FÓRMULA ERP', TARIFA: 'TARIFA CARGADA' }[r.fuente] || r.fuente || '') : (r.motivo || '')) : '',
+        VALOR_DECLARADO: o.valor != null ? o.valor : '', ETAPA: o.d.etapa, COBRO_COURIER: '', DIFERENCIA: '' });
+    };
+    U.each(vista, function (d) {
+      var vistos = {};
+      U.each(d.bultos, function (x) {
+        var ot = x.ot, b = x.b, cou = U.norm(b.courier);
+        if (courier && courier !== 'TODOS' && cou !== courier) return;
+        var doc = U.find(ot.documentos, function (q) { return q.key === b.docKey; }) || { key: b.docKey, orden: b.orden, tipoDocumento: b.tipoDocumento, numeroDocumento: b.numeroDocumento };
+        var pe = Plantillas.pedidoDoc(ot, doc) || d.pedido, vk = ot.id + '|' + doc.key;
+        if (!vistos[vk]) vistos[vk] = Valores.deOT(ot, doc);
+        var vv = vistos[vk] && vistos[vk].mapa && vistos[vk].mapa[b.id] ? vistos[vk].mapa[b.id].v : null, pb = Plantillas._posBulto(ot, b), m = ot.manifiesto || {};
+        fila({ d: d, b: b, de: destDe(pe), courier: cou, ot: ot.numero, estOT: ot.estado, fecha: m.generado ? m.fecha : ot.fecha, hora: m.generado ? m.hora : ot.hora, factor: ot.factorVol, pos: pb.pos + '/' + pb.tot, tot: pb.tot, valor: vv });
+      });
+      if (courier && courier !== 'TODOS') return;
+      U.each(U.filter(d.cub, function (c) { return c.estado === 'DISPONIBLE' || c.estado === 'ENTREGADO'; }), function (c) {
+        var pb = Plantillas._posBulto(null, c);
+        fila({ d: d, b: c, de: destDe(d.pedido || (c.pedidoId ? Pedidos.porId(c.pedidoId) : null)), courier: '', ot: '', estOT: c.estado === 'ENTREGADO' ? 'ENTREGADO SIN OT' : 'SIN OT', fecha: c.fecha || '', hora: c.hora || '', factor: fv, pos: pb ? pb.pos + '/' + pb.tot : (c.numero || ''), tot: pb ? pb.tot : d.cub.length, valor: Valores.num(c.valor) });
+      });
+    });
+    return filas;
+  },
+  reporte: function (vista, courier) {
+    var filas = Seguimiento.filasReporte(vista, courier), cols = U.map(Seguimiento.COLS, function (c) { return c[0]; }), nom = 'rdm_reporte_courier' + (courier && courier !== 'TODOS' ? '_' + courier.replace(/\W+/g, '_').toLowerCase() : '') + '_' + U.sello();
+    if (!filas.length) { UI.toast('No hay bultos para estos filtros', 'warn'); return; }
+    var csv = function () { var sep = ';', r = [cols.join(sep)]; U.each(filas, function (f) { r.push(U.map(cols, function (k) { var v = f[k]; return CSV.campo(typeof v === 'number' ? String(v).replace('.', ',') : v, sep); }).join(sep)); }); UI.descargar(nom + '.csv', '﻿' + r.join('\r\n'), 'text/csv'); };
+    Excel.cargar(function () {
+      try {
+        var X = window.XLSX, aoa = [cols], iC = cols.indexOf('COBRO_COURIER'), iD = cols.indexOf('DIFERENCIA'), iR = cols.indexOf('COTIZACION_REF'), L = function (i) { return X.utils.encode_col(i); };
+        U.each(filas, function (f) { aoa.push(U.map(cols, function (k) { return f[k]; })); });
+        var ws = X.utils.aoa_to_sheet(aoa);
+        U.each(filas, function (f, i) { var rr = i + 2; ws[L(iD) + rr] = { t: 's', v: '', f: 'IF(' + L(iC) + rr + '="","",' + L(iC) + rr + '-' + L(iR) + rr + ')' }; });
+        ws['!cols'] = U.map(cols, function (k) { return { wch: Math.max(8, Math.min(28, k.length + 2)) }; });
+        ws['!autofilter'] = { ref: 'A1:' + L(cols.length - 1) + (filas.length + 1) };
+        var res = {}, orden = [];
+        U.each(filas, function (f) { var k = (f.OT || 'SIN OT') + '|' + (f.COURIER || '-'); if (!res[k]) { res[k] = { OT: f.OT || 'SIN OT', FECHA: f.FECHA, COURIER: f.COURIER || '-', BULTOS: 0, PESO_REAL_KG: 0, PESO_VOL_KG: 0, PESO_COBRABLE_KG: 0, COTIZACION_REF: 0 }; orden.push(k); }
+          var x = res[k]; x.BULTOS++; x.PESO_REAL_KG += Number(f.PESO_REAL_KG) || 0; x.PESO_VOL_KG += Number(f.PESO_VOL_KG) || 0; x.PESO_COBRABLE_KG += Number(f.PESO_COBRABLE_KG) || 0; x.COTIZACION_REF += Number(f.COTIZACION_REF) || 0; });
+        var rc = ['OT', 'FECHA', 'COURIER', 'BULTOS', 'PESO_REAL_KG', 'PESO_VOL_KG', 'PESO_COBRABLE_KG', 'COTIZACION_REF'], ra = [rc];
+        U.each(orden, function (k) { var x = res[k]; ra.push(U.map(rc, function (c) { return typeof x[c] === 'number' && c !== 'BULTOS' ? U.red(x[c], 2) : x[c]; })); });
+        var w2 = X.utils.aoa_to_sheet(ra); w2['!cols'] = U.map(rc, function () { return { wch: 16 }; });
+        var fl = Seguimiento.filtro, w3 = X.utils.aoa_to_sheet([['Reporte para contrastar con el cobro del courier'], ['Generado', U.fechaCL(U.fechaISO(new Date())) + ' ' + U.hora(new Date())], ['Buscar en', fl.campo + ' ' + (fl.valor || '')], ['Etapa', fl.etapa], ['Courier', fl.courier], ['Tipo documento', fl.tipo || 'TODOS'], ['Desde', fl.desde || ''], ['Hasta', fl.hasta || ''], ['Indicador', Seguimiento.kpi || 'TODOS'],
+          ['Factor volumétrico Satélite', Number(DB.cfg.factorVol) || 5000], ['Entrega usada en la cotización', DB.cfg.cotModalidad === 'SUCURSAL' ? 'SUCURSAL' : 'DOMICILIO'],
+          [''], ['PESO_VOL_KG', 'Peso volumétrico registrado en Satélite (largo × ancho × alto / factor Satélite).'], ['PESO_VOL_COURIER_KG', 'Con el divisor del courier según el cotizador.'], ['PESO_COBRABLE_KG', 'El que usa el cotizador: mayor entre real y volumétrico, o solo real si el canal lo indica.'], ['COTIZACION_REF', 'Valor referencial por bulto según el cotizador; el precio final lo fija el courier.'], ['COBRO_COURIER', 'Ingrese el cobro real; DIFERENCIA se calcula sola.']]);
+        w3['!cols'] = [{ wch: 30 }, { wch: 80 }];
+        var wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Bultos'); X.utils.book_append_sheet(wb, w2, 'Resumen'); X.utils.book_append_sheet(wb, w3, 'Filtros');
+        X.writeFile(wb, nom + '.xlsx');
+        UI.toast('Reporte con ' + filas.length + ' bulto(s) descargado', 'ok');
+      } catch (e) { csv(); UI.toast('No se pudo crear el Excel; se descargó en CSV', 'warn', 4000); }
+    }, function () { csv(); UI.toast('Sin conexión para Excel: el reporte se descargó en CSV', 'warn', 4000); });
+  },
   csv: function (l) {
     var sep = ';', r = ['ORDEN_TICKET;TIPO_DOCUMENTO;N_DOCUMENTO;ORIGEN;FECHA;ETAPA;BULTOS_CUBICADOS;BULTOS_OT;VERIFICADOS;OT_INTERNA;COURIER;OT_COURIER;MANIFIESTO;ID_CORREOS'];
     U.each(l, function (d) {
@@ -8283,7 +8378,7 @@ Pantallas.seguimiento = function (m) {
     '<div class="c"><label class="lbl" for="sgHasta">HASTA</label><input id="sgHasta" class="inp sm" type="date" value="' + U.esc(f.hasta) + '"></div></div>' +
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="segRango" data-x="0">HOY</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="7">7 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="30">30 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segLimpiar">LIMPIAR</button></div></div>' +
     '<div id="sgKpis" class="kpis"></div>' +
-    '<div class="card"><div class="fila"><div class="c2"><div id="sgConteo" class="muted" style="padding-top:12px"></div></div><div class="c"><button class="btn btn-sec btn-sm" data-a="segCsv">EXPORTAR CSV</button></div></div><div id="sgLista"></div></div>';
+    '<div class="card"><div class="fila"><div class="c2"><div id="sgConteo" class="muted" style="padding-top:12px"></div></div><div class="c"><div class="btns" style="margin:0;justify-content:flex-end"><button class="btn btn-sec btn-sm" data-a="segCsv">EXPORTAR CSV</button><button class="btn btn-ok btn-sm" data-a="segRep" title="Un registro por bulto según los filtros: orden, factura, bulto, medidas, pesos, cotización referencial y columna para el cobro del courier">REPORTE COURIER (EXCEL)</button></div></div></div><div id="sgLista"></div></div>';
   var kpi = function (n, t, s, c, k) { var act = (Seguimiento.kpi || '') === k; return '<div class="kpi ' + (c || '') + (act ? ' act' : '') + '" role="button" tabindex="0" aria-pressed="' + act + '" data-a="segKpi" data-x="' + k + '"><div class="v">' + n + '</div><div class="t">' + U.esc(t) + '</div><div class="s">' + U.esc(act && k ? 'Filtro activo · tocar para quitar' : s) + '</div></div>'; };
   var nBultos = function (d) { return d.bultos.length || d.cub.length; };
   var esDesp = function (d) { return d.etapa === 'DESPACHADO' || d.etapa === 'ENTREGADO'; };
@@ -8331,6 +8426,7 @@ Pantallas.seguimiento = function (m) {
       render();
     },
     segVer: function (i) { var d = vista[parseInt(i, 10)]; if (d) Seguimiento.detalle(d); },
+    segRep: function () { if (!vista.length) { UI.toast('No hay documentos para exportar', 'warn'); return; } Seguimiento.reporte(vista, f.courier); },
     segCsv: function () { if (!vista.length) { UI.toast('No hay documentos para exportar', 'warn'); return; } UI.descargar('rdm_seguimiento_' + U.sello() + '.csv', Seguimiento.csv(vista), 'text/csv'); }
   });
   render();
