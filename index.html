@@ -317,6 +317,8 @@ textarea.inp{font-size:13px;border-radius:8px}
 .ordblk.ped>.doc{margin:0}
 .ord-tag{display:inline-block;-webkit-align-self:center;align-self:center;padding:4px 10px;border-radius:14px;background:#5b2c83;color:#fff;font-weight:800;font-size:13px;letter-spacing:.3px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .ordblk.z1 .ord-tag{background:#1f6b52}
+.tbl-clic tr[data-sb],.tbl-clic tr[data-sc],.tbl-clic tr[data-mb]{cursor:pointer}
+.tbl-clic tr[data-sb]:hover td,.tbl-clic tr[data-sc]:hover td,.tbl-clic tr[data-mb]:hover td,.tbl-clic tr[tabindex]:focus td{background:#f3ebf8}
 .cf-envref{margin-top:4px}
 .envref{position:relative;display:inline-block;max-width:100%;padding:3px 10px;border-radius:12px;background:#eef6fb;border:1px solid #b9d9ea;color:#0a4f6e;font-size:12px;font-weight:600;cursor:pointer;line-height:1.35;vertical-align:middle}
 .envref.falta{background:#f6f6f6;border-color:#ddd;color:#6c757d;font-weight:500;cursor:default}
@@ -646,7 +648,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.42.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.43.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -2886,7 +2888,12 @@ var OT = {
     DB.guardarCfg(); OT.guardar();
     if (typeof Sync !== 'undefined') Sync.eliminarOT(ot.id);
   },
-  editable: function (ot) { return !!ot && ot.estado === 'ABIERTA'; },
+  editable: function (ot) { return !!ot && (ot.estado === 'ABIERTA' || (!!OT._forzar && OT._forzar === ot.id)); },
+  forzar: function (ot, fn, aut, reg) {
+    var prev = OT._forzar; OT._forzar = ot.id;
+    try { fn(); } finally { OT._forzar = prev; }
+    if (reg) { if (!U.esArray(ot.correcciones)) ot.correcciones = []; ot.correcciones.push(U.assign({ fecha: new Date().toISOString(), usuario: aut ? aut.usuario : '', motivo: aut ? aut.motivo : '', operador: DB.cfg.operador || '', equipo: DB.cfg.equipo || '', estadoOT: ot.estado }, reg)); ot.actualizado = new Date().toISOString(); OT.guardar(ot); }
+  },
   documento: function (ot, key) { return U.find(ot.documentos, function (d) { return d.key === key; }); },
   bultosDoc: function (ot, key) {
     var r = U.filter(ot.bultos, function (b) { return b.docKey === key; });
@@ -6134,17 +6141,62 @@ CubUI.elegirDocs = function (lista, modo) {
   } });
 };
 
+CubUI.nuevoBulto = function (ref, op) {
+  op = op || {};
+  var ots = U.filter(op.ots || [], function (o) { return o && !o.eliminado; }), k = OT.docKey(ref.orden, ref.tipoDocumento, ref.numeroDocumento);
+  var fin = function () { if (op.alFin) op.alFin(); else App.ir(App.pantalla || 'cubicacion'); };
+  var dest = '<option value="">Cubicación (disponible para packing)</option>' + U.map(ots, function (o) { return '<option value="' + o.id + '"' + (o.id === (ots.length ? ots[ots.length - 1].id : '') ? ' selected' : '') + '>' + U.esc(o.numero) + ' · ' + U.esc(o.estado) + '</option>'; }).join('');
+  var h = '<div class="msg"><b>' + U.esc(ref.orden || '—') + '</b> · ' + U.esc(ref.numeroDocumento ? ref.tipoDocumento + ' ' + ref.numeroDocumento : 'SIN DOCUMENTO') + '</div>' +
+    '<div class="fila"><div class="c"><label class="lbl">ANCHO</label><input id="nbA" class="inp" type="number"></div><div class="c"><label class="lbl">ALTO</label><input id="nbH" class="inp" type="number"></div><div class="c"><label class="lbl">LARGO</label><input id="nbL" class="inp" type="number"></div></div>' +
+    '<div class="fila"><div class="c"><label class="lbl">PESO kg</label><input id="nbP" class="inp" type="number"></div><div class="c"><label class="lbl" for="nbN">CANTIDAD <span class="unidad">bultos iguales</span></label><input id="nbN" class="inp" type="number" min="1" max="50" value="1"></div></div>' +
+    '<label class="lbl" for="nbOT">AGREGAR A</label><select id="nbOT" class="inp sm">' + dest + '</select>' +
+    '<div class="muted" id="nbAv"></div>';
+  var aviso = function () { var o = OT.porId(U.$('nbOT').value); U.$('nbAv').innerHTML = !o ? 'Queda disponible en cubicación para asignarlo luego en packing.' : (o.estado === 'ABIERTA' ? 'Se agrega a la OT abierta ' + U.esc(o.numero) + ' con el mismo courier del documento.' : 'La OT ' + U.esc(o.numero) + ' está ' + U.esc(o.estado) + ': pide autorización y deja el manifiesto desactualizado (regenérelo antes de imprimir).'); };
+  UI.modal({ titulo: 'Agregar bulto · ' + (ref.orden || ''), html: h, botones: [{ txt: 'CANCELAR', cls: 'btn-sec' }, { txt: 'AGREGAR', cls: 'btn-ok', fn: function () {
+    var d = { orden: ref.orden, tipoDocumento: ref.tipoDocumento, numeroDocumento: ref.numeroDocumento, pedidoId: ref.pedidoId || '', ancho: U.num(U.$('nbA').value), alto: U.num(U.$('nbH').value), largo: U.num(U.$('nbL').value), peso: U.num(U.$('nbP').value) };
+    var er = CubPool.validar(d), n = Math.max(1, Math.min(50, parseInt(U.$('nbN').value, 10) || 1)), ot = OT.porId(U.$('nbOT').value);
+    if (er) { UI.toast(er.msg, 'error'); return false; }
+    if (ot && !U.trim(d.numeroDocumento)) { UI.toast('Para agregarlo a una OT el documento debe tener número', 'error'); return false; }
+    var hacer = function (aut) {
+      var ids = [], cub = CubPool.siguienteId();
+      for (var i = 0; i < n; i++) { d.cubicacionId = cub; ids.push(CubPool.agregar(d).id); }
+      if (d.pedidoId) Pedidos.marcarCubicado(d.pedidoId);
+      if (ot) {
+        var cous = {}; U.each(ot.bultos, function (b) { if (b.docKey === k && b.courier) cous[U.norm(b.courier)] = 1; }); var lc = Object.keys(cous);
+        var antes = ot.bultos.length;
+        OT.forzar(ot, function () { CubPool.asignar(ids, ot); if (lc.length === 1) U.each(ot.bultos.slice(antes), function (b) { b.courier = lc[0]; }); OT.recalcularDespacho(ot); OT.guardar(ot); }, aut, aut ? { accion: 'AGREGAR_BULTO', orden: d.orden, documento: d.tipoDocumento + ' ' + d.numeroDocumento, cantidad: n, medidas: d.ancho + 'x' + d.alto + 'x' + d.largo, peso: d.peso } : null);
+        if (Sync.marcarOT) Sync.marcarOT(ot.id);
+      }
+      if (Sync.modo() !== 'local') Sync.programar(500);
+      UI.cerrarModal(); UI.toast(n + ' bulto(s) agregado(s)' + (ot ? ' a la ' + ot.numero + (ot.estado !== 'ABIERTA' ? ' · regenere el manifiesto' : '') : ' a cubicación'), 'ok', 4000); fin();
+    };
+    if (ot && ot.estado !== 'ABIERTA') { UI.cerrarModal(); Seguridad.admin('Agregar ' + n + ' bulto(s) de ' + d.orden + ' a la ' + ot.numero + ' (' + ot.estado + '). El manifiesto quedará desactualizado hasta regenerarlo.', hacer); return false; }
+    hacer(null); return false;
+  } }], alAbrir: function () { aviso(); U.$('nbOT').onchange = aviso; U.$('nbA').focus(); } });
+};
 CubUI.tipos = function (sel) { var a = TiposDoc.nombres(sel), h = ''; U.each(a, function (x) { h += '<option' + (x === sel ? ' selected' : '') + '>' + x + '</option>'; }); return h; };
 
-CubUI.editarBulto = function (id) {
-  var b = U.find(CubPool.lista, function (x) { return x.id === id; }); if (!b) return;
-  var pedAct = CubPool.pedidoDe(b), keyAnt = OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento);
-  var hermanos = U.filter(CubPool.lista, function (x) { return x.id !== b.id && x.estado === 'DISPONIBLE' && OT.docKey(x.orden, x.tipoDocumento, x.numeroDocumento) === keyAnt; });
+CubUI.editarBulto = function (id, op) {
+  op = op || {};
+  var b = id ? U.find(CubPool.lista, function (x) { return x.id === id; }) : null, ot = null, ob = null;
+  if (op.otId) { ot = OT.porId(op.otId); ob = ot ? U.find(ot.bultos, function (x) { return x.id === op.bultoId; }) : null; if (!ob) { UI.toast('Bulto no encontrado en la OT', 'error'); return; } if (!b && ob.origenCubicacionId) b = U.find(CubPool.lista, function (x) { return x.id === ob.origenCubicacionId; }) || null; }
+  else if (b && b.otId && b.estado !== 'DISPONIBLE' && b.estado !== 'ENTREGADO') { ot = OT.porId(b.otId); ob = ot ? U.find(ot.bultos, function (x) { return x.origenCubicacionId === b.id || x.id === b.id; }) : null; }
+  var virtual = !b;
+  if (virtual && !ob) return;
+  if (virtual) b = { id: ob.id, estado: 'ASIGNADO', otId: ot.id, otNumero: ot.numero, pedidoId: ob.pedidoId || '', orden: ob.orden, tipoDocumento: ob.tipoDocumento, numeroDocumento: ob.numeroDocumento || ob.factura, ancho: ob.ancho, alto: ob.alto, largo: ob.largo, peso: ob.peso, numero: ob.numero, valor: ob.valor, producto: ob.producto, productoDesc: ob.productoDesc };
+  var fin = function () { if (op.alFin) op.alFin(); else App.ir(App.pantalla || 'cubicacion'); };
+  var pedAct = virtual ? (b.pedidoId ? Pedidos.porId(b.pedidoId) : Plantillas.pedidoDoc(ot, U.find(ot.documentos, function (q) { return q.key === ob.docKey; }) || { key: ob.docKey, orden: ob.orden, tipoDocumento: ob.tipoDocumento, numeroDocumento: ob.numeroDocumento })) : CubPool.pedidoDe(b), keyAnt = OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento);
+  var hermanos = virtual ? [] : U.filter(CubPool.lista, function (x) { return x.id !== b.id && x.estado === 'DISPONIBLE' && OT.docKey(x.orden, x.tipoDocumento, x.numeroDocumento) === keyAnt; });
   var peds = U.filter(Pedidos.vigentes(), function (p) { return p.estado !== 'CANCELADO' && p.estado !== 'ENTREGADO'; });
+  if (pedAct && !U.find(peds, function (p) { return p.id === pedAct.id; })) peds.push(pedAct);
   peds.sort(function (x, y) { return String(x.fecha || '') < String(y.fecha || '') ? 1 : -1; });
   var ops = '<option value="">— SIN PEDIDO (MANUAL) —</option>' + U.map(peds, function (p) { return '<option value="' + p.id + '"' + (pedAct && pedAct.id === p.id ? ' selected' : '') + '>' + U.esc(p.numero) + (p.numeroDocumento ? ' · ' + U.esc(p.tipoDocumento + ' ' + p.numeroDocumento) : ' · sin documento') + ' · ' + U.esc(p.estado) + '</option>'; }).join('');
-  var enOT = b.estado !== 'DISPONIBLE', prod = b.producto ? (b.producto + (b.productoDesc ? ' · ' + b.productoDesc : '')) : '';
-  var h = '<label class="lbl">PEDIDO / O.C. AL QUE PERTENECE</label><select id="cePed" class="inp sm">' + ops + '</select>' +
+  var enOT = !!ob, cerrada = !!(ot && ot.estado !== 'ABIERTA'), gestion = !!(ob && (ob.ordenCourierEscaneada || ob.verificadoCourier || ob.despachoId || ob.despachado)), prod = b.producto ? (b.producto + (b.productoDesc ? ' · ' + b.productoDesc : '')) : '';
+  var cous = '<option value="">— SIN COURIER —</option>' + U.map(Listas.get('COURIER'), function (x) { return '<option value="' + U.esc(x.v) + '"' + (ob && U.norm(ob.courier) === x.v ? ' selected' : '') + '>' + U.esc(Listas.etq('COURIER', x.v)) + '</option>'; }).join('');
+  if (ob && ob.courier && !U.find(Listas.get('COURIER'), function (x) { return x.v === U.norm(ob.courier); })) cous += '<option value="' + U.esc(ob.courier) + '" selected>' + U.esc(ob.courier) + '</option>';
+  var vph = (function () { var vv = virtual ? null : Valores.deCub(b); return vv && vv.v != null && vv.auto ? 'Reparto ' + Valores.txt(vv.v) : 'Opcional'; })();
+  var h = (cerrada ? '<div class="aviso amar" style="font-size:13px">La OT <b>' + U.esc(ot.numero) + '</b> está ' + U.esc(ot.estado) + '. Los cambios piden autorización de administrador, quedan registrados y dejan el manifiesto <b>desactualizado</b>: regenérelo antes de imprimir.</div>' : '') +
+    '<label class="lbl">PEDIDO / O.C. AL QUE PERTENECE</label><select id="cePed" class="inp sm">' + ops + '</select>' +
     '<div class="muted">Si el bulto quedó en el pedido equivocado, elija el correcto: se copian su orden y documento.</div>' +
     '<label class="lbl">ORDEN / TICKET</label><input id="ceOrden" class="inp" type="text" value="' + U.esc(b.orden) + '">' +
     '<div class="fila"><div class="c"><label class="lbl">TIPO DOCUMENTO</label><select id="ceTipo" class="inp sm"><option value=""' + (!b.tipoDocumento ? ' selected' : '') + '>(SIN DOCUMENTO AÚN)</option>' + CubUI.tipos(b.tipoDocumento) + '</select></div>' +
@@ -6154,9 +6206,13 @@ CubUI.editarBulto = function (id) {
     '<div class="c"><label class="lbl">ALTO</label><input id="ceH" class="inp" type="number" value="' + b.alto + '"></div>' +
     '<div class="c"><label class="lbl">LARGO</label><input id="ceL" class="inp" type="number" value="' + b.largo + '"></div></div>' +
     '<div class="fila"><div class="c"><label class="lbl">PESO kg</label><input id="ceP" class="inp" type="number" value="' + b.peso + '"></div>' +
-    '<div class="c"><label class="lbl" for="ceValor">VALOR REF. $ <span class="unidad">vacío = reparto automático</span></label><input id="ceValor" class="inp" inputmode="numeric" autocomplete="off" value="' + (Valores.num(b.valor) != null ? Math.round(Valores.num(b.valor)) : '') + '" placeholder="' + (function () { var vv = Valores.deCub(b); return vv && vv.v != null && vv.auto ? 'Reparto ' + Valores.txt(vv.v) : 'Opcional'; })() + '"></div></div>' +
+    '<div class="c"><label class="lbl" for="ceValor">VALOR REF. $ <span class="unidad">vacío = reparto automático</span></label><input id="ceValor" class="inp" inputmode="numeric" autocomplete="off" value="' + (Valores.num(b.valor) != null ? Math.round(Valores.num(b.valor)) : '') + '" placeholder="' + U.esc(vph) + '"></div></div>' +
+    '<div id="ceCalc" class="muted"></div>' +
+    (enOT ? '<div class="fila"><div class="c"><label class="lbl" for="ceCou">COURIER</label><select id="ceCou" class="inp sm"' + (gestion ? ' disabled' : '') + '>' + cous + '</select></div>' +
+      '<div class="c"><label class="lbl" for="ceOC">N° ORDEN COURIER</label><input id="ceOC" class="inp sm" autocomplete="off" value="' + U.esc(ob.ordenCourier || '') + '"' + (gestion ? ' disabled' : '') + '></div></div>' +
+      (gestion ? '<div class="muted">Courier y N° de orden bloqueados: el bulto ya fue verificado o despachado' + (ob.ordenCourierEscaneada ? ' (orden escaneada ' + U.esc(ob.ordenCourierEscaneada) + ')' : '') + '. Medidas y peso sí se pueden corregir.</div>' : '') : '') +
     (hermanos.length ? '<label class="chk"><input type="checkbox" id="ceTodos"> Aplicar pedido, orden y documento también a los otros ' + hermanos.length + ' bulto(s) de ' + U.esc(b.orden) + '</label>' : '') +
-    '<div class="msg">Estado: <b>' + U.esc(b.estado) + '</b>' + (b.otNumero ? ' · OT ' + U.esc(b.otNumero) : '') + '</div>';
+    '<div class="msg">Estado: <b>' + U.esc(b.estado) + '</b>' + (ot ? ' · OT ' + U.esc(ot.numero) + ' (' + U.esc(ot.estado) + ')' : (b.otNumero ? ' · OT ' + U.esc(b.otNumero) : '')) + (virtual ? ' · sin registro de cubicación' : '') + '</div>';
   var botones = [];
   if (b.estado === 'ENTREGADO') {
     botones.push({ txt: 'VER ENTREGA', cls: 'btn-sec', fn: function () { UI.cerrarModal(); CubUI.entrega(CubUI.keyDe(b)); return false; } });
@@ -6165,26 +6221,26 @@ CubUI.editarBulto = function (id) {
       UI.confirmar('¿Eliminar definitivamente este bulto?', function () {
         var r = CubPool.borrar(id);
         if (!r.ok) { UI.toast(r.msg, 'error'); return; }
-        UI.cerrarModal(); App.ir('cubicacion');
+        UI.cerrarModal(); fin();
       });
       return false;
     } });
-  } else {
+  } else if (ot && ob) {
     botones.push({ txt: 'LIBERAR DE OT', cls: 'btn-warn', fn: function () {
-      Seguridad.admin('Liberar bulto de ' + b.otNumero, function (aut) {
-        var ot = OT.porId(b.otId);
-        if (ot) {
-          var ob = U.find(ot.bultos, function (x) { return x.id === (b.id) || x.origenCubicacionId === b.id; });
-          if (ob) {
-            if (ob.ordenCourier || ob.verificadoCourier || ob.despachoId) { UI.toast('El bulto tiene gestión de courier. No se puede liberar.', 'error'); return; }
-            OT.eliminarBulto(ot, ob.id, aut);
-          }
-        }
-        CubPool.liberar(id);
-        UI.cerrarModal(); UI.toast('Bulto liberado', 'ok'); App.ir('cubicacion');
+      if (gestion || ob.ordenCourier) { UI.toast('El bulto tiene gestión de courier. No se puede liberar.', 'error'); return false; }
+      Seguridad.admin('Liberar el bulto ' + ob.numero + ' de ' + U.esc(ob.orden) + ' de la ' + ot.numero + (cerrada ? ' (OT ' + ot.estado + ': el manifiesto quedará desactualizado)' : ''), function (aut) {
+        var ok = false;
+        OT.forzar(ot, function () { ok = OT.eliminarBulto(ot, ob.id, aut) !== false; }, aut, { accion: 'LIBERAR_BULTO', bultoId: ob.id, orden: ob.orden, documento: ob.numeroDocumento || ob.factura, medidas: ob.ancho + 'x' + ob.alto + 'x' + ob.largo, peso: ob.peso });
+        if (!ok) { UI.toast('No se pudo liberar el bulto', 'error'); return; }
+        if (virtual) CubPool.agregar({ pedidoId: b.pedidoId, orden: ob.orden, tipoDocumento: ob.tipoDocumento, numeroDocumento: ob.numeroDocumento || ob.factura, ancho: ob.ancho, alto: ob.alto, largo: ob.largo, peso: ob.peso, valor: ob.valor, producto: ob.producto, productoDesc: ob.productoDesc });
+        else CubPool.liberar(b.id);
+        if (Sync.modo() !== 'local') Sync.programar(500);
+        UI.cerrarModal(); UI.toast('Bulto liberado: vuelve a cubicación como disponible', 'ok'); fin();
       });
       return false;
     } });
+  } else if (!virtual && b.estado === 'ASIGNADO') {
+    botones.push({ txt: 'LIBERAR', cls: 'btn-warn', fn: function () { Seguridad.admin('Liberar bulto: la OT ' + (b.otNumero || '') + ' ya no existe en este equipo', function () { CubPool.liberar(b.id); if (Sync.modo() !== 'local') Sync.programar(500); UI.cerrarModal(); UI.toast('Bulto liberado', 'ok'); fin(); }); return false; } });
   }
   botones.push({ txt: 'CANCELAR', cls: 'btn-sec' });
   botones.push({ txt: 'GUARDAR', cls: 'btn-ok', fn: function () {
@@ -6192,45 +6248,71 @@ CubUI.editarBulto = function (id) {
     var er = CubPool.validar(d), vTxt = U.trim(U.$('ceValor').value);
     if (er) { UI.toast(er.msg, 'error'); return false; }
     if (vTxt && Valores.num(vTxt) == null) { UI.toast('Valor referencial inválido: use solo números', 'error'); return false; }
-    if (enOT && !d.numeroDocumento) { UI.toast('El bulto está en la OT ' + b.otNumero + ': el N° de documento es obligatorio', 'error'); return false; }
+    if (enOT && !d.numeroDocumento) { UI.toast('El bulto está en la OT ' + ot.numero + ': el N° de documento es obligatorio', 'error'); return false; }
     if (d.numeroDocumento && !d.tipoDocumento) d.tipoDocumento = 'FACTURA';
     var codP = U.trim(U.$('ceProd').value), cat = codP ? Catalogo.porCodigo(codP) : null;
-    var ot = enOT ? OT.porId(b.otId) : null, ob = ot ? U.find(ot.bultos, function (x) { return x.origenCubicacionId === b.id || x.id === b.id; }) : null;
+    var cou = U.$('ceCou') ? U.norm(U.$('ceCou').value) : null, oc = U.$('ceOC') ? U.norm(U.$('ceOC').value) : null;
     var cambiaDoc = OT.docKey(d.orden, d.tipoDocumento, d.numeroDocumento) !== keyAnt;
+    var cambiaMed = !!ob && (Number(ob.ancho) !== d.ancho || Number(ob.alto) !== d.alto || Number(ob.largo) !== d.largo || Number(ob.peso) !== d.peso);
+    var cambiaCou = !!ob && !gestion && (U.norm(ob.courier || '') !== cou || U.norm(ob.ordenCourier || '') !== oc);
+    var cambiaOtro = virtual && (String(Valores.num(ob.valor) != null ? Math.round(Valores.num(ob.valor)) : '') !== (vTxt ? String(Math.round(Valores.num(vTxt))) : '') || U.norm(ob.producto || '') !== U.norm(codP) || (ob.pedidoId || '') !== (pid || ''));
+    var tocaOT = cambiaDoc || cambiaMed || cambiaCou || cambiaOtro;
     var todos = U.$('ceTodos') && U.$('ceTodos').checked;
-    var aplicar = function () {
-      var previos = [pedAct ? pedAct.id : ''], ahora = new Date().toISOString(), lista = [b].concat(todos ? hermanos : []);
+    var aplicar = function (aut) {
+      var previos = [pedAct ? pedAct.id : ''], ahora = new Date().toISOString(), lista = virtual ? [] : [b].concat(todos ? hermanos : []);
       U.each(lista, function (x) {
         if (x.pedidoId) previos.push(x.pedidoId);
         x.pedidoId = pid || ''; x.orden = U.norm(d.orden); x.tipoDocumento = U.norm(d.numeroDocumento ? d.tipoDocumento : d.tipoDocumento || ''); x.numeroDocumento = U.norm(d.numeroDocumento); x.factura = x.numeroDocumento;
         x.act = ahora; SyncReg.marcar(x);
       });
       var c = OT.calcular(d.ancho, d.alto, d.largo);
-      b.ancho = d.ancho; b.alto = d.alto; b.largo = d.largo; b.peso = d.peso; b.volumen = c.volumen; b.pesoVol = c.pesoVol;
-      if (vTxt) b.valor = Math.round(Valores.num(vTxt)); else delete b.valor;
-      if (codP) { b.producto = cat ? cat.codigo : U.norm(codP); b.productoDesc = cat ? cat.descripcion : (b.producto === U.norm(codP) ? b.productoDesc || '' : ''); } else { delete b.producto; delete b.productoDesc; }
-      CubPool.guardar();
-      if (ot && ob) OT.editarBulto(ot, ob.id, { orden: d.orden, tipoDocumento: d.tipoDocumento, numeroDocumento: d.numeroDocumento, ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso });
+      if (!virtual) {
+        b.ancho = d.ancho; b.alto = d.alto; b.largo = d.largo; b.peso = d.peso; b.volumen = c.volumen; b.pesoVol = c.pesoVol;
+        if (vTxt) b.valor = Math.round(Valores.num(vTxt)); else delete b.valor;
+        if (codP) { b.producto = cat ? cat.codigo : U.norm(codP); b.productoDesc = cat ? cat.descripcion : (b.producto === U.norm(codP) ? b.productoDesc || '' : ''); } else { delete b.producto; delete b.productoDesc; }
+        CubPool.guardar();
+      }
+      if (ot && ob && tocaOT) {
+        var antes = { orden: ob.orden, documento: (ob.tipoDocumento || '') + ' ' + (ob.numeroDocumento || ob.factura || ''), medidas: ob.ancho + 'x' + ob.alto + 'x' + ob.largo, peso: ob.peso, courier: ob.courier || '', ordenCourier: ob.ordenCourier || '' };
+        var dd = { orden: d.orden, tipoDocumento: d.tipoDocumento, numeroDocumento: d.numeroDocumento, ancho: d.ancho, alto: d.alto, largo: d.largo, peso: d.peso };
+        if (cou !== null && !gestion) { dd.courier = cou; dd.ordenCourier = oc; }
+        OT.forzar(ot, function () {
+          OT.editarBulto(ot, ob.id, dd);
+          if (virtual) {
+            if (pid) ob.pedidoId = pid; else delete ob.pedidoId;
+            if (vTxt) ob.valor = Math.round(Valores.num(vTxt)); else delete ob.valor;
+            if (codP) { ob.producto = cat ? cat.codigo : U.norm(codP); ob.productoDesc = cat ? cat.descripcion : ''; } else { delete ob.producto; delete ob.productoDesc; }
+          }
+          OT.recalcularDespacho(ot); OT.guardar(ot);
+        }, aut, cerrada || aut ? { accion: 'EDITAR_BULTO', bultoId: ob.id, antes: antes, despues: { orden: U.norm(d.orden), documento: d.tipoDocumento + ' ' + d.numeroDocumento, medidas: d.ancho + 'x' + d.alto + 'x' + d.largo, peso: d.peso, courier: dd.courier != null ? dd.courier : antes.courier, ordenCourier: dd.ordenCourier != null ? dd.ordenCourier : antes.ordenCourier } } : null);
+        if (Sync.marcarOT) Sync.marcarOT(ot.id);
+      }
       if (pid) Pedidos.marcarCubicado(pid);
-      CubPool.pedidosAfectados(lista, previos);
+      if (lista.length) CubPool.pedidosAfectados(lista, previos);
       if (Sync.modo() !== 'local') Sync.programar(500);
-      UI.cerrarModal(); UI.toast('Bulto actualizado' + (todos ? ' junto con ' + hermanos.length + ' más' : ''), 'ok'); App.ir(App.pantalla || 'cubicacion');
+      UI.cerrarModal(); UI.toast('Bulto actualizado' + (todos ? ' junto con ' + hermanos.length + ' más' : '') + (cerrada && tocaOT ? ' · regenere el manifiesto de la ' + ot.numero : ''), 'ok', 4000); fin();
     };
-    if (ob && cambiaDoc && (ob.ordenCourier || ob.ordenCourierEscaneada || ob.verificadoCourier || ob.despachoId || ob.despachado)) {
+    if (ob && cambiaDoc && (gestion || ob.ordenCourier)) {
       UI.cerrarModal();
-      Seguridad.admin('El bulto ya tiene courier o despacho en la OT ' + b.otNumero + '. Cambiar su orden o documento puede dejar una etiqueta del courier en el pedido equivocado.', function (aut) {
+      Seguridad.admin('El bulto ya tiene courier o despacho en la OT ' + ot.numero + '. Cambiar su orden o documento puede dejar una etiqueta del courier en el pedido equivocado.', function (aut) {
         if (!ot.despacho) ot.despacho = { estado: 'PENDIENTE', cerrado: '', cambiosForzados: [] };
         if (!ot.despacho.cambiosForzados) ot.despacho.cambiosForzados = [];
         ot.despacho.cambiosForzados.push({ accion: 'cambiarDocumentoBulto', bultoId: ob.id, de: keyAnt, a: OT.docKey(d.orden, d.tipoDocumento, d.numeroDocumento), fecha: aut.fecha, usuario: aut.usuario, motivo: aut.motivo });
-        aplicar();
+        aplicar(aut);
       });
       return false;
     }
-    if (ot && !OT.editable(ot) && cambiaDoc) { UI.toast('La OT ' + b.otNumero + ' está ' + ot.estado + ': reábrala para cambiar el documento del bulto', 'error', 5000); return false; }
-    aplicar();
+    if (cerrada && tocaOT) {
+      UI.cerrarModal();
+      Seguridad.admin('Modificar el bulto ' + ob.numero + ' de ' + d.orden + ' en la ' + ot.numero + ' (' + ot.estado + '). El manifiesto quedará desactualizado hasta regenerarlo.', function (aut) { aplicar(aut); });
+      return false;
+    }
+    aplicar(null);
     return false;
   } });
-  UI.modal({ titulo: 'Editar bulto ' + b.numero, html: h, botones: botones, alAbrir: function (host) {
+  UI.modal({ titulo: 'Editar bulto ' + b.numero + ' · ' + (b.orden || ''), html: h, botones: botones, alAbrir: function (host) {
+    var calc = function () { var a = U.num(U.$('ceA').value), al = U.num(U.$('ceH').value), l = U.num(U.$('ceL').value), p = U.num(U.$('ceP').value); if (a > 0 && al > 0 && l > 0) { var c = OT.calcular(a, al, l); U.$('ceCalc').innerHTML = 'Volumen ' + U.fx(c.volumen, 4) + ' m³ · Peso vol. ' + U.fx(c.pesoVol, 2) + ' kg (÷' + (Number(DB.cfg.factorVol) || 5000) + ')' + (p > 0 ? ' · Peso cobrable ' + U.fx(Math.max(p, c.pesoVol), 2) + ' kg' : ''); } else U.$('ceCalc').innerHTML = ''; };
+    calc(); U.each(['ceA', 'ceH', 'ceL', 'ceP'], function (k) { U.$(k).oninput = calc; });
     U.$('cePed').onchange = function () { var p = Pedidos.porId(this.value); if (!p) return; U.$('ceOrden').value = p.numero; U.$('ceTipo').value = p.tipoDocumento || ''; U.$('ceDoc').value = p.numeroDocumento || ''; };
     U.$('ceProd').oninput = function () { var c = U.trim(this.value), x = c ? Catalogo.porCodigo(c) : null; U.$('ceProdInfo').innerHTML = !c ? 'Sin producto' : (x ? U.esc(x.codigo + ' · ' + x.descripcion + (x.ubicacion ? ' · ' + x.ubicacion : '')) : '<span style="color:#b02a37">No está en el catálogo</span>'); };
   } });
@@ -8233,17 +8315,17 @@ var Seguimiento = {
     U.each(ev, function (e) { h += '<div class="ev"><div class="t">' + U.esc(e.t) + '</div><div class="muted">' + U.esc(e.ts ? U.fechaCL(e.ts.substr(0, 10)) + (e.ts.length > 10 ? ' ' + e.ts.substr(11, 5) : '') : 'Sin fecha') + (e.s ? ' · ' + U.esc(e.s) : '') + '</div></div>'; });
     h += ev.length ? '</div>' : '<div class="muted">Sin movimientos registrados.</div></div>';
     if (d.bultos.length) {
-      h += '<label class="lbl">BULTOS EN OT</label><div class="scroll-list"><table class="tbl"><tr><th>N°</th><th>Medidas · Peso</th><th>OT</th><th>Courier</th><th>✓</th></tr>';
+      h += '<label class="lbl">BULTOS EN OT <span class="unidad">toque una fila para editar medidas, peso, documento o courier</span></label><div class="scroll-list"><table class="tbl tbl-clic"><tr><th>N°</th><th>Medidas · Peso</th><th>OT</th><th>Courier</th><th>✓</th></tr>';
       var ls = d.bultos.slice(0);
       ls.sort(function (a, b) { return a.ot.numero === b.ot.numero ? a.b.numero - b.b.numero : (a.ot.numero < b.ot.numero ? -1 : 1); });
       U.each(ls, function (x) {
         var b = x.b, v = b.verificadoCourier || b.despachoId || b.despachado;
-        h += '<tr><td>' + b.numero + '</td><td>' + U.esc(b.ancho + '×' + b.alto + '×' + b.largo) + ' · ' + U.fx(b.peso, 2) + ' kg</td><td>' + U.esc(x.ot.numero) + '</td><td>' + U.esc((b.courier || '—') + (b.ordenCourierEscaneada || b.ordenCourier ? ' ' + (b.ordenCourierEscaneada || b.ordenCourier) : '')) + '</td><td>' + (v ? '✓' : '—') + '</td></tr>';
+        h += '<tr data-sb="' + U.esc(x.ot.id) + '|' + U.esc(b.id) + '" tabindex="0" title="Editar bulto"><td>' + b.numero + '</td><td>' + U.esc(b.ancho + '×' + b.alto + '×' + b.largo) + ' · ' + U.fx(b.peso, 2) + ' kg</td><td>' + U.esc(x.ot.numero) + (x.ot.estado !== 'ABIERTA' ? ' <span class="muted">' + U.esc(x.ot.estado) + '</span>' : '') + '</td><td>' + U.esc((b.courier || '—') + (b.ordenCourierEscaneada || b.ordenCourier ? ' ' + (b.ordenCourierEscaneada || b.ordenCourier) : '')) + '</td><td>' + (v ? '✓' : '—') + '</td></tr>';
       });
       h += '</table></div>';
     } else if (d.cub.length) {
-      h += '<label class="lbl">BULTOS CUBICADOS</label><div class="scroll-list"><table class="tbl"><tr><th>N°</th><th>Medidas · Peso</th><th>Cubicación</th><th>Estado</th></tr>';
-      U.each(d.cub, function (c) { h += '<tr><td>' + c.numero + '</td><td>' + U.esc(c.ancho + '×' + c.alto + '×' + c.largo) + ' · ' + U.fx(c.peso, 2) + ' kg</td><td>' + U.esc(c.cubicacionId || '') + '</td><td>' + U.esc(c.estado || '') + '</td></tr>'; });
+      h += '<label class="lbl">BULTOS CUBICADOS <span class="unidad">toque una fila para editar</span></label><div class="scroll-list"><table class="tbl tbl-clic"><tr><th>N°</th><th>Medidas · Peso</th><th>Cubicación</th><th>Estado</th></tr>';
+      U.each(d.cub, function (c) { h += '<tr data-sc="' + U.esc(c.id) + '" tabindex="0" title="Editar bulto"><td>' + c.numero + '</td><td>' + U.esc(c.ancho + '×' + c.alto + '×' + c.largo) + ' · ' + U.fx(c.peso, 2) + ' kg</td><td>' + U.esc(c.cubicacionId || '') + '</td><td>' + U.esc(c.estado || '') + '</td></tr>'; });
       h += '</table></div>';
     }
     if (d.correos && d.correos.length) {
@@ -8270,10 +8352,20 @@ var Seguimiento = {
       return false;
     } });
     if (abierta) bt.push({ txt: 'IR A PACKING', cls: 'btn-ok', fn: function () { OT.setActiva(abierta.id); UI.cerrarModal(); App.ir('packing'); return false; } });
-    else if (d.ots.length) bt.push({ txt: 'IR A MANIFIESTO', cls: 'btn-ok', fn: function () { Manif.otId = d.ots[d.ots.length - 1].id; UI.cerrarModal(); App.ir('manifiesto'); return false; } });
+    else if (d.ots.length) bt.push({ txt: 'IR A MANIFIESTO', cls: 'btn-ok', fn: function () { var oM = d.ots[d.ots.length - 1]; Manif.vista = oM.manifiesto && oM.manifiesto.generado && !oM.manifiesto.desactualizado ? 'historico' : 'vigentes'; Manif.otId = oM.id; UI.cerrarModal(); App.ir('manifiesto'); return false; } });
     else if (d.pedido && !d.cub.length) bt.push({ txt: 'CUBICAR →', cls: 'btn-ok', fn: function () { CubUI.pedidoId = d.pedido.id; UI.cerrarModal(); App.ir('cubicacion'); return false; } });
+    var volver = function () {
+      if (App.pantalla === 'seguimiento') App.ir('seguimiento');
+      var n = U.find(Seguimiento.indice(), function (x) { return U.norm(x.orden) === U.norm(d.orden) && U.norm(x.tipoDocumento) === U.norm(d.tipoDocumento) && U.norm(x.numeroDocumento) === U.norm(d.numeroDocumento); });
+      if (n) Seguimiento.detalle(n);
+    };
+    if (U.trim(d.orden) && d.etapa !== 'CANCELADO') bt.push({ txt: '+ AGREGAR BULTO', cls: 'btn-sec', fn: function () { CubUI.nuevoBulto({ orden: d.orden, tipoDocumento: d.tipoDocumento, numeroDocumento: d.numeroDocumento, pedidoId: d.pedido ? d.pedido.id : '' }, { ots: U.filter(d.ots, function (o) { return !Flujo.otFinal(o); }), alFin: volver }); return false; } });
     bt.push({ txt: 'CERRAR', cls: 'btn-sec' });
-    UI.modal({ titulo: 'Seguimiento de documento', html: h, botones: bt });
+    UI.modal({ titulo: 'Seguimiento de documento', html: h, botones: bt, alAbrir: function (host) {
+      var abrir = function (tr) { var sb = tr.getAttribute('data-sb'), sc = tr.getAttribute('data-sc'); if (sb) { var p = sb.split('|'); CubUI.editarBulto(null, { otId: p[0], bultoId: p[1], alFin: volver }); } else if (sc) CubUI.editarBulto(sc, { alFin: volver }); };
+      host.addEventListener('click', function (e) { var t = e.target; while (t && t !== host && !(t.getAttribute && (t.getAttribute('data-sb') || t.getAttribute('data-sc')))) t = t.parentNode; if (t && t !== host) abrir(t); });
+      host.addEventListener('keydown', function (e) { if (e.key !== 'Enter') return; var t = e.target; if (t.getAttribute && (t.getAttribute('data-sb') || t.getAttribute('data-sc'))) abrir(t); });
+    } });
   },
   COLS: [['FECHA', 'Fecha manifiesto (u OT si no hay)'], ['HORA', ''], ['OT', ''], ['ESTADO_OT', ''], ['COURIER', ''], ['N_ORDEN_COURIER', ''], ['ORDEN_TICKET', ''], ['TIPO_DOC', ''], ['N_DOCUMENTO', ''],
     ['DESTINATARIO', ''], ['RUT', ''], ['COMUNA', ''], ['REGION', ''], ['MODALIDAD', ''], ['BULTO', ''], ['BULTOS_DOC', ''], ['ANCHO_CM', ''], ['ALTO_CM', ''], ['LARGO_CM', ''], ['SUMA_LADOS_CM', ''],
@@ -9268,9 +9360,9 @@ Pantallas.manifiesto = function (m) {
   h += '<div class="card tot">DOCUMENTOS: <b>' + t.documentos + '</b> · BULTOS: <b>' + t.bultos + '</b><br>PESO REAL TOTAL: <b>' + U.fx(t.peso, 2) + ' kg</b><br>' +
     'VOLUMEN TOTAL: <b>' + U.fx(t.volumen, 3) + ' m³</b><br>PESO VOLUMÉTRICO TOTAL: <b>' + U.fx(t.pesoVol, 2) + ' kg</b></div>';
   h += Manif.resumenCouriers(ot) + Manif.direcciones(ot);
-  h += '<div class="card"><table class="tbl"><thead><tr><th>Orden</th><th>Fact.</th><th>Bulto</th><th>Medidas</th><th>Kg</th></tr></thead><tbody>';
+  h += '<div class="card"><div class="muted" style="margin-bottom:4px">Toque un bulto para editar sus medidas, peso, documento o courier.</div><table class="tbl tbl-clic" id="mfBul"><thead><tr><th>Orden</th><th>Fact.</th><th>Bulto</th><th>Medidas</th><th>Kg</th></tr></thead><tbody>';
   U.each(Plantillas.ordenarDocs(Plantillas._porDoc(ot), function (x) { return x.doc; }), function (g) {
-    U.each(g.bultos, function (b) { var pb = Plantillas._posBulto(ot, b); h += '<tr><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + pb.pos + '/' + pb.tot + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td>' + U.fx(b.peso, 1) + '</td></tr>'; });
+    U.each(g.bultos, function (b) { var pb = Plantillas._posBulto(ot, b); h += '<tr data-mb="' + U.esc(b.id) + '" tabindex="0" title="Editar bulto"><td>' + U.esc(b.orden) + '</td><td>' + U.esc(b.factura) + '</td><td>' + pb.pos + '/' + pb.tot + '</td><td>' + b.ancho + 'x' + b.alto + 'x' + b.largo + '</td><td>' + U.fx(b.peso, 1) + '</td></tr>'; });
   });
   if (!t.bultos) h += '<tr><td colspan="5" class="muted">Sin bultos</td></tr>';
   h += '</tbody></table></div>';
@@ -9290,11 +9382,15 @@ Pantallas.manifiesto = function (m) {
       U.map(Plantillas.ordenarDocs(ot.documentos), function (d) { var x = OT.totalesDoc(ot, d.key); return '<label class="chk"><input type="checkbox" class="mfDoc" value="' + U.esc(d.key) + '"' + (Manif.sel.keys.indexOf(d.key) >= 0 ? ' checked' : '') + '> ' + U.esc(d.orden + ' · ' + OT.etiquetaDoc(d)) + ' <span class="muted">(' + x.bultos + ' bulto/s · ' + U.fx(x.peso, 1) + ' kg)</span></label>'; }).join('') +
       '<div class="muted" id="mfSelTxt"></div>' + Manif.selectorCourier(ot, 'mfCour', Manif.cour) +
       ZoomImp.html() + '<div class="btns"><button class="btn" data-a="imp58">IMPRIMIR 58 mm</button><button class="btn" data-a="imp80">IMPRIMIR 80 mm</button><button class="btn" data-a="impA4">IMPRIMIR A4</button></div>' +
+      (mf.desactualizado ? '<button class="btn btn-ok btn-xl" data-a="generar">REGENERAR MANIFIESTO</button>' : '') +
       '<button class="btn btn-warn" data-a="reabrir">REABRIR OT</button>';
   }
   h += '<button class="btn btn-sec" data-a="todas"' + (t.bultos ? '' : ' disabled') + '>IMPRIMIR TODAS LAS ETIQUETAS</button>' +
     '<div class="btns"><button class="btn btn-sec" data-a="activar">USAR EN PACKING</button><button class="btn btn-sec" data-a="corregir">CORREGIR DATOS (ADMIN)</button><button class="btn btn-dan" data-a="eliminar">ELIMINAR OT</button></div></div>';
   m.innerHTML = h;
+  var tb = U.$('mfBul');
+  if (tb) { var abrirB = function (t) { while (t && t !== tb && !(t.getAttribute && t.getAttribute('data-mb'))) t = t.parentNode; if (t && t !== tb) CubUI.editarBulto(null, { otId: ot.id, bultoId: t.getAttribute('data-mb'), alFin: function () { var o = OT.porId(ot.id) || ot; Manif.vista = o.manifiesto && o.manifiesto.generado && !o.manifiesto.desactualizado ? 'historico' : 'vigentes'; Manif.otId = o.id; App.ir('manifiesto'); } }); };
+    tb.onclick = function (e) { abrirB(e.target); }; tb.onkeydown = function (e) { if (e.key === 'Enter') abrirB(e.target); }; }
   var selTxt = function () { var e = U.$('mfSelTxt'); if (e) e.innerHTML = Manif.sel.keys.length + ' de ' + ot.documentos.length + ' documento(s) marcados'; };
   if (Manif.sel && Manif.sel.ot === ot.id) selTxt();
   var keysImp = function () { if (!Manif.sel.keys.length) { UI.toast('Marque al menos un documento', 'error'); return null; } return Manif.sel.keys.length === ot.documentos.length ? null : Manif.sel.keys.slice(); };
