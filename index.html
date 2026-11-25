@@ -669,7 +669,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.45.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.46.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -7494,6 +7494,29 @@ var CubicacionPDF = {
 };
 
 var PackUI = { orden: '', tipoDocumento: '', numeroDocumento: '', seleccion: {} };
+PackUI.origenDoc = function (bs) {
+  var p = null;
+  U.each(bs || [], function (b) { if (!p) p = CubPool.pedidoDe(b); });
+  return { canal: (p && U.norm(p.origen)) || 'SIN ORIGEN', tipo: (p && U.norm(p.tipo)) || 'PEDIDO' };
+};
+PackUI.masSeleccion = function () {
+  var claves = {}, ids = [], ori = [], docs = 0, info = PackUI.masInfo || {};
+  U.each(PackUI.masOrden || [], function (k) { if (!PackUI.masSel || PackUI.masSel[k] !== false) { claves[k] = true; docs++; var o = info[k]; if (o && ori.indexOf(o.canal) < 0) ori.push(o.canal); } });
+  U.each(CubPool.lista, function (b) { if (b.estado === 'DISPONIBLE' && claves[OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento)]) ids.push(b.id); });
+  ori.sort();
+  return { ids: ids, origenes: ori, docs: docs };
+};
+PackUI.origenesOT = function (ot) {
+  var r = [], vistos = {};
+  U.each((ot && ot.bultos) || [], function (b) { if (vistos[b.docKey]) return; vistos[b.docKey] = 1; var c = PackUI.origenDoc([b]).canal; if (r.indexOf(c) < 0) r.push(c); });
+  r.sort();
+  return r;
+};
+PackUI.masContar = function () {
+  var el = U.$('paMasCnt'); if (!el) return;
+  var s = PackUI.masSeleccion();
+  el.innerHTML = s.docs + ' de ' + (PackUI.masOrden || []).length + ' documento(s) marcados · ' + s.ids.length + ' bultos' + (s.origenes.length > 1 ? ' · <b style="color:#b02a37">ORÍGENES MEZCLADOS: ' + U.esc(s.origenes.join(', ')) + '</b>' : (s.origenes.length ? ' · ' + U.esc(s.origenes[0]) : ''));
+};
 
 PackUI.disponibles = function () {
   var qo = U.norm(PackUI.orden), qt = U.norm(PackUI.tipoDocumento), qd = U.norm(PackUI.numeroDocumento);
@@ -7800,28 +7823,37 @@ Pantallas.packing = function (m) {
     if (b.estado !== 'DISPONIBLE') return;
     var k = OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento);
     if (vistos[k]) return;
-    vistos[k] = 1; docs.push({ key: k, orden: b.orden, tipo: b.tipoDocumento, num: b.numeroDocumento });
+    vistos[k] = 1; docs.push({ key: k, orden: b.orden, tipo: b.tipoDocumento, num: b.numeroDocumento, canal: PackUI.origenDoc([b]).canal });
   });
   docs.sort(function (a, b) { return (a.orden + ' ' + a.num) < (b.orden + ' ' + b.num) ? -1 : 1; });
   var actual = PackUI.orden ? OT.docKey(PackUI.orden, PackUI.tipoDocumento, PackUI.numeroDocumento) : '';
   var h = '<div class="otbar"><div class="n">PACKING' + (ot ? ' · ' + U.esc(ot.numero) : '') + '</div><div class="muted">Seleccione un documento mandante ya cubicado. Aquí no se vuelven a digitar Orden/Ticket ni documento.</div></div>' +
     '<div class="card pk-top"><div class="pk-f"><div class="pk-c pk-ot"><label class="lbl">OT ABIERTA DE DESTINO</label><select id="paOTDestino" class="inp sm">'+U.map(U.filter(OT.ordenadas(),function(o){return o.estado==='ABIERTA';}),function(o){return '<option value="'+U.esc(o.id)+'"'+(ot&&o.id===ot.id?' selected':'')+'>'+U.esc(o.numero)+' · '+o.bultos.length+' bultos</option>';}).join('')+'</select></div><div class="pk-c pk-doc"><label class="lbl">DOCUMENTO MANDANTE DISPONIBLE</label><select id="paMand" class="inp" style="font-size:18px"><option value="">— SELECCIONE ORDEN/TICKET + DOCUMENTO —</option>';
-  U.each(docs, function (d) { h += '<option value="' + U.esc(d.key) + '"' + (d.key === actual ? ' selected' : '') + '>' + U.esc(d.orden + ' · ' + (U.trim(d.num) ? d.tipo + ' ' + d.num : 'SIN DOCUMENTO (se pide al incorporar)')) + '</option>'; });
+  U.each(docs, function (d) { h += '<option value="' + U.esc(d.key) + '"' + (d.key === actual ? ' selected' : '') + '>' + U.esc('[' + d.canal + '] ' + d.orden + ' · ' + (U.trim(d.num) ? d.tipo + ' ' + d.num : 'SIN DOCUMENTO (se pide al incorporar)')) + '</option>'; });
   h += '</select></div>' +
     '<div class="pk-c pk-cou"><label class="lbl">COURIER</label><select id="paCourier" class="inp sm">' + opcionesCourier(DB.cfg.courierActual) + '</select></div></div>' +
     '<div class="pk-acc"><div class="btns pk-a2"><button class="btn btn-ok" data-a="nueva">+ NUEVA OT</button><button class="btn btn-sec" data-a="ots">OT PENDIENTES</button><button class="btn btn-sec" data-a="historico">HISTÓRICO</button></div>' +
     '<div class="btns pk-a1"><button class="btn btn-ok" data-a="courierSel">ASIGNAR AL DOCUMENTO</button><button class="btn btn-sec" data-a="courierTodaHead">APLICAR A TODA LA OT</button></div></div></div>' +
-    '<div class="card"><h2>ASIGNACIÓN MASIVA</h2><div class="muted">Seleccione varios documentos; se incorporan todos sus bultos disponibles a la OT seleccionada.</div><div id="paDocsMasivos"></div><div class="accbar"><button class="btn btn-ok" data-a="paMasivo">INCORPORAR DOCUMENTOS SELECCIONADOS</button></div></div><div id="paBody"></div>';
+    '<div class="card"><h2>ASIGNACIÓN MASIVA</h2><div class="muted">Filtre por origen, marque los documentos y créelos en una OT nueva (o incorpórelos a la OT seleccionada). Solo se usan los documentos visibles con el filtro.</div><div id="paDocsMasivos"></div><div class="accbar"><button class="btn btn-ok" data-a="paMasivoNueva">CREAR OT NUEVA CON SELECCIONADOS → MANIFIESTO</button><button class="btn btn-sec" data-a="paMasivo">INCORPORAR A LA OT SELECCIONADA</button></div></div><div id="paBody"></div>';
   m.innerHTML = h;
 
   var masivo = function () {
-    var z='', todos={}, orden=[];
+    var z='', todos={}, orden=[], cn={}, tp={}, cnL=[], tpL=[];
     U.each(CubPool.lista,function(b){if(b.estado!=='DISPONIBLE')return;var k=OT.docKey(b.orden,b.tipoDocumento,b.numeroDocumento);if(!todos[k]){todos[k]=[];orden.push(k);}todos[k].push(b);});
     if(!PackUI.masSel)PackUI.masSel={};
-    PackUI.masOrden=orden;
-    var pm=Pag.cortar('packMas',orden);
-    U.each(pm.items,function(k){var bs=todos[k],b=bs[0];z+='<label style="display:block;padding:9px;border-bottom:1px solid #ccc"><input type="checkbox" data-pdoc="'+U.esc(k)+'"'+(PackUI.masSel[k]===false?'':' checked')+'> '+U.esc(b.orden)+' · '+(U.trim(b.numeroDocumento)?U.esc(b.tipoDocumento)+' '+U.esc(b.numeroDocumento):'<b style="color:#b02a37">SIN DOCUMENTO</b>')+' · '+bs.length+' bultos</label>';});
-    U.$('paDocsMasivos').innerHTML=z?Pag.html('packMas',pm,'documento(s)')+'<div class="lista-int">'+z+'</div>':'<div class="muted">Sin documentos disponibles</div>';
+    var info={};
+    U.each(orden,function(k){var o=PackUI.origenDoc(todos[k]);info[k]=o;if(!cn[o.canal]){cn[o.canal]=0;cnL.push(o.canal);}cn[o.canal]++;if(!tp[o.tipo]){tp[o.tipo]=0;tpL.push(o.tipo);}tp[o.tipo]++;});
+    cnL.sort();tpL.sort();
+    if(PackUI.masOri&&!cn[PackUI.masOri])PackUI.masOri='';
+    if(PackUI.masTipo&&!tp[PackUI.masTipo])PackUI.masTipo='';
+    var vis=U.filter(orden,function(k){return (!PackUI.masOri||info[k].canal===PackUI.masOri)&&(!PackUI.masTipo||info[k].tipo===PackUI.masTipo);});
+    PackUI.masOrden=vis;PackUI.masInfo=info;
+    var pm=Pag.cortar('packMas',vis);
+    U.each(pm.items,function(k){var bs=todos[k],b=bs[0],o=info[k];z+='<label style="display:block;padding:9px;border-bottom:1px solid #ccc"><input type="checkbox" data-pdoc="'+U.esc(k)+'"'+(PackUI.masSel[k]===false?'':' checked')+'> <span class="ord-tag">'+U.esc(o.canal)+(o.tipo!=='PEDIDO'?' · '+U.esc(o.tipo):'')+'</span> '+U.esc(b.orden)+' · '+(U.trim(b.numeroDocumento)?U.esc(b.tipoDocumento)+' '+U.esc(b.numeroDocumento):'<b style="color:#b02a37">SIN DOCUMENTO</b>')+' · '+bs.length+' bultos</label>';});
+    var opt=function(l,c,v,t){return '<option value="">'+t+'</option>'+U.map(l,function(x){return '<option value="'+U.esc(x)+'"'+(x===v?' selected':'')+'>'+U.esc(x)+' ('+c[x]+')</option>';}).join('');};
+    var filtros=orden.length?'<div class="fila" style="margin:8px 0"><div class="c"><label class="lbl">ORIGEN / CANAL</label><select id="paMasOri" class="inp sm">'+opt(cnL,cn,PackUI.masOri||'','TODOS')+'</select></div><div class="c"><label class="lbl">TIPO DE PEDIDO</label><select id="paMasTipo" class="inp sm">'+opt(tpL,tp,PackUI.masTipo||'','TODOS')+'</select></div></div><div class="btns" style="margin-bottom:6px"><button type="button" class="btn btn-sec" data-a="paMasTodos">MARCAR VISIBLES</button><button type="button" class="btn btn-sec" data-a="paMasNinguno">DESMARCAR VISIBLES</button><span id="paMasCnt" class="muted" style="align-self:center"></span></div>':'';
+    U.$('paDocsMasivos').innerHTML=z?filtros+Pag.html('packMas',pm,'documento(s)')+'<div class="lista-int">'+z+'</div>':filtros+'<div class="muted">Sin documentos disponibles'+(orden.length?' para este filtro':'')+'</div>';
+    PackUI.masContar();
   };
   Pag.registrar('packMas', function () { if (U.$('paDocsMasivos')) masivo(); });
   Pag.registrar('packOT', function () { if (App.pantalla === 'packing') App.ir('packing'); });
@@ -7864,7 +7896,8 @@ Pantallas.packing = function (m) {
       if (d) { PackUI.orden = d.orden; PackUI.tipoDocumento = d.tipo; PackUI.numeroDocumento = d.num; }
       else { PackUI.orden = ''; PackUI.tipoDocumento = ''; PackUI.numeroDocumento = ''; }
       pintar();
-    } else if (e.target.getAttribute('data-pdoc')) { if (!PackUI.masSel) PackUI.masSel = {}; PackUI.masSel[e.target.getAttribute('data-pdoc')] = !!e.target.checked;
+    } else if (e.target.id === 'paMasOri' || e.target.id === 'paMasTipo') { if (e.target.id === 'paMasOri') PackUI.masOri = e.target.value; else PackUI.masTipo = e.target.value; Pag.reiniciar('packMas'); masivo();
+    } else if (e.target.getAttribute('data-pdoc')) { if (!PackUI.masSel) PackUI.masSel = {}; PackUI.masSel[e.target.getAttribute('data-pdoc')] = !!e.target.checked; PackUI.masContar();
     } else if (e.target.getAttribute('data-bid')) { PackUI.seleccion[e.target.getAttribute('data-bid')] = !!e.target.checked; PackingUI.actualizarSeleccion(); }
   };
 
@@ -7872,12 +7905,33 @@ Pantallas.packing = function (m) {
     paMasivo: function(){
       var o=OT.porId(U.$('paOTDestino')&&U.$('paOTDestino').value);
       if(!o||o.estado!=='ABIERTA'){UI.toast('Seleccione una OT abierta','error');return;}
-      var claves={}, ids=[];
-      U.each(PackUI.masOrden||[],function(k){if(PackUI.masSel[k]!==false)claves[k]=true;});
-      U.each(CubPool.lista,function(b){if(b.estado==='DISPONIBLE'&&claves[OT.docKey(b.orden,b.tipoDocumento,b.numeroDocumento)])ids.push(b.id);});
-      if(!ids.length){UI.toast('Seleccione documentos disponibles','warn');return;}
-      PackingUI.exigirDocumento(ids,function(){var n=CubPool.asignar(ids,o);OT.setActiva(o.id);PackUI.seleccion={};UI.toast(n+' bultos incorporados a '+o.numero,'ok');App.ir('packing');});
+      var s=PackUI.masSeleccion();
+      if(!s.ids.length){UI.toast('Seleccione documentos disponibles','warn');return;}
+      var ya=PackUI.origenesOT(o), mezcla=s.origenes.length>1||(ya.length&&U.filter(s.origenes,function(x){return ya.indexOf(x)<0;}).length>0);
+      var hacer=function(){PackingUI.exigirDocumento(s.ids,function(){var n=CubPool.asignar(s.ids,o);OT.setActiva(o.id);PackUI.seleccion={};UI.toast(n+' bultos incorporados a '+o.numero,'ok');App.ir('packing');});};
+      if(mezcla)UI.confirmar('Va a mezclar orígenes en la OT '+o.numero+':\n• Selección: '+s.origenes.join(', ')+(ya.length?'\n• Ya en la OT: '+ya.join(', '):'')+'\n\nSi necesita un manifiesto separado por origen, filtre por ORIGEN y use «CREAR OT NUEVA». ¿Incorporar de todas formas?',hacer,{si:'MEZCLAR E INCORPORAR'});
+      else hacer();
     },
+    paMasivoNueva: function(){
+      var s=PackUI.masSeleccion();
+      if(!s.ids.length){UI.toast('Seleccione documentos disponibles','warn');return;}
+      var crear=function(){PackingUI.exigirDocumento(s.ids,function(){
+        var o=OT.nueva();
+        if(s.origenes.length===1)o.observacion='ORIGEN: '+s.origenes[0];
+        var n=CubPool.asignar(s.ids,o);OT.setActiva(o.id);PackUI.seleccion={};
+        UI.toast(o.numero+' creada con '+n+' bultos','ok',2500);
+        App.ir('packing');
+        UI.confirmar('OT '+o.numero+' creada con '+s.docs+' documento(s) y '+n+' bulto(s)'+(s.origenes.length===1?' de origen '+s.origenes[0]:'')+'.\n\n¿Ir a Manifiesto para revisar transporte y generarlo?',function(){Manif.vista='vigentes';Manif.otId=o.id;App.ir('manifiesto');},{si:'IR A MANIFIESTO',no:'SEGUIR EN PACKING'});
+      });};
+      var avisos=[];
+      if(s.origenes.length>1)avisos.push('La selección mezcla orígenes: '+s.origenes.join(', ')+'. Para un manifiesto separado, filtre por ORIGEN antes.');
+      var ot2=OT.activa();
+      if(ot2&&ot2.estado==='ABIERTA'&&ot2.bultos.length)avisos.push('La OT '+ot2.numero+' sigue ABIERTA ('+ot2.bultos.length+' bultos); queda guardada en OT PENDIENTES.');
+      if(avisos.length)UI.confirmar(avisos.join('\n\n')+'\n\n¿Crear la OT nueva con '+s.docs+' documento(s)?',crear,{si:'CREAR OT'});
+      else crear();
+    },
+    paMasTodos: function(){U.each(PackUI.masOrden||[],function(k){PackUI.masSel[k]=true;});U.each(U.qa(m,'input[data-pdoc]'),function(c){c.checked=true;});PackUI.masContar();},
+    paMasNinguno: function(){U.each(PackUI.masOrden||[],function(k){PackUI.masSel[k]=false;});U.each(U.qa(m,'input[data-pdoc]'),function(c){c.checked=false;});PackUI.masContar();},
     courierSel: function () {
       if (!ot) { UI.toast('Cree o seleccione una OT', 'warn'); return; }
       if (!ot.bultos.length) { UI.toast('La OT no tiene bultos asignados todavía', 'warn'); return; }
