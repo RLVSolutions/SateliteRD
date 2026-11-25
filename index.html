@@ -319,6 +319,20 @@ textarea.inp{font-size:13px;border-radius:8px}
 .ordblk.z1 .ord-tag{background:#1f6b52}
 .tbl-clic tr[data-sb],.tbl-clic tr[data-sc],.tbl-clic tr[data-mb]{cursor:pointer}
 .tbl-clic tr[data-sb]:hover td,.tbl-clic tr[data-sc]:hover td,.tbl-clic tr[data-mb]:hover td,.tbl-clic tr[tabindex]:focus td{background:#f3ebf8}
+.ev-grid{display:-webkit-grid;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:8px}
+.ev-tile{border:1px solid var(--borde-b,#ddd);border-radius:10px;padding:8px;background:#fff;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:6px;min-width:0}
+.ev-cab{display:-webkit-flex;display:flex;-webkit-justify-content:space-between;justify-content:space-between;gap:6px;font-size:13px;flex-wrap:wrap}
+.ev-img{height:150px;border-radius:8px;background:#f4f1f6;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;overflow:hidden}
+.ev-img img{max-width:100%;max-height:100%;object-fit:contain}
+.ev-vacio{font-size:34px;opacity:.35}
+.ev-est{font-size:12px}.ev-ok{color:#1e7b45;font-weight:700}.ev-pend{color:#a86a00;font-weight:700}
+.ev-tile .btns{margin:0}
+.ev-cam{position:fixed;inset:0;z-index:3000;background:#000;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;gap:10px;padding:12px}
+.ev-cam video{max-width:100%;max-height:70vh;background:#111;border-radius:8px}
+.ev-cam-t{color:#fff;font-weight:700;text-align:center;font-size:16px}.ev-cam-t span{font-weight:400;font-size:13px;opacity:.8}
+.ev-guia{color:#ffe08a;font-size:13px;text-align:center}
+.ev-cam-b{-webkit-justify-content:center;justify-content:center}
+@media (max-width:560px){.ev-grid{grid-template-columns:1fr}.ev-img{height:200px}}
 .cf-envref{margin-top:4px}
 .envref{position:relative;display:inline-block;max-width:100%;padding:3px 10px;border-radius:12px;background:#eef6fb;border:1px solid #b9d9ea;color:#0a4f6e;font-size:12px;font-weight:600;cursor:pointer;line-height:1.35;vertical-align:middle}
 .envref.falta{background:#f6f6f6;border-color:#ddd;color:#6c757d;font-weight:500;cursor:default}
@@ -648,7 +662,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.43.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.44.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1495,6 +1509,273 @@ var WA = {
         return false;
       } }
     ], alAbrir: function (host) { host.onclick = function (e) { var b = U.cerca(e.target, 'data-wm', host); if (!b) return; modo = b.getAttribute('data-wm'); pintar(); }; pintar(); } });
+  }
+};
+
+var Evid = {
+  LADOS: [['COMPLETO', 'BULTO COMPLETO'], ['ANCHO', 'ANCHO'], ['ALTO', 'ALTO'], ['LARGO', 'LARGO']],
+  MAX: 1600, CAL: 0.82, meta: {}, _db: null, _cola: [], _mem: { f: {}, m: {} },
+  nom: function (l) { var x = U.find(Evid.LADOS, function (y) { return y[0] === l; }); return x ? x[1] : l; },
+  clave: function (b) { return String((b && (b.origenCubicacionId || b.id)) || ''); },
+  k: function (c, l) { return c + '|' + l; },
+  db: function (cb) {
+    if (Evid._db) { cb(Evid._db); return; }
+    if (Evid._db === false || typeof indexedDB === 'undefined') { cb(null); return; }
+    Evid._cola.push(cb); if (Evid._cola.length > 1) return;
+    var fin = function (d) { Evid._db = d || false; var l = Evid._cola; Evid._cola = []; U.each(l, function (f) { f(d || null); }); };
+    try {
+      var rq = indexedDB.open('rdm_fotos', 1);
+      rq.onupgradeneeded = function () { var d = rq.result; if (!d.objectStoreNames.contains('f')) d.createObjectStore('f'); if (!d.objectStoreNames.contains('m')) d.createObjectStore('m'); };
+      rq.onsuccess = function () { fin(rq.result); }; rq.onerror = function () { fin(null); }; rq.onblocked = function () { fin(null); };
+    } catch (e) { fin(null); }
+  },
+  put: function (st, k, v, cb) {
+    if (st === 'm') { if (v == null) delete Evid.meta[k]; else Evid.meta[k] = v; }
+    Evid.db(function (d) {
+      if (!d) { if (v == null) delete Evid._mem[st][k]; else Evid._mem[st][k] = v; if (cb) cb(); return; }
+      try { var tx = d.transaction(st, 'readwrite'); if (v == null) tx.objectStore(st)['delete'](k); else tx.objectStore(st).put(v, k); tx.oncomplete = function () { if (cb) cb(); }; tx.onerror = tx.onabort = function () { if (cb) cb(); }; } catch (e) { if (cb) cb(); }
+    });
+  },
+  get: function (st, k, cb) {
+    Evid.db(function (d) {
+      if (!d) { cb(Evid._mem[st][k] || null); return; }
+      try { var rq = d.transaction(st).objectStore(st).get(k); rq.onsuccess = function () { cb(rq.result || null); }; rq.onerror = function () { cb(null); }; } catch (e) { cb(null); }
+    });
+  },
+  cargar: function (cb) {
+    Evid.db(function (d) {
+      if (!d) { Evid.meta = U.clone(Evid._mem.m); if (cb) cb(); return; }
+      try {
+        var rq = d.transaction('m').objectStore('m').openCursor(), m = {};
+        rq.onsuccess = function () { var c = rq.result; if (c) { m[c.key] = c.value; c['continue'](); } else { Evid.meta = m; if (cb) cb(); } };
+        rq.onerror = function () { if (cb) cb(); };
+      } catch (e) { if (cb) cb(); }
+    });
+  },
+  cuenta: function (c) { var n = 0, s = 0; U.each(Evid.LADOS, function (l) { var m = Evid.meta[Evid.k(c, l[0])]; if (m) { n++; if (m.drive) s++; } }); return { n: n, s: s }; },
+  boton: function (b, attr) { var c = Evid.cuenta(Evid.clave(b)); return '<button class="btn btn-sm ' + (c.n === 4 ? 'btn-ok' : 'btn-sec') + ' ev-btn" ' + attr + ' title="Fotos de evidencia de medidas">📷 FOTOS ' + c.n + '/4</button>'; },
+  info: function (b) {
+    var ot = null, ob = null;
+    if (b.otId) { ot = OT.porId(b.otId); ob = ot ? U.find(ot.bultos, function (x) { return x.id === b.id || x.origenCubicacionId === b.id; }) : null; }
+    if (!ot) U.each(OT.lista, function (o) { if (ot || o.eliminado) return; var x = U.find(o.bultos || [], function (y) { return y.id === b.id || (b.origenCubicacionId && y.origenCubicacionId === b.origenCubicacionId); }); if (x) { ot = o; ob = x; } });
+    var x = ob || b, pb = Plantillas._posBulto(ot && ob ? ot : null, x), c = OT.calcular(x.ancho, x.alto, x.largo), pe = b.pedidoId ? Pedidos.porId(b.pedidoId) : (CubPool.pedidoDe ? CubPool.pedidoDe(b) : null), de = pe && pe.envio ? pe.envio.destinatario : null;
+    var td = U.trim(x.numeroDocumento || x.factura) ? (x.tipoDocumento || 'DOC') + ' ' + (x.numeroDocumento || x.factura) : 'SIN DOCUMENTO';
+    return { clave: Evid.clave(ob || b), orden: x.orden || '', docTxt: td, pos: pb.pos + '/' + pb.tot, numero: pb.pos, ot: ot ? ot.numero : '', courier: ob ? U.norm(ob.courier || '') : '', oc: ob ? U.norm(ob.ordenCourierEscaneada || ob.ordenCourier || '') : '',
+      ancho: Number(x.ancho) || 0, alto: Number(x.alto) || 0, largo: Number(x.largo) || 0, peso: Number(x.peso) || 0, volumen: c.volumen, pesoVol: c.pesoVol, factor: Number(DB.cfg.factorVol) || 5000,
+      dest: de ? [de.nombre, de.comuna, de.region].filter(function (v) { return U.trim(v || ''); }).join(' · ') : '' };
+  },
+  n: function (v, d) { return U.fx(v, d).replace('.', ','); },
+  medTxt: function (i) { return Evid.n(i.ancho, i.ancho % 1 ? 1 : 0) + ' × ' + Evid.n(i.alto, i.alto % 1 ? 1 : 0) + ' × ' + Evid.n(i.largo, i.largo % 1 ? 1 : 0) + ' cm'; },
+  declarado: function (i, l) { return l === 'ANCHO' ? Evid.n(i.ancho, i.ancho % 1 ? 1 : 0) + ' cm' : (l === 'ALTO' ? Evid.n(i.alto, i.alto % 1 ? 1 : 0) + ' cm' : (l === 'LARGO' ? Evid.n(i.largo, i.largo % 1 ? 1 : 0) + ' cm' : Evid.medTxt(i) + ' · ' + Evid.n(i.peso, 2) + ' kg')); },
+  sello: function (src, w, h, i, l) {
+    var k = Math.min(1, Evid.MAX / Math.max(w, h)), W = Math.max(1, Math.round(w * k)), H = Math.max(1, Math.round(h * k)), bd = Math.max(30, Math.round(W * 0.034));
+    var c = document.createElement('canvas'); c.width = W; c.height = H + bd;
+    var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, H + bd); x.drawImage(src, 0, 0, W, H);
+    x.fillStyle = '#111'; x.fillRect(0, H, W, bd); x.fillStyle = '#fff'; x.textBaseline = 'middle';
+    var d = new Date(), t = [Evid.nom(l) + ' · declarado ' + Evid.declarado(i, l), i.orden, i.docTxt, 'Bulto ' + i.pos, U.fechaCL(U.fechaISO(d)) + ' ' + U.hora(d)].join('  ·  '), fs = Math.round(bd * 0.48);
+    x.font = 'bold ' + fs + 'px Arial, sans-serif'; while (x.measureText(t).width > W - 16 && fs > 9) { fs--; x.font = 'bold ' + fs + 'px Arial, sans-serif'; }
+    x.fillText(t, 8, H + bd / 2);
+    return { data: c.toDataURL('image/jpeg', Evid.CAL), w: W, h: H + bd };
+  },
+  guardarFoto: function (i, l, r, cb) {
+    var c = i.clave, k = Evid.k(c, l), m = { clave: c, lado: l, fecha: new Date().toISOString(), w: r.w, h: r.h, drive: '', subida: '', local: true, orden: i.orden, doc: i.docTxt, pos: i.pos, medidas: Evid.medTxt(i), peso: i.peso };
+    Evid.put('f', k, r.data, function () { Evid.put('m', k, m, function () { Evid.subir(c, l, function () { if (cb) cb(); }); }); });
+  },
+  quitar: function (c, l, cb) {
+    var k = Evid.k(c, l), m = Evid.meta[k];
+    Evid.put('f', k, null, function () { Evid.put('m', k, null, function () {
+      if (m && m.drive && Sync.modo() !== 'local') Sync.llamar('satFotoBorrar', { clave: c, lado: l }, function () { if (cb) cb(); }, function () { if (cb) cb(); });
+      else if (cb) cb();
+    }); });
+  },
+  subir: function (c, l, cb) {
+    var k = Evid.k(c, l), m = Evid.meta[k];
+    if (!m || m.drive || Sync.modo() === 'local') { if (cb) cb(); return; }
+    Evid.get('f', k, function (data) {
+      if (!data) { if (cb) cb(); return; }
+      Sync.llamar('satFotoSubir', { clave: c, lado: l, data: data, meta: { orden: m.orden, documento: m.doc, bulto: m.pos, medidas: m.medidas, peso: m.peso, fecha: m.fecha } }, function (r) {
+        var mm = Evid.meta[k]; if (mm && r && r.id) { mm.drive = r.id; mm.subida = r.fecha || new Date().toISOString(); Evid.put('m', k, mm, function () { if (cb) cb(true); }); } else if (cb) cb();
+      }, function (e) { if (cb) cb(false, e); });
+    });
+  },
+  subirPendientes: function (cb) {
+    var l = []; for (var k in Evid.meta) if (Evid.meta[k] && !Evid.meta[k].drive && Evid.meta[k].local) l.push(Evid.meta[k]);
+    var i = 0, ok = 0, sig = function () { if (i >= l.length) { if (cb) cb(ok, l.length); return; } var m = l[i++]; Evid.subir(m.clave, m.lado, function (b) { if (b) ok++; sig(); }); };
+    sig();
+  },
+  remoto: function (claves, cb) {
+    if (!claves.length || Sync.modo() === 'local') { if (cb) cb(); return; }
+    Sync.llamar('satFotosListar', { claves: claves.slice(0, 200) }, function (r) {
+      var fs = (r && r.fotos) || {}, pend = 0, fin = function () { if (--pend <= 0 && cb) { var f = cb; cb = null; f(); } };
+      pend = 1;
+      for (var c in fs) U.each(fs[c], function (f) {
+        var k = Evid.k(c, f.lado), m = Evid.meta[k];
+        if (m && m.drive === f.id) return;
+        if (m && m.local && !m.drive) return;
+        pend++; Evid.put('m', k, { clave: c, lado: f.lado, fecha: f.fecha, w: 0, h: 0, drive: f.id, subida: f.fecha, local: false }, fin);
+      });
+      fin();
+    }, function () { if (cb) cb(); });
+  },
+  dato: function (c, l, cb) {
+    var k = Evid.k(c, l), m = Evid.meta[k];
+    if (!m) { cb(null); return; }
+    Evid.get('f', k, function (d) {
+      if (d) { cb(d, m); return; }
+      if (!m.drive || Sync.modo() === 'local') { cb(null, m); return; }
+      Sync.llamar('satFotoLeer', { id: m.drive }, function (r) {
+        if (!r || !r.data) { cb(null, m); return; }
+        var url = 'data:' + (r.mime || 'image/jpeg') + ';base64,' + r.data, im = new Image();
+        im.onload = function () { m.w = im.naturalWidth; m.h = im.naturalHeight; m.local = true; Evid.put('f', k, url, function () { Evid.put('m', k, m, function () { cb(url, m); }); }); };
+        im.onerror = function () { cb(null, m); }; im.src = url;
+      }, function () { cb(null, m); });
+    });
+  },
+  detectar: function (cb) {
+    var md = typeof navigator !== 'undefined' ? navigator.mediaDevices : null;
+    if (!md || !md.getUserMedia) { cb({ api: false, n: 0 }); return; }
+    if (!md.enumerateDevices) { cb({ api: true, n: -1 }); return; }
+    md.enumerateDevices().then(function (l) { cb({ api: true, n: U.filter(l, function (d) { return d.kind === 'videoinput'; }).length, ids: U.map(U.filter(l, function (d) { return d.kind === 'videoinput'; }), function (d) { return d.deviceId; }) }); }, function () { cb({ api: true, n: -1 }); });
+  },
+  archivo: function (camara, i, l, cb) {
+    var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; if (camara) inp.setAttribute('capture', 'environment');
+    inp.style.display = 'none'; inp.id = 'evArchivo'; document.body.appendChild(inp);
+    inp.onchange = function () {
+      var f = inp.files && inp.files[0]; if (inp.parentNode) inp.parentNode.removeChild(inp);
+      if (!f) return;
+      if (!/^image\//.test(f.type || 'image/')) { UI.toast('El archivo no es una imagen', 'error'); return; }
+      var rd = new FileReader();
+      rd.onload = function () { var im = new Image(); im.onload = function () { cb(Evid.sello(im, im.naturalWidth, im.naturalHeight, i, l)); }; im.onerror = function () { UI.toast('No se pudo leer la imagen', 'error'); }; im.src = rd.result; };
+      rd.readAsDataURL(f);
+    };
+    inp.click();
+  },
+  camara: function (i, l, cb) {
+    var md = navigator.mediaDevices;
+    if (!md || !md.getUserMedia) { UI.toast('Este navegador no permite usar la cámara aquí: se abre el selector de fotos', 'warn', 4000); Evid.archivo(true, i, l, cb); return; }
+    var ov = document.createElement('div'), st = null, ids = [], ix = 0;
+    ov.className = 'ev-cam'; ov.id = 'evCam';
+    ov.innerHTML = '<div class="ev-cam-t">' + U.esc(Evid.nom(l)) + ' · declarado ' + U.esc(Evid.declarado(i, l)) + '<br><span>' + U.esc(i.orden + ' · ' + i.docTxt + ' · Bulto ' + i.pos) + '</span></div><video id="evVid" autoplay playsinline muted></video><div class="ev-guia">' + (l === 'COMPLETO' ? 'Encuadre el bulto completo' : 'Muestre la huincha sobre el ' + U.esc(Evid.nom(l).toLowerCase()) + ', legible') + '</div>' +
+      '<div class="btns ev-cam-b"><button class="btn btn-sec" data-c="cancelar">CANCELAR</button><button class="btn btn-sec" data-c="cambiar" id="evCamCambiar" style="display:none">CAMBIAR CÁMARA</button><button class="btn btn-ok btn-xl" data-c="capturar" id="evCapturar" disabled>CAPTURAR</button></div>';
+    document.body.appendChild(ov);
+    var v = ov.querySelector('video');
+    var parar = function () { if (st) U.each(st.getTracks(), function (t) { try { t.stop(); } catch (e) {} }); st = null; };
+    var cerrar = function () { parar(); if (ov.parentNode) ov.parentNode.removeChild(ov); };
+    var iniciar = function () {
+      parar(); U.$('evCapturar').disabled = true;
+      var c = ids.length ? { deviceId: { exact: ids[ix] }, width: { ideal: 1920 }, height: { ideal: 1080 } } : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
+      md.getUserMedia({ video: c, audio: false }).then(function (s) {
+        st = s; v.srcObject = s; var pl = v.play(); if (pl && pl['catch']) pl['catch'](function () {});
+        U.$('evCapturar').disabled = false;
+        if (!ids.length) Evid.detectar(function (r) { ids = r.ids || []; var tr = s.getVideoTracks()[0], set = tr && tr.getSettings ? tr.getSettings() : {}; ix = Math.max(0, ids.indexOf(set.deviceId)); if (ids.length > 1) U.$('evCamCambiar').style.display = ''; });
+      }, function (e) {
+        cerrar();
+        var n = e && e.name;
+        UI.toast(n === 'NotAllowedError' ? 'Permiso de cámara denegado: habilítelo en el navegador o adjunte una foto' : (n === 'NotFoundError' || n === 'OverconstrainedError' ? 'No se detectó cámara: adjunte una foto' : 'No se pudo abrir la cámara: adjunte una foto'), 'warn', 5000);
+        Evid.archivo(true, i, l, cb);
+      });
+    };
+    ov.onclick = function (e) {
+      var t = e.target, a = t && t.getAttribute ? t.getAttribute('data-c') : '';
+      if (a === 'cancelar') cerrar();
+      else if (a === 'cambiar' && ids.length > 1) { ix = (ix + 1) % ids.length; iniciar(); }
+      else if (a === 'capturar') { if (!v.videoWidth) { UI.toast('La cámara aún no está lista', 'warn'); return; } var r = Evid.sello(v, v.videoWidth, v.videoHeight, i, l); cerrar(); cb(r); }
+    };
+    iniciar();
+  },
+  abrir: function (b, op) {
+    op = op || {};
+    var i = Evid.info(b), c = i.clave, cam = null, vivo = true;
+    var tile = function (l) {
+      var m = Evid.meta[Evid.k(c, l[0])], est = !m ? '<span class="muted">Sin foto</span>' : (m.drive ? '<span class="ev-ok">☁ Guardada en Drive</span>' : (m.local ? '<span class="ev-pend">⏳ Pendiente de subir</span>' : ''));
+      return '<div class="ev-tile" data-lado="' + l[0] + '"><div class="ev-cab"><b>' + U.esc(l[1]) + '</b><span class="muted">' + U.esc(Evid.declarado(i, l[0])) + '</span></div><div class="ev-img" id="evImg_' + l[0] + '">' + (m ? '<span class="muted">Cargando…</span>' : '<span class="ev-vacio">📷</span>') + '</div><div class="ev-est">' + est + '</div>' +
+        '<div class="btns"><button class="btn btn-ok btn-sm" data-ev="tomar" data-l="' + l[0] + '">TOMAR</button><button class="btn btn-sec btn-sm" data-ev="adjuntar" data-l="' + l[0] + '">ADJUNTAR</button>' + (m ? '<button class="btn btn-dan btn-sm" data-ev="quitar" data-l="' + l[0] + '">QUITAR</button>' : '') + '</div></div>';
+    };
+    var pintar = function () {
+      var g = U.$('evGrid'); if (!g || !vivo) return;
+      g.innerHTML = U.map(Evid.LADOS, tile).join('');
+      U.each(Evid.LADOS, function (l) { if (!Evid.meta[Evid.k(c, l[0])]) return; Evid.dato(c, l[0], function (d) { var e = U.$('evImg_' + l[0]); if (e) e.innerHTML = d ? '<img src="' + d + '" alt="' + U.esc(l[1]) + '">' : '<span class="muted">En Drive · sin conexión para verla</span>'; }); });
+      var n = Evid.cuenta(c), r = U.$('evRes'); if (r) r.innerHTML = n.n + ' de 4 fotos · ' + n.s + ' en Drive' + (Sync.modo() === 'local' ? ' · <span class="muted">sin conexión con la planilla: se suben al sincronizar</span>' : '');
+    };
+    var h = '<div class="msg"><b>' + U.esc(i.orden) + '</b> · ' + U.esc(i.docTxt) + ' · Bulto <b>' + U.esc(i.pos) + '</b>' + (i.ot ? ' · ' + U.esc(i.ot) : '') + (i.courier ? ' · ' + U.esc(i.courier) : '') + '<br>Medidas declaradas: <b>' + U.esc(Evid.medTxt(i)) + '</b> · ' + Evid.n(i.peso, 2) + ' kg · peso vol. ' + Evid.n(i.pesoVol, 2) + ' kg (÷' + i.factor + ')</div>' +
+      '<div id="evCamEst" class="muted">Detectando cámara…</div><div class="ev-grid" id="evGrid"></div><div id="evRes" class="tot" style="margin-top:6px"></div>' +
+      '<div class="fila"><div class="c"><label class="lbl" for="evFmt">FORMATO DEL PDF</label><select id="evFmt" class="inp sm"><option value="A4">Hoja A4 completa por bulto</option><option value="MEDIA"' + (DB.cfg.evidFormato === 'MEDIA' ? ' selected' : '') + '>Media hoja A4 por bulto (2 por hoja)</option></select></div><div class="c"></div></div>';
+    UI.modal({ titulo: 'Evidencia de medidas · ' + i.orden + ' · Bulto ' + i.pos, html: h, botones: [
+      { txt: 'CERRAR', cls: 'btn-sec', fn: function () { vivo = false; UI.cerrarModal(); if (op.alFin) op.alFin(); return false; } },
+      { txt: 'PDF DE ESTE BULTO', cls: 'btn-ok', fn: function () { Evid.pdf([b], U.$('evFmt').value); return false; } }
+    ], alAbrir: function (host) {
+      pintar();
+      Evid.detectar(function (r) { cam = r; var e = U.$('evCamEst'); if (!e) return; e.innerHTML = !r.api ? 'Este navegador no da acceso directo a la cámara: TOMAR abre la cámara o galería del equipo.' : (r.n === 0 ? 'No se detectó cámara en este equipo: use ADJUNTAR.' : '📷 Cámara ' + (r.n > 0 ? 'detectada (' + r.n + ')' : 'disponible') + '. TOMAR abre la vista previa; el navegador pedirá permiso la primera vez.'); });
+      Evid.remoto([c], function () { pintar(); Evid.subir(c, 'COMPLETO', function () { Evid.subirPendientes(function () { pintar(); }); }); });
+      U.$('evFmt').onchange = function () { DB.cfg.evidFormato = this.value; DB.guardarCfg(); };
+      host.onclick = function (e) {
+        var t = e.target; while (t && t !== host && !(t.getAttribute && t.getAttribute('data-ev'))) t = t.parentNode;
+        if (!t || t === host) return;
+        var a = t.getAttribute('data-ev'), l = t.getAttribute('data-l'), listo = function (r) { Evid.guardarFoto(i, l, r, pintar); pintar(); UI.toast(Evid.nom(l) + ': foto guardada', 'ok'); };
+        if (a === 'tomar') { if (cam && cam.api && cam.n !== 0) Evid.camara(i, l, listo); else Evid.archivo(true, i, l, listo); }
+        else if (a === 'adjuntar') Evid.archivo(false, i, l, listo);
+        else if (a === 'quitar') UI.confirmar('¿Quitar la foto de ' + Evid.nom(l) + '? También se elimina de Drive.', function () { Evid.quitar(c, l, function () { Evid.abrir(b, op); }); }, { titulo: 'Quitar foto', si: 'QUITAR' });
+      };
+    } });
+  },
+  bultosDoc: function (orden, tipo, num) {
+    var k = OT.docKey(orden, tipo, num), out = [], vistos = {};
+    U.each(OT.lista, function (o) { if (o.eliminado) return; U.each(o.bultos || [], function (b) { if (b.docKey !== k && OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento || b.factura) !== k) return; var c = Evid.clave(b); if (vistos[c]) return; vistos[c] = 1; out.push(U.assign(U.clone(b), { otId: o.id })); }); });
+    U.each(CubPool.lista, function (b) { if (b.estado === 'ELIMINADO' || vistos[b.id] || OT.docKey(b.orden, b.tipoDocumento, b.numeroDocumento) !== k) return; vistos[b.id] = 1; out.push(b); });
+    return out;
+  },
+  pdf: function (bultos, fmt, nombre) {
+    fmt = fmt === 'MEDIA' ? 'MEDIA' : 'A4';
+    var infos = U.map(bultos, Evid.info), claves = U.map(infos, function (x) { return x.clave; });
+    UI.toast('Preparando PDF de evidencia…', 'ok', 2500);
+    PdfLib.cargar(function () {
+      Evid.remoto(claves, function () {
+        var datos = [], i = 0;
+        var sig = function () {
+          if (i >= infos.length) { Evid._pdf(infos, datos, fmt, nombre); return; }
+          var inf = infos[i++], f = {}, j = 0;
+          var lado = function () { if (j >= Evid.LADOS.length) { datos.push(f); sig(); return; } var l = Evid.LADOS[j++][0]; Evid.dato(inf.clave, l, function (d, m) { if (d) f[l] = { d: d, w: (m && m.w) || 4, h: (m && m.h) || 3, fecha: m && m.fecha }; lado(); }); };
+          lado();
+        };
+        sig();
+      });
+    }, function () { UI.toast('No se pudo cargar el generador PDF (requiere conexión)', 'error', 5000); });
+  },
+  _pdf: function (infos, datos, fmt, nombre) {
+    var J = window.jspdf.jsPDF, d = new J({ unit: 'mm', format: 'a4', orientation: 'portrait' }), sin = 0, ahora = new Date();
+    var fit = function (f, x, y, w, h) { var r = Math.min(w / f.w, h / f.h), iw = f.w * r, ih = f.h * r; d.addImage(f.d, 'JPEG', x + (w - iw) / 2, y + (h - ih) / 2, iw, ih); };
+    var bloque = function (inf, fo, y0, alto) {
+      var med = fmt === 'MEDIA', M = 10, W = 190, hc = med ? 20 : 30, fs = med ? 8 : 9.5;
+      d.setDrawColor(150); d.setLineWidth(0.3); d.rect(M, y0, W, hc);
+      d.setFont('helvetica', 'bold'); d.setFontSize(med ? 10 : 12); d.text('EVIDENCIA DE MEDIDAS · ' + inf.orden + ' · BULTO ' + inf.pos, M + 3, y0 + (med ? 5 : 6.5));
+      d.setFont('helvetica', 'normal'); d.setFontSize(fs);
+      var l1 = inf.docTxt + (inf.ot ? '  ·  ' + inf.ot : '') + (inf.courier ? '  ·  Courier ' + inf.courier : '') + (inf.oc ? '  ·  N° orden ' + inf.oc : '');
+      var l2 = 'Medidas declaradas: ' + Evid.medTxt(inf) + '  ·  Peso real ' + Evid.n(inf.peso, 2) + ' kg  ·  Volumen ' + Evid.n(inf.volumen, 4) + ' m3  ·  Peso vol. ' + Evid.n(inf.pesoVol, 2) + ' kg (÷' + inf.factor + ')';
+      var l3 = (inf.dest ? 'Destino: ' + inf.dest + '  ·  ' : '') + 'Generado ' + U.fechaCL(U.fechaISO(ahora)) + ' ' + U.hora(ahora);
+      var ys = med ? [y0 + 9.5, y0 + 13.5, y0 + 17.5] : [y0 + 12.5, y0 + 18, y0 + 23.5];
+      d.text(d.splitTextToSize(l1, W - 6)[0], M + 3, ys[0]); d.setFont('helvetica', 'bold'); d.text(d.splitTextToSize(l2, W - 6)[0], M + 3, ys[1]); d.setFont('helvetica', 'normal'); d.text(d.splitTextToSize(l3, W - 6)[0], M + 3, ys[2]);
+      var gy = y0 + hc + 2, gh = alto - hc - 2, cw = (W - 4) / 2, ch = (gh - 4) / 2, cap = med ? 4.5 : 6;
+      U.each(Evid.LADOS, function (l, n) {
+        var x = M + (n % 2) * (cw + 4), y = gy + Math.floor(n / 2) * (ch + 4), f = fo[l[0]];
+        d.setFont('helvetica', 'bold'); d.setFontSize(med ? 7.5 : 9); d.text(l[1] + ' · declarado ' + Evid.declarado(inf, l[0]), x, y + cap - 1.5);
+        d.setDrawColor(190); d.rect(x, y + cap, cw, ch - cap);
+        if (f) fit(f, x + 0.5, y + cap + 0.5, cw - 1, ch - cap - 1);
+        else { sin++; d.setFont('helvetica', 'normal'); d.setFontSize(9); d.setTextColor(150); d.text('Sin foto', x + cw / 2, y + cap + (ch - cap) / 2, { align: 'center' }); d.setTextColor(0); }
+      });
+    };
+    var por = fmt === 'MEDIA' ? 2 : 1, alto = fmt === 'MEDIA' ? 133.5 : 272;
+    U.each(infos, function (inf, n) {
+      var p = n % por; if (n && !p) d.addPage();
+      var y0 = 10 + p * 143.5;
+      if (p) { d.setDrawColor(120); d.setLineDashPattern([2, 2], 0); d.line(5, 148.5, 205, 148.5); d.setLineDashPattern([], 0); }
+      bloque(inf, datos[n], y0, alto);
+      d.setFont('helvetica', 'normal'); d.setFontSize(7); d.setTextColor(110);
+      if (p === por - 1 || n === infos.length - 1) d.text('Satélite · RDMusico Packing · Las fotos llevan sello con lado, medida declarada, orden, bulto y fecha de captura.', 105, 292, { align: 'center' });
+      d.setTextColor(0);
+    });
+    var nom = nombre || ('evidencia_' + (infos.length === 1 ? infos[0].orden + '_bulto_' + infos[0].numero : infos[0].orden + '_' + infos.length + '_bultos'));
+    d.save(String(nom).replace(/[^\w\-]+/g, '_') + '.pdf');
+    UI.toast('PDF de evidencia descargado' + (sin ? ' · ' + sin + ' foto(s) faltante(s)' : ''), sin ? 'warn' : 'ok', 4500);
   }
 };
 
@@ -4622,7 +4903,7 @@ function entrarDatos(fn) {
 
 var Sync = {
   _t: null, _enCurso: false, _cola: [],
-  FUNCIONES: ['satInfo','satIAEstado','satIAPreguntar','satListasLeer','satListasGuardar','satComunasLeer','satComunasGuardar','satCotizadorLeer','satCotizadorGuardar','satCotizacionGuardar','satCotizacionesListar','satCotizacionPrecio','satFormatosLeer','satFormatosGuardar','satSubir','satBajar','satCatalogo','satMedidas','satUbicaciones','satUbicacionesImportar','satUbicacionesGuardar','satCatalogoImportar','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar','satEquipos'],
+  FUNCIONES: ['satFotoSubir','satFotosListar','satFotoLeer','satFotoBorrar','satInfo','satIAEstado','satIAPreguntar','satListasLeer','satListasGuardar','satComunasLeer','satComunasGuardar','satCotizadorLeer','satCotizadorGuardar','satCotizacionGuardar','satCotizacionesListar','satCotizacionPrecio','satFormatosLeer','satFormatosGuardar','satSubir','satBajar','satCatalogo','satMedidas','satUbicaciones','satUbicacionesImportar','satUbicacionesGuardar','satCatalogoImportar','satMedidasImportar','satProductoGuardar','satProductosCambios','satProductoHistorial','satCorreosListar','satCubicaciones','satGuardarCubicaciones','satPdfCubicacion','satEnviarPdfCubicacion','satPedidosListar','satPedidoGuardar','satPedidosGuardar','satSeguimientoListar','satSeguimientoGuardar','satSeguimientoConsultar','satConfigLeer','satConfigGuardar','satEquipos'],
   gas: function () { try { return typeof google !== 'undefined' && !!google.script && !!google.script.run; } catch (e) { return false; } },
   urlServidor: function () {
     var u = U.trim((DB.cfg && DB.cfg.sync && DB.cfg.sync.url) || '');
@@ -5840,6 +6121,7 @@ var App = {
   arrancar: function () {
     if (App._arrancado) return;
     App._arrancado = true;
+    Evid.cargar();
     Dispositivo.iniciar();
     Layout.observar();
     Rut.iniciar();
@@ -6793,7 +7075,7 @@ Pantallas.cubicacion = function (m) {
       hh += '<div class="dochead"><div style="font-size:16px"><b>' + CubUI.etDoc({ orden: b0.orden, tipo: b0.tipoDocumento, num: b0.numeroDocumento }) + '</b> · ' + tot + ' bulto(s)' + (gv.rep.suma != null ? ' · valor ' + Valores.txt(gv.rep.sinTotal ? gv.rep.suma : gv.rep.total) : '') + '</div>' +
         (gv.rep.exceso ? '<div class="aviso amar" style="font-size:13px;margin:4px 0">Los valores de los bultos (' + Valores.txt(gv.rep.explicito) + ') superan el valor del pedido (' + Valores.txt(gv.rep.total) + ').</div>' : '') +
         EnvioDatos.linea(EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) +
-        '<div class="btns"><span class="ord-tag" title="Las acciones de esta fila son de la orden ' + U.esc(b0.orden) + '">' + U.esc(b0.orden || 'SIN ORDEN') + '</span><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button><button class="btn btn-sec btn-sm" data-a="cotDoc" data-x="' + U.esc(k) + '">COTIZAR</button>' + EnvioDatos.boton('envDoc', k, EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) + '<button class="btn btn-sec btn-sm" data-a="rotDoc" data-x="' + U.esc(k) + '">RÓTULO</button>' + CubUI.botonEntrega(k, g) + '</div></div>';
+        '<div class="btns"><span class="ord-tag" title="Las acciones de esta fila son de la orden ' + U.esc(b0.orden) + '">' + U.esc(b0.orden || 'SIN ORDEN') + '</span><button class="btn btn-sec btn-sm" data-a="vouDoc" data-x="' + U.esc(k) + '">VOUCHER</button><button class="btn btn-ok btn-sm" data-a="etqDoc" data-x="' + U.esc(k) + '">ETIQUETAS</button><button class="btn btn-sec btn-sm" data-a="cotDoc" data-x="' + U.esc(k) + '">COTIZAR</button>' + EnvioDatos.boton('envDoc', k, EnvioDatos.ref(b0.orden, b0.tipoDocumento, b0.numeroDocumento, g)) + '<button class="btn btn-sec btn-sm" data-a="rotDoc" data-x="' + U.esc(k) + '">RÓTULO</button><button class="btn btn-sec btn-sm" data-a="evDoc" data-x="' + U.esc(k) + '" title="PDF con las fotos de cada bulto del documento">EVIDENCIA PDF</button>' + CubUI.botonEntrega(k, g) + '</div></div>';
       U.each(g, function (b) { hh += CubUI.filaBulto(b); });
       hh += '</div>';
     });
@@ -6804,7 +7086,7 @@ Pantallas.cubicacion = function (m) {
   CubUI.filaBulto = function (b) {
     var hh = '';
 
-      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + Plantillas.nTxt(b) + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (function () { var vv = (CubUI._val && CubUI._val[b.id]) || Valores.deCub(b); return vv && vv.v != null ? ' · <b>' + Valores.txt(vv.v) + '</b>' + (vv.auto ? ' <span class="muted">(reparto)</span>' : '') : ''; })() + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + (b.productoDesc ? '<br>' + U.esc(b.productoDesc) : '') + (CorreosSat.deBulto(b) ? '<br><span class="est COMPLETO">CORREOS ' + U.esc(CorreosSat.deBulto(b).seguimiento || CorreosSat.deBulto(b).numeroEnvio) + '</span>' : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
+      hh += '<div class="doc" data-a="editarCub" data-x="' + b.id + '" style="cursor:pointer"><div class="dh"><div><b style="font-size:19px">' + U.esc(b.orden) + '</b> · ' + U.esc(b.tipoDocumento) + ' ' + U.esc(b.numeroDocumento) + '</div><span class="est ' + (b.estado === 'DISPONIBLE' ? 'ABIERTA' : 'CERRADA') + '">' + U.esc(b.estado) + '</span></div><div class="s">' + U.esc(b.cubicacionId) + ' · Bulto ' + Plantillas.nTxt(b) + ' · ' + b.ancho + '×' + b.alto + '×' + b.largo + ' cm · ' + U.fx(b.peso, 2) + ' kg' + (function () { var vv = (CubUI._val && CubUI._val[b.id]) || Valores.deCub(b); return vv && vv.v != null ? ' · <b>' + Valores.txt(vv.v) + '</b>' + (vv.auto ? ' <span class="muted">(reparto)</span>' : '') : ''; })() + (b.otNumero ? ' · ' + U.esc(b.otNumero) : '') + (b.productoDesc ? '<br>' + U.esc(b.productoDesc) : '') + (CorreosSat.deBulto(b) ? '<br><span class="est COMPLETO">CORREOS ' + U.esc(CorreosSat.deBulto(b).seguimiento || CorreosSat.deBulto(b).numeroEnvio) + '</span>' : '') + '</div><div class="btns"><button class="btn btn-sec btn-sm" data-a="editarCub" data-x="' + b.id + '">EDITAR</button>' + Evid.boton(b, 'data-a="evBul" data-x="' + b.id + '"') + (b.estado === 'DISPONIBLE' ? '<button class="btn btn-dan btn-sm" data-a="del" data-x="' + b.id + '">ELIMINAR</button>' : '') + '</div></div>';
 
     return hh;
   };
@@ -6941,6 +7223,8 @@ Pantallas.cubicacion = function (m) {
     cuPend: function () { CubUI.vista = 'pendientes'; Pag.reiniciar('cub'); pintar(); },
     cuHist: function () { CubUI.vista = 'historico'; Pag.reiniciar('cub'); pintar(); },
     editarCub: function (id) { CubUI.editarBulto(id); },
+    evBul: function (id) { var b = U.find(CubPool.lista, function (x) { return x.id === id; }); if (b) Evid.abrir(b, { alFin: function () { if (U.$('cuLista')) pintar(); } }); },
+    evDoc: function (k) { var l = CubUI.bultosDoc(k), b0 = l[0]; if (!b0) return; var bs = Evid.bultosDoc(b0.orden, b0.tipoDocumento, b0.numeroDocumento); if (!bs.length) return; Evid.pdf(bs, DB.cfg.evidFormato); },
     del: function (id, el, e) {
       if (e && e.stopPropagation) e.stopPropagation();
       var b = U.find(CubPool.lista, function (x) { return x.id === id; });
@@ -8315,17 +8599,17 @@ var Seguimiento = {
     U.each(ev, function (e) { h += '<div class="ev"><div class="t">' + U.esc(e.t) + '</div><div class="muted">' + U.esc(e.ts ? U.fechaCL(e.ts.substr(0, 10)) + (e.ts.length > 10 ? ' ' + e.ts.substr(11, 5) : '') : 'Sin fecha') + (e.s ? ' · ' + U.esc(e.s) : '') + '</div></div>'; });
     h += ev.length ? '</div>' : '<div class="muted">Sin movimientos registrados.</div></div>';
     if (d.bultos.length) {
-      h += '<label class="lbl">BULTOS EN OT <span class="unidad">toque una fila para editar medidas, peso, documento o courier</span></label><div class="scroll-list"><table class="tbl tbl-clic"><tr><th>N°</th><th>Medidas · Peso</th><th>OT</th><th>Courier</th><th>✓</th></tr>';
+      h += '<label class="lbl">BULTOS EN OT <span class="unidad">toque una fila para editar medidas, peso, documento o courier</span></label><div class="scroll-list"><table class="tbl tbl-clic"><tr><th>N°</th><th>Medidas · Peso</th><th>OT</th><th>Courier</th><th>✓</th><th>Fotos</th></tr>';
       var ls = d.bultos.slice(0);
       ls.sort(function (a, b) { return a.ot.numero === b.ot.numero ? a.b.numero - b.b.numero : (a.ot.numero < b.ot.numero ? -1 : 1); });
       U.each(ls, function (x) {
         var b = x.b, v = b.verificadoCourier || b.despachoId || b.despachado;
-        h += '<tr data-sb="' + U.esc(x.ot.id) + '|' + U.esc(b.id) + '" tabindex="0" title="Editar bulto"><td>' + b.numero + '</td><td>' + U.esc(b.ancho + '×' + b.alto + '×' + b.largo) + ' · ' + U.fx(b.peso, 2) + ' kg</td><td>' + U.esc(x.ot.numero) + (x.ot.estado !== 'ABIERTA' ? ' <span class="muted">' + U.esc(x.ot.estado) + '</span>' : '') + '</td><td>' + U.esc((b.courier || '—') + (b.ordenCourierEscaneada || b.ordenCourier ? ' ' + (b.ordenCourierEscaneada || b.ordenCourier) : '')) + '</td><td>' + (v ? '✓' : '—') + '</td></tr>';
+        h += '<tr data-sb="' + U.esc(x.ot.id) + '|' + U.esc(b.id) + '" tabindex="0" title="Editar bulto"><td>' + b.numero + '</td><td>' + U.esc(b.ancho + '×' + b.alto + '×' + b.largo) + ' · ' + U.fx(b.peso, 2) + ' kg</td><td>' + U.esc(x.ot.numero) + (x.ot.estado !== 'ABIERTA' ? ' <span class="muted">' + U.esc(x.ot.estado) + '</span>' : '') + '</td><td>' + U.esc((b.courier || '—') + (b.ordenCourierEscaneada || b.ordenCourier ? ' ' + (b.ordenCourierEscaneada || b.ordenCourier) : '')) + '</td><td>' + (v ? '✓' : '—') + '</td><td>' + Evid.boton(U.assign(U.clone(b), { otId: x.ot.id }), 'data-evb="' + U.esc(x.ot.id) + '|' + U.esc(b.id) + '"') + '</td></tr>';
       });
       h += '</table></div>';
     } else if (d.cub.length) {
-      h += '<label class="lbl">BULTOS CUBICADOS <span class="unidad">toque una fila para editar</span></label><div class="scroll-list"><table class="tbl tbl-clic"><tr><th>N°</th><th>Medidas · Peso</th><th>Cubicación</th><th>Estado</th></tr>';
-      U.each(d.cub, function (c) { h += '<tr data-sc="' + U.esc(c.id) + '" tabindex="0" title="Editar bulto"><td>' + c.numero + '</td><td>' + U.esc(c.ancho + '×' + c.alto + '×' + c.largo) + ' · ' + U.fx(c.peso, 2) + ' kg</td><td>' + U.esc(c.cubicacionId || '') + '</td><td>' + U.esc(c.estado || '') + '</td></tr>'; });
+      h += '<label class="lbl">BULTOS CUBICADOS <span class="unidad">toque una fila para editar</span></label><div class="scroll-list"><table class="tbl tbl-clic"><tr><th>N°</th><th>Medidas · Peso</th><th>Cubicación</th><th>Estado</th><th>Fotos</th></tr>';
+      U.each(d.cub, function (c) { h += '<tr data-sc="' + U.esc(c.id) + '" tabindex="0" title="Editar bulto"><td>' + c.numero + '</td><td>' + U.esc(c.ancho + '×' + c.alto + '×' + c.largo) + ' · ' + U.fx(c.peso, 2) + ' kg</td><td>' + U.esc(c.cubicacionId || '') + '</td><td>' + U.esc(c.estado || '') + '</td><td>' + Evid.boton(c, 'data-evc="' + U.esc(c.id) + '"') + '</td></tr>'; });
       h += '</table></div>';
     }
     if (d.correos && d.correos.length) {
@@ -8359,12 +8643,20 @@ var Seguimiento = {
       var n = U.find(Seguimiento.indice(), function (x) { return U.norm(x.orden) === U.norm(d.orden) && U.norm(x.tipoDocumento) === U.norm(d.tipoDocumento) && U.norm(x.numeroDocumento) === U.norm(d.numeroDocumento); });
       if (n) Seguimiento.detalle(n);
     };
+    if (d.bultos.length || d.cub.length) bt.push({ txt: 'EVIDENCIA PDF', cls: 'btn-sec', fn: function () { Evid.pdf(Evid.bultosDoc(d.orden, d.tipoDocumento, d.numeroDocumento), DB.cfg.evidFormato); return false; } });
     if (U.trim(d.orden) && d.etapa !== 'CANCELADO') bt.push({ txt: '+ AGREGAR BULTO', cls: 'btn-sec', fn: function () { CubUI.nuevoBulto({ orden: d.orden, tipoDocumento: d.tipoDocumento, numeroDocumento: d.numeroDocumento, pedidoId: d.pedido ? d.pedido.id : '' }, { ots: U.filter(d.ots, function (o) { return !Flujo.otFinal(o); }), alFin: volver }); return false; } });
     bt.push({ txt: 'CERRAR', cls: 'btn-sec' });
     UI.modal({ titulo: 'Seguimiento de documento', html: h, botones: bt, alAbrir: function (host) {
       var abrir = function (tr) { var sb = tr.getAttribute('data-sb'), sc = tr.getAttribute('data-sc'); if (sb) { var p = sb.split('|'); CubUI.editarBulto(null, { otId: p[0], bultoId: p[1], alFin: volver }); } else if (sc) CubUI.editarBulto(sc, { alFin: volver }); };
-      host.addEventListener('click', function (e) { var t = e.target; while (t && t !== host && !(t.getAttribute && (t.getAttribute('data-sb') || t.getAttribute('data-sc')))) t = t.parentNode; if (t && t !== host) abrir(t); });
-      host.addEventListener('keydown', function (e) { if (e.key !== 'Enter') return; var t = e.target; if (t.getAttribute && (t.getAttribute('data-sb') || t.getAttribute('data-sc'))) abrir(t); });
+      host.onclick = function (e) {
+        var t = e.target; while (t && t !== host && !(t.getAttribute && (t.getAttribute('data-evb') || t.getAttribute('data-evc') || t.getAttribute('data-sb') || t.getAttribute('data-sc')))) t = t.parentNode;
+        if (!t || t === host) return;
+        var eb = t.getAttribute('data-evb'), ec = t.getAttribute('data-evc');
+        if (eb) { var q = eb.split('|'), o = OT.porId(q[0]), ob = o ? U.find(o.bultos, function (y) { return y.id === q[1]; }) : null; if (ob) Evid.abrir(U.assign(U.clone(ob), { otId: o.id }), { alFin: volver }); return; }
+        if (ec) { var cb = U.find(CubPool.lista, function (y) { return y.id === ec; }); if (cb) Evid.abrir(cb, { alFin: volver }); return; }
+        abrir(t);
+      };
+      host.onkeydown = function (e) { if (e.key !== 'Enter') return; var t = e.target; if (t.getAttribute && (t.getAttribute('data-sb') || t.getAttribute('data-sc'))) abrir(t); };
     } });
   },
   COLS: [['FECHA', 'Fecha manifiesto (u OT si no hay)'], ['HORA', ''], ['OT', ''], ['ESTADO_OT', ''], ['COURIER', ''], ['N_ORDEN_COURIER', ''], ['ORDEN_TICKET', ''], ['TIPO_DOC', ''], ['N_DOCUMENTO', ''],
