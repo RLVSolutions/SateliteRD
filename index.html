@@ -333,6 +333,13 @@ textarea.inp{font-size:13px;border-radius:8px}
 .ev-guia{color:#ffe08a;font-size:13px;text-align:center}
 .ev-cam-b{-webkit-justify-content:center;justify-content:center}
 @media (max-width:560px){.ev-grid{grid-template-columns:1fr}.ev-img{height:200px}}
+.pp-dash{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;gap:14px;width:100%;margin:0 0 14px;padding:12px 16px;border:2px solid #a86a00;border-radius:14px;background:#fff6e0;color:#4a3000;text-align:left;cursor:pointer;font:inherit}
+.pp-dash:hover,.pp-dash:focus{box-shadow:0 0 0 3px rgba(168,106,0,.25)}
+.pp-n{font-size:34px;font-weight:900;min-width:52px;text-align:center;color:#a86a00}
+.pp-t{-webkit-flex:1;flex:1;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:2px;font-size:13px}.pp-t b{font-size:15px;letter-spacing:.3px}
+.pp-go{font-weight:800;font-size:13px;white-space:nowrap}
+.pp-box{display:inline-block;width:16px;height:16px;border:2px solid #555;border-radius:3px;vertical-align:middle}
+@media (max-width:560px){.pp-go{display:none}}
 .cf-envref{margin-top:4px}
 .envref{position:relative;display:inline-block;max-width:100%;padding:3px 10px;border-radius:12px;background:#eef6fb;border:1px solid #b9d9ea;color:#0a4f6e;font-size:12px;font-weight:600;cursor:pointer;line-height:1.35;vertical-align:middle}
 .envref.falta{background:#f6f6f6;border-color:#ddd;color:#6c757d;font-weight:500;cursor:default}
@@ -662,7 +669,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.44.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.45.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -6604,7 +6611,7 @@ CubUI.editarBulto = function (id, op) {
 
 Pantallas.inicio = function (m) {
   Pedidos.reconciliarEstados();
-  var pedAct=0, pedCub=0, otAb=0, otDesp=0, otCer=0, bultos=0, cubPend=0;
+  var pedAct=0, pedCub=0, otAb=0, otDesp=0, otCer=0, bultos=0, cubPend=0, porPrep=PorPreparar.hoy();
   U.each(Pedidos.vigentes(),function(p){
     if(['ENVIADO','ENTREGADO','CANCELADO'].indexOf(p.estado)<0) pedAct++;
     if(p.estado==='CUBICADO') pedCub++;
@@ -6630,6 +6637,7 @@ Pantallas.inicio = function (m) {
       k(otAb,'OT ABIERTAS','En preparación','k3','packing:ots')+
       k(bultos,'BULTOS','Registrados en OT','k4','seguimiento:bultos')+
     '</div>'+
+    '<button type="button" class="pp-dash" data-a="iniPrep"><span class="pp-n">'+porPrep+'</span><span class="pp-t"><b>POR PREPARAR HOY</b><span>Pedidos del día sin cubicar · consultar por fechas e imprimir lista de control</span></span><span class="pp-go">VER / IMPRIMIR ›</span></button>'+
     '<div class="card"><h2>OPERACIÓN</h2><div class="tiles">'+
       acceso('pedidos','PE','Pedidos','Pedidos y órdenes de compra',true)+
       acceso('cubicacion','CU','Cubicación','Medidas y peso de bultos')+
@@ -6648,8 +6656,107 @@ Pantallas.inicio = function (m) {
       acceso('catalogo','CA','Catálogo','Productos y códigos')+
       acceso('datos','DA','Datos','Sincronización y respaldo')+
     '</div></div>';
-  UI.delegar(m,{iniIr:function(p){App.ir(p);},iniKpi:function(x){Dash.ir(x);}});
+  UI.delegar(m,{iniIr:function(p){App.ir(p);},iniKpi:function(x){Dash.ir(x);},iniPrep:function(){PorPreparar.abrir();}});
   m.onkeydown=function(e){if((e.keyCode===13||e.keyCode===32)&&e.target&&e.target.getAttribute&&e.target.getAttribute('data-a')==='iniKpi'){e.preventDefault();Dash.ir(e.target.getAttribute('data-x'));}};
+};
+
+var PorPreparar = {
+  CERRADOS: ['CANCELADO', 'ENTREGADO', 'ELIMINADO', 'ENVIADO'],
+  lista: function (desde, hasta) {
+    var out = [];
+    U.each(Pedidos.vigentes(), function (p) {
+      if (PorPreparar.CERRADOS.indexOf(p.estado) >= 0) return;
+      var f = Pedidos.fechaCanon(p.fecha) || '';
+      if (desde && f < desde) return;
+      if (hasta && f > hasta) return;
+      if (Pedidos.evidencia(p)) return;
+      out.push(p);
+    });
+    out.sort(function (a, b) { var fa = Pedidos.fechaCanon(a.fecha) || '', fb = Pedidos.fechaCanon(b.fecha) || ''; if (fa !== fb) return fa < fb ? -1 : 1; return String(a.numero).localeCompare(String(b.numero), 'es', { numeric: true }); });
+    return out;
+  },
+  hoy: function () { return PorPreparar.lista(U.fechaISO(), U.fechaISO()).length; },
+  doc: function (p) { return U.trim(p.numeroDocumento) ? (p.tipoDocumento || 'DOC') + ' ' + p.numeroDocumento : ''; },
+  rangoTxt: function (d, h) { return d === h ? U.fechaCL(d) : U.fechaCL(d) + ' al ' + U.fechaCL(h); },
+  abrir: function () {
+    var hoy = U.fechaISO(), st = { d: hoy, h: hoy }, l = [];
+    var ay = function () { var x = new Date(); x.setDate(x.getDate() - 1); return U.fechaISO(x); };
+    var pintar = function () {
+      if (st.h < st.d) { var t = st.d; st.d = st.h; st.h = t; U.$('ppD').value = st.d; U.$('ppH').value = st.h; }
+      l = PorPreparar.lista(st.d, st.h);
+      var varios = st.d !== st.h;
+      U.each(U.qa(U.$('modalHost'), '[data-pp]'), function (b) { var k = b.getAttribute('data-pp'), on = (k === 'hoy' && st.d === hoy && st.h === hoy) || (k === 'ayer' && st.d === ay() && st.h === ay()) || (k === 'sem' && st.h === hoy && st.d === PorPreparar.menos(6)); b.className = 'btn btn-sm ' + (on ? 'btn-ok' : 'btn-sec'); });
+      U.$('ppRes').innerHTML = '<b>' + l.length + '</b> pedido(s) sin cubicar · ' + U.esc(PorPreparar.rangoTxt(st.d, st.h));
+      U.$('ppLista').innerHTML = l.length ? '<table class="tbl"><tr><th style="width:34px">✓</th><th>Pedido / orden</th><th>Documento mandante</th>' + (varios ? '<th>Fecha</th>' : '') + '</tr>' +
+        U.map(l, function (p) { var dc = PorPreparar.doc(p), m = Modos.de(p); return '<tr><td><span class="pp-box"></span></td><td><b>' + U.esc(p.numero) + '</b>' + (m ? ' ' + Modos.tag(p) : '') + '</td><td>' + (dc ? U.esc(dc) : '<span class="muted">—</span>') + '</td>' + (varios ? '<td>' + U.esc(U.fechaCL(Pedidos.fechaCanon(p.fecha))) + '</td>' : '') + '</tr>'; }).join('') + '</table>'
+        : '<div class="muted" style="padding:10px">No hay pedidos pendientes de preparar en este rango.</div>';
+    };
+    var h = '<div class="muted">Pedidos activos: no cubicados, no cancelados ni entregados, con fecha dentro del rango.</div>' +
+      '<div class="btns" style="margin-top:6px"><button class="btn btn-sm" data-pp="hoy">HOY</button><button class="btn btn-sm" data-pp="ayer">AYER</button><button class="btn btn-sm" data-pp="sem">ÚLTIMOS 7 DÍAS</button></div>' +
+      '<div class="fila"><div class="c"><label class="lbl" for="ppD">DESDE</label><input id="ppD" class="inp sm" type="date" value="' + hoy + '"></div><div class="c"><label class="lbl" for="ppH">HASTA</label><input id="ppH" class="inp sm" type="date" value="' + hoy + '"></div></div>' +
+      '<div id="ppRes" class="tot" style="margin-top:6px"></div><div id="ppLista" class="scroll-list" style="max-height:46vh"></div>';
+    UI.modal({ titulo: 'Pedidos por preparar', html: h, botones: [
+      { txt: 'CERRAR', cls: 'btn-sec' },
+      { txt: 'IMPRIMIR', cls: 'btn-sec', fn: function () { if (!l.length) { UI.toast('No hay pedidos para imprimir', 'warn'); return false; } Impresion.imprimir(PorPreparar.html(l, st.d, st.h), { tipo: 'a4', titulo: 'Pedidos por preparar ' + PorPreparar.rangoTxt(st.d, st.h) }); return false; } },
+      { txt: 'DESCARGAR PDF', cls: 'btn-ok', fn: function () { if (!l.length) { UI.toast('No hay pedidos para el PDF', 'warn'); return false; } PorPreparar.pdf(l, st.d, st.h); return false; } }
+    ], alAbrir: function (host) {
+      pintar();
+      host.onclick = function (e) {
+        var t = e.target; while (t && t !== host && !(t.getAttribute && t.getAttribute('data-pp'))) t = t.parentNode; if (!t || t === host) return;
+        var k = t.getAttribute('data-pp');
+        if (k === 'hoy') { st.d = hoy; st.h = hoy; } else if (k === 'ayer') { st.d = ay(); st.h = ay(); } else if (k === 'sem') { st.d = PorPreparar.menos(6); st.h = hoy; }
+        U.$('ppD').value = st.d; U.$('ppH').value = st.h; pintar();
+      };
+      U.$('ppD').onchange = U.$('ppH').onchange = function () { st.d = U.$('ppD').value || hoy; st.h = U.$('ppH').value || st.d; pintar(); };
+    } });
+  },
+  menos: function (n) { var x = new Date(); x.setDate(x.getDate() - n); return U.fechaISO(x); },
+  html: function (l, d, h) {
+    var varios = d !== h, ahora = new Date(), POR = 24, out = '', tp = Math.max(1, Math.ceil(l.length / POR)), td = 'border:1px solid #555;padding:5px 4px';
+    for (var pg = 0; pg < tp; pg++) {
+      var trozo = l.slice(pg * POR, (pg + 1) * POR);
+      out += '<div class="hoja" style="width:210mm;padding:12mm 14mm;box-sizing:border-box;font-family:Arial,sans-serif;color:#000">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #000;padding-bottom:4px"><div><div style="font-size:18pt;font-weight:bold">PEDIDOS POR PREPARAR</div><div style="font-size:11pt">' + U.esc(PorPreparar.rangoTxt(d, h)) + ' · ' + l.length + ' pedido(s)</div></div><div style="font-size:8.5pt;text-align:right">' + U.esc(DB.cfg.empresa || 'RDMusico') + '<br>Generado ' + U.esc(U.fechaCL(U.fechaISO(ahora)) + ' ' + U.hora(ahora)) + '</div></div>' +
+        '<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:11pt"><thead><tr style="background:#eee"><th style="' + td + ';width:8mm">N°</th><th style="' + td + ';text-align:left">PEDIDO / ORDEN</th><th style="' + td + ';text-align:left">DOCUMENTO MANDANTE</th>' + (varios ? '<th style="' + td + ';width:22mm">FECHA</th>' : '') + '<th style="' + td + ';width:20mm">PREPARADO</th><th style="' + td + ';width:22mm">INICIALES</th></tr></thead><tbody>' +
+        U.map(trozo, function (p, k) { var dc = PorPreparar.doc(p); return '<tr><td style="' + td + ';text-align:center">' + (pg * POR + k + 1) + '</td><td style="' + td + ';font-weight:bold;font-size:13pt">' + U.esc(p.numero) + '</td><td style="' + td + '">' + (dc ? U.esc(dc) : '—') + '</td>' + (varios ? '<td style="' + td + ';text-align:center">' + U.esc(U.fechaCL(Pedidos.fechaCanon(p.fecha))) + '</td>' : '') + '<td style="' + td + ';text-align:center"><span style="display:inline-block;width:5mm;height:5mm;border:1.5px solid #000"></span></td><td style="' + td + '"></td></tr>'; }).join('') +
+        '</tbody></table><div style="margin-top:6px;font-size:8pt;color:#555;text-align:center">Página ' + (pg + 1) + ' de ' + tp + ' · Satélite · RDMusico Packing</div></div>';
+    }
+    return out;
+  },
+  pdf: function (l, d, h) {
+    PdfLib.cargar(function () {
+      var J = window.jspdf.jsPDF, doc = new J({ unit: 'mm', format: 'a4' }), varios = d !== h, ahora = new Date(), M = 14, W = 182, y = 0, pag = 0;
+      var cols = varios ? [['N°', 10], ['PEDIDO / ORDEN', 52], ['DOCUMENTO MANDANTE', 56], ['FECHA', 22], ['PREPARADO', 22], ['INICIALES', 20]] : [['N°', 10], ['PEDIDO / ORDEN', 64], ['DOCUMENTO MANDANTE', 66], ['PREPARADO', 22], ['INICIALES', 20]];
+      var cab = function () {
+        if (pag++) doc.addPage();
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(17); doc.text('PEDIDOS POR PREPARAR', M, 18);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.text(PorPreparar.rangoTxt(d, h) + '  ·  ' + l.length + ' pedido(s)', M, 24.5);
+        doc.setFontSize(8.5); doc.text((DB.cfg.empresa || 'RDMusico') + '  ·  Generado ' + U.fechaCL(U.fechaISO(ahora)) + ' ' + U.hora(ahora), M + W, 24.5, { align: 'right' });
+        doc.setLineWidth(0.6); doc.line(M, 27, M + W, 27);
+        y = 31; doc.setFillColor(235, 235, 235); doc.setLineWidth(0.25); doc.rect(M, y, W, 7, 'FD');
+        var x = M; doc.setFont('helvetica', 'bold'); doc.setFontSize(8); U.each(cols, function (c) { doc.text(c[0], x + 1.5, y + 4.8); x += c[1]; doc.line(x, y, x, y + 7); });
+        y += 7;
+      };
+      cab();
+      U.each(l, function (p, i) {
+        if (y + 10 > 284) cab();
+        var x = M, dc = PorPreparar.doc(p), vals = [String(i + 1), String(p.numero), dc || '—'].concat(varios ? [U.fechaCL(Pedidos.fechaCanon(p.fecha))] : []).concat(['', '']);
+        doc.rect(M, y, W, 10);
+        U.each(cols, function (c, j) {
+          var v = vals[j];
+          if (j === 1) { doc.setFont('helvetica', 'bold'); doc.setFontSize(12.5); } else { doc.setFont('helvetica', 'normal'); doc.setFontSize(10); }
+          if (c[0] === 'PREPARADO') { doc.setLineWidth(0.45); doc.rect(x + c[1] / 2 - 2.7, y + 2.3, 5.4, 5.4); doc.setLineWidth(0.25); }
+          else if (v) doc.text(doc.splitTextToSize(v, c[1] - 3)[0], j === 0 || c[0] === 'FECHA' ? x + c[1] / 2 : x + 1.5, y + 6.5, j === 0 || c[0] === 'FECHA' ? { align: 'center' } : undefined);
+          x += c[1]; if (j < cols.length - 1) doc.line(x, y, x, y + 10);
+        });
+        y += 10;
+      });
+      var n = doc.getNumberOfPages();
+      for (var i = 1; i <= n; i++) { doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110); doc.text('Página ' + i + ' de ' + n + '  ·  Satélite · RDMusico Packing', 105, 292, { align: 'center' }); doc.setTextColor(0); }
+      doc.save('pedidos_por_preparar_' + (d === h ? d : d + '_al_' + h) + '.pdf');
+      UI.toast('PDF descargado: ' + l.length + ' pedido(s)', 'ok');
+    }, function () { UI.toast('Sin conexión para el generador PDF: use IMPRIMIR y «Guardar como PDF»', 'warn', 5000); });
+  }
 };
 
 var PedUI = { filtro: '' };
@@ -8762,7 +8869,7 @@ Pantallas.seguimiento = function (m) {
     '<div class="c"><label class="lbl" for="sgHasta">HASTA</label><input id="sgHasta" class="inp sm" type="date" value="' + U.esc(f.hasta) + '"></div></div>' +
     '<div class="btns"><button class="btn btn-sec btn-sm" data-a="segRango" data-x="0">HOY</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="7">7 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segRango" data-x="30">30 DÍAS</button><button class="btn btn-sec btn-sm" data-a="segLimpiar">LIMPIAR</button></div></div>' +
     '<div id="sgKpis" class="kpis"></div>' +
-    '<div class="card"><div class="fila"><div class="c2"><div id="sgConteo" class="muted" style="padding-top:12px"></div></div><div class="c"><div class="btns" style="margin:0;justify-content:flex-end"><button class="btn btn-sec btn-sm" data-a="segCsv">EXPORTAR CSV</button><button class="btn btn-ok btn-sm" data-a="segRep" title="Un registro por bulto según los filtros: orden, factura, bulto, medidas, pesos, cotización referencial y columna para el cobro del courier">REPORTE COURIER (EXCEL)</button></div></div></div><div id="sgLista"></div></div>';
+    '<div class="card"><div class="fila"><div class="c2"><div id="sgConteo" class="muted" style="padding-top:12px"></div></div><div class="c"><div class="btns" style="margin:0;justify-content:flex-end"><button class="btn btn-sec btn-sm" data-a="segPrep" title="Pedidos activos sin cubicar, por fecha, con lista imprimible">POR PREPARAR</button><button class="btn btn-sec btn-sm" data-a="segCsv">EXPORTAR CSV</button><button class="btn btn-ok btn-sm" data-a="segRep" title="Un registro por bulto según los filtros: orden, factura, bulto, medidas, pesos, cotización referencial y columna para el cobro del courier">REPORTE COURIER (EXCEL)</button></div></div></div><div id="sgLista"></div></div>';
   var kpi = function (n, t, s, c, k) { var act = (Seguimiento.kpi || '') === k; return '<div class="kpi ' + (c || '') + (act ? ' act' : '') + '" role="button" tabindex="0" aria-pressed="' + act + '" data-a="segKpi" data-x="' + k + '"><div class="v">' + n + '</div><div class="t">' + U.esc(t) + '</div><div class="s">' + U.esc(act && k ? 'Filtro activo · tocar para quitar' : s) + '</div></div>'; };
   var nBultos = function (d) { return d.bultos.length || d.cub.length; };
   var esDesp = function (d) { return d.etapa === 'DESPACHADO' || d.etapa === 'ENTREGADO'; };
@@ -8810,6 +8917,7 @@ Pantallas.seguimiento = function (m) {
       render();
     },
     segVer: function (i) { var d = vista[parseInt(i, 10)]; if (d) Seguimiento.detalle(d); },
+    segPrep: function () { PorPreparar.abrir(); },
     segRep: function () { if (!vista.length) { UI.toast('No hay documentos para exportar', 'warn'); return; } Seguimiento.reporte(vista, f.courier); },
     segCsv: function () { if (!vista.length) { UI.toast('No hay documentos para exportar', 'warn'); return; } UI.descargar('rdm_seguimiento_' + U.sello() + '.csv', Seguimiento.csv(vista), 'text/csv'); }
   });
