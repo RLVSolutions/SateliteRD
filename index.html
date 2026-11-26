@@ -327,12 +327,25 @@ textarea.inp{font-size:13px;border-radius:8px}
 .ev-vacio{font-size:34px;opacity:.35}
 .ev-est{font-size:12px}.ev-ok{color:#1e7b45;font-weight:700}.ev-pend{color:#a86a00;font-weight:700}
 .ev-tile .btns{margin:0}
-.ev-cam{position:fixed;inset:0;z-index:3000;background:#000;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;gap:10px;padding:12px}
-.ev-cam video{max-width:100%;max-height:70vh;background:#111;border-radius:8px}
-.ev-cam-t{color:#fff;font-weight:700;text-align:center;font-size:16px}.ev-cam-t span{font-weight:400;font-size:13px;opacity:.8}
-.ev-guia{color:#ffe08a;font-size:13px;text-align:center}
-.ev-cam-b{-webkit-justify-content:center;justify-content:center}
-@media (max-width:560px){.ev-grid{grid-template-columns:1fr}.ev-img{height:200px}}
+.ev-cam{position:fixed;left:0;top:0;right:0;bottom:0;z-index:3000;background:#000;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.ev-cam-top{padding:max(8px,env(safe-area-inset-top)) 10px 6px;background:rgba(0,0,0,.85)}
+.ev-cam-t{color:#fff;font-weight:700;text-align:center;font-size:17px;line-height:1.25}.ev-cam-t span{font-weight:400;font-size:13px;opacity:.8}
+.ev-pasos{display:-webkit-flex;display:flex;gap:5px;-webkit-justify-content:center;justify-content:center;margin-top:6px;flex-wrap:wrap}
+.ev-paso{border:1px solid #777;background:#222;color:#ddd;border-radius:14px;font-size:11px;padding:5px 9px;font-weight:700;min-height:30px}
+.ev-paso.ok{border-color:#2f9e5b;color:#8fe0ae}.ev-paso.act{background:#ffe08a;border-color:#ffe08a;color:#111}
+.ev-vis{position:relative;-webkit-flex:1 1 auto;flex:1 1 auto;min-height:0;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;overflow:hidden;cursor:pointer}
+.ev-cam video{width:100%;height:100%;object-fit:contain;background:#111}
+.ev-guia{position:absolute;left:8px;right:8px;top:8px;color:#ffe08a;font-size:15px;font-weight:700;text-align:center;text-shadow:0 1px 3px #000}
+.ev-toque{position:absolute;left:0;right:0;bottom:10px;text-align:center;color:#fff;font-size:12px;opacity:.75;text-shadow:0 1px 3px #000;pointer-events:none}
+.ev-cnt{position:absolute;left:0;right:0;top:50%;margin-top:-60px;text-align:center;font-size:110px;font-weight:800;color:#fff;text-shadow:0 2px 12px #000;pointer-events:none}
+.ev-flash{position:absolute;left:0;top:0;right:0;bottom:0;background:#fff;opacity:0;pointer-events:none;-webkit-transition:opacity .18s;transition:opacity .18s}.ev-flash.on{opacity:.85}
+.ev-aviso{position:absolute;left:10%;right:10%;bottom:40px;background:rgba(30,123,69,.95);color:#fff;font-weight:700;text-align:center;border-radius:12px;padding:10px;font-size:15px;opacity:0;pointer-events:none;-webkit-transition:opacity .2s;transition:opacity .2s}.ev-aviso.on{opacity:1}
+.ev-cam-b{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-around;justify-content:space-around;padding:10px 6px max(14px,env(safe-area-inset-bottom));background:rgba(0,0,0,.9)}
+.ev-r{background:none;border:0;color:#fff;font-size:24px;min-width:56px;min-height:56px;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;border-radius:12px}
+.ev-r small{font-size:10px;font-weight:700;margin-top:2px}.ev-r.on{color:#ffe08a}.ev-r:disabled{opacity:.3}
+.ev-shot{width:84px;height:84px;border-radius:50%;border:6px solid #fff;background:#e23b3b;box-shadow:0 0 0 3px rgba(255,255,255,.25)}.ev-shot:disabled{background:#555}.ev-shot:active{-webkit-transform:scale(.92);transform:scale(.92)}
+#modalHost .mp>.btns.mp-pie>.ev-main{-webkit-flex:1 1 100%;flex:1 1 100%;font-size:17px}
+@media (max-width:560px){.ev-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ev-img{height:110px}.ev-tile{padding:6px}.ev-tile .btns .btn{-webkit-flex:1 1 100%;flex:1 1 100%;min-height:44px}.ev-cab{font-size:12px}}
 .pp-dash{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;gap:14px;width:100%;margin:0 0 14px;padding:12px 16px;border:2px solid #a86a00;border-radius:14px;background:#fff6e0;color:#4a3000;text-align:left;cursor:pointer;font:inherit}
 .pp-dash:hover,.pp-dash:focus{box-shadow:0 0 0 3px rgba(168,106,0,.25)}
 .pp-n{font-size:34px;font-weight:900;min-width:52px;text-align:center;color:#a86a00}
@@ -669,7 +682,7 @@ html.dv-escritorio #modalHost .mp.mp-ancho{max-width:1180px}
 <div id="printArea"></div>
 
 <script>
-var APP = { nombre: 'RDMusico Packing', version: '2.46.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
+var APP = { nombre: 'RDMusico Packing', version: '2.47.0-beta', build: '2026-10-27', formatoRespaldo: 4 };
 var CLAVES = { config: 'rdm_config', catalogo: 'rdm_catalogo', ordenes: 'rdm_ordenes_transporte', cubicacion: 'rdm_cubicaciones', formatos: 'rdm_formatos_etiqueta', pedidos: 'rdm_pedidos', medidas: 'rdm_medidas', correos: 'rdm_correos', ubicaciones: 'rdm_ubicaciones', archivados: 'rdm_archivados', cotizador: 'rdm_cotizador', conflictos: 'rdm_conflictos', operaciones: 'rdm_operaciones' };
 var CLAVE_LEGACY_DESPACHOS = 'rdm_despachos';
 var CLAVE_LEGACY_RESPALDADA = 'rdm_despachos_respaldado_v150';
@@ -1520,7 +1533,7 @@ var WA = {
 };
 
 var Evid = {
-  LADOS: [['COMPLETO', 'BULTO COMPLETO'], ['ANCHO', 'ANCHO'], ['ALTO', 'ALTO'], ['LARGO', 'LARGO']],
+  LADOS: [['COMPLETO', 'BULTO COMPLETO'], ['ANCHO', 'ANCHO'], ['ALTO', 'ALTO'], ['LARGO', 'LARGO'], ['PESO', 'PESO (BALANZA)']],
   MAX: 1600, CAL: 0.82, meta: {}, _db: null, _cola: [], _mem: { f: {}, m: {} },
   nom: function (l) { var x = U.find(Evid.LADOS, function (y) { return y[0] === l; }); return x ? x[1] : l; },
   clave: function (b) { return String((b && (b.origenCubicacionId || b.id)) || ''); },
@@ -1560,7 +1573,9 @@ var Evid = {
     });
   },
   cuenta: function (c) { var n = 0, s = 0; U.each(Evid.LADOS, function (l) { var m = Evid.meta[Evid.k(c, l[0])]; if (m) { n++; if (m.drive) s++; } }); return { n: n, s: s }; },
-  boton: function (b, attr) { var c = Evid.cuenta(Evid.clave(b)); return '<button class="btn btn-sm ' + (c.n === 4 ? 'btn-ok' : 'btn-sec') + ' ev-btn" ' + attr + ' title="Fotos de evidencia de medidas">📷 FOTOS ' + c.n + '/4</button>'; },
+  boton: function (b, attr) { var c = Evid.cuenta(Evid.clave(b)); return '<button class="btn btn-sm ' + (c.n === Evid.LADOS.length ? 'btn-ok' : 'btn-sec') + ' ev-btn" ' + attr + ' title="Fotos de evidencia de medidas y peso">📷 FOTOS ' + c.n + '/' + Evid.LADOS.length + '</button>'; },
+  faltan: function (c) { return U.map(U.filter(Evid.LADOS, function (l) { return !Evid.meta[Evid.k(c, l[0])]; }), function (l) { return l[0]; }); },
+  guia: function (l) { return l === 'COMPLETO' ? 'Encuadre el bulto completo' : (l === 'PESO' ? 'Bulto sobre la balanza: el visor con el peso debe leerse' : 'Muestre la huincha sobre el ' + Evid.nom(l).toLowerCase() + ', legible'); },
   info: function (b) {
     var ot = null, ob = null;
     if (b.otId) { ot = OT.porId(b.otId); ob = ot ? U.find(ot.bultos, function (x) { return x.id === b.id || x.origenCubicacionId === b.id; }) : null; }
@@ -1573,7 +1588,7 @@ var Evid = {
   },
   n: function (v, d) { return U.fx(v, d).replace('.', ','); },
   medTxt: function (i) { return Evid.n(i.ancho, i.ancho % 1 ? 1 : 0) + ' × ' + Evid.n(i.alto, i.alto % 1 ? 1 : 0) + ' × ' + Evid.n(i.largo, i.largo % 1 ? 1 : 0) + ' cm'; },
-  declarado: function (i, l) { return l === 'ANCHO' ? Evid.n(i.ancho, i.ancho % 1 ? 1 : 0) + ' cm' : (l === 'ALTO' ? Evid.n(i.alto, i.alto % 1 ? 1 : 0) + ' cm' : (l === 'LARGO' ? Evid.n(i.largo, i.largo % 1 ? 1 : 0) + ' cm' : Evid.medTxt(i) + ' · ' + Evid.n(i.peso, 2) + ' kg')); },
+  declarado: function (i, l) { if (l === 'PESO') return Evid.n(i.peso, 2) + ' kg'; return l === 'ANCHO' ? Evid.n(i.ancho, i.ancho % 1 ? 1 : 0) + ' cm' : (l === 'ALTO' ? Evid.n(i.alto, i.alto % 1 ? 1 : 0) + ' cm' : (l === 'LARGO' ? Evid.n(i.largo, i.largo % 1 ? 1 : 0) + ' cm' : Evid.medTxt(i) + ' · ' + Evid.n(i.peso, 2) + ' kg')); },
   sello: function (src, w, h, i, l) {
     var k = Math.min(1, Evid.MAX / Math.max(w, h)), W = Math.max(1, Math.round(w * k)), H = Math.max(1, Math.round(h * k)), bd = Math.max(30, Math.round(W * 0.034));
     var c = document.createElement('canvas'); c.width = W; c.height = H + bd;
@@ -1657,37 +1672,83 @@ var Evid = {
     };
     inp.click();
   },
-  camara: function (i, l, cb) {
+  camara: function (i, l, cb, op) {
+    op = op || {};
     var md = navigator.mediaDevices;
     if (!md || !md.getUserMedia) { UI.toast('Este navegador no permite usar la cámara aquí: se abre el selector de fotos', 'warn', 4000); Evid.archivo(true, i, l, cb); return; }
-    var ov = document.createElement('div'), st = null, ids = [], ix = 0;
+    var hechos = {}, actual = l, st = null, ids = [], ix = 0, bloq = false, cuenta = null, timer = !!DB.cfg.evidTimer, ult = null;
+    U.each(Evid.LADOS, function (x) { if (Evid.meta[Evid.k(i.clave, x[0])]) hechos[x[0]] = 1; });
+    var ov = document.createElement('div');
     ov.className = 'ev-cam'; ov.id = 'evCam';
-    ov.innerHTML = '<div class="ev-cam-t">' + U.esc(Evid.nom(l)) + ' · declarado ' + U.esc(Evid.declarado(i, l)) + '<br><span>' + U.esc(i.orden + ' · ' + i.docTxt + ' · Bulto ' + i.pos) + '</span></div><video id="evVid" autoplay playsinline muted></video><div class="ev-guia">' + (l === 'COMPLETO' ? 'Encuadre el bulto completo' : 'Muestre la huincha sobre el ' + U.esc(Evid.nom(l).toLowerCase()) + ', legible') + '</div>' +
-      '<div class="btns ev-cam-b"><button class="btn btn-sec" data-c="cancelar">CANCELAR</button><button class="btn btn-sec" data-c="cambiar" id="evCamCambiar" style="display:none">CAMBIAR CÁMARA</button><button class="btn btn-ok btn-xl" data-c="capturar" id="evCapturar" disabled>CAPTURAR</button></div>';
+    ov.innerHTML = '<div class="ev-cam-top"><div class="ev-cam-t" id="evCamT"></div><div class="ev-pasos" id="evPasos"></div></div>' +
+      '<div class="ev-vis" data-c="disparar"><video id="evVid" autoplay playsinline muted data-c="disparar"></video><div class="ev-guia" id="evGuia" data-c="disparar"></div><div class="ev-toque" data-c="disparar">TOQUE LA IMAGEN PARA CAPTURAR</div><div class="ev-cnt" id="evCnt" data-c="disparar"></div><div class="ev-flash" id="evFlash"></div><div class="ev-aviso" id="evAviso"></div></div>' +
+      '<div class="ev-cam-b"><button class="ev-r" data-c="cancelar" aria-label="Cerrar">✕<small>CERRAR</small></button><button class="ev-r" data-c="repetir" id="evRep" aria-label="Repetir la anterior" disabled>↶<small>REPETIR</small></button>' +
+      '<button class="ev-shot" data-c="disparar" id="evCapturar" aria-label="Capturar" disabled></button>' +
+      '<button class="ev-r" data-c="timer" id="evTimer" aria-label="Temporizador">⏱<small id="evTimerT"></small></button><button class="ev-r" data-c="cambiar" id="evCamCambiar" aria-label="Cambiar cámara" style="visibility:hidden">⟲<small>CÁMARA</small></button></div>';
     document.body.appendChild(ov);
     var v = ov.querySelector('video');
+    var pasos = function () {
+      U.$('evCamT').innerHTML = U.esc(Evid.nom(actual)) + ' · declarado ' + U.esc(Evid.declarado(i, actual)) + '<br><span>' + U.esc(i.orden + ' · ' + i.docTxt + ' · Bulto ' + i.pos) + '</span>';
+      U.$('evGuia').textContent = Evid.guia(actual);
+      U.$('evPasos').innerHTML = U.map(Evid.LADOS, function (x) { return '<button class="ev-paso' + (x[0] === actual ? ' act' : '') + (hechos[x[0]] ? ' ok' : '') + '" data-c="ir" data-l="' + x[0] + '">' + (hechos[x[0]] ? '✓ ' : '') + U.esc(x[0]) + '</button>'; }).join('');
+      U.$('evTimerT').textContent = timer ? '3 s' : 'TIMER';
+      U.$('evTimer').className = 'ev-r' + (timer ? ' on' : '');
+      U.$('evRep').disabled = !ult;
+    };
     var parar = function () { if (st) U.each(st.getTracks(), function (t) { try { t.stop(); } catch (e) {} }); st = null; };
-    var cerrar = function () { parar(); if (ov.parentNode) ov.parentNode.removeChild(ov); };
+    var tecla = function (e) { var k = e.key || ''; if (k === 'Enter' || k === ' ' || k === 'AudioVolumeUp' || k === 'AudioVolumeDown' || k === 'VolumeUp' || k === 'VolumeDown') { if (e.preventDefault) e.preventDefault(); disparar(); } else if (k === 'Escape') cerrar(); };
+    var cerrar = function () { if (cuenta) { clearInterval(cuenta); cuenta = null; } parar(); document.removeEventListener('keydown', tecla, true); if (ov.parentNode) ov.parentNode.removeChild(ov); if (op.alCerrar) op.alCerrar(); };
+    var aviso = function (t) { var a = U.$('evAviso'); if (!a) return; a.textContent = t; a.className = 'ev-aviso on'; setTimeout(function () { if (a) a.className = 'ev-aviso'; }, 1300); };
+    var siguiente = function () {
+      var n = -1; U.each(Evid.LADOS, function (x, k) { if (x[0] === actual) n = k; });
+      for (var k = 1; k <= Evid.LADOS.length; k++) { var x = Evid.LADOS[(n + k) % Evid.LADOS.length][0]; if (!hechos[x]) return x; }
+      return '';
+    };
+    var capturar = function () {
+      if (!v.videoWidth) { UI.toast('La cámara aún no está lista', 'warn'); return; }
+      bloq = true;
+      var r = Evid.sello(v, v.videoWidth, v.videoHeight, i, actual), lado = actual, fl = U.$('evFlash');
+      if (fl) { fl.className = 'ev-flash on'; setTimeout(function () { if (fl) fl.className = 'ev-flash'; }, 180); }
+      if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {}
+      hechos[lado] = 1; ult = lado; cb(r, lado);
+      var sg = op.solo ? '' : siguiente();
+      if (!sg) { aviso('✓ ' + Evid.nom(lado) + ' guardada · listo'); setTimeout(cerrar, 650); return; }
+      actual = sg; pasos(); aviso('✓ ' + Evid.nom(lado) + ' guardada · ahora ' + Evid.nom(sg));
+      setTimeout(function () { bloq = false; }, 700);
+    };
+    var disparar = function () {
+      if (bloq || U.$('evCapturar').disabled) return;
+      if (cuenta) { clearInterval(cuenta); cuenta = null; U.$('evCnt').textContent = ''; return; }
+      if (!timer) { capturar(); return; }
+      var n = 3, c = U.$('evCnt'); c.textContent = n;
+      cuenta = setInterval(function () { n--; if (n > 0) { c.textContent = n; return; } clearInterval(cuenta); cuenta = null; c.textContent = ''; capturar(); }, 1000);
+    };
     var iniciar = function () {
       parar(); U.$('evCapturar').disabled = true;
       var c = ids.length ? { deviceId: { exact: ids[ix] }, width: { ideal: 1920 }, height: { ideal: 1080 } } : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
       md.getUserMedia({ video: c, audio: false }).then(function (s) {
         st = s; v.srcObject = s; var pl = v.play(); if (pl && pl['catch']) pl['catch'](function () {});
         U.$('evCapturar').disabled = false;
-        if (!ids.length) Evid.detectar(function (r) { ids = r.ids || []; var tr = s.getVideoTracks()[0], set = tr && tr.getSettings ? tr.getSettings() : {}; ix = Math.max(0, ids.indexOf(set.deviceId)); if (ids.length > 1) U.$('evCamCambiar').style.display = ''; });
+        if (!ids.length) Evid.detectar(function (r) { ids = r.ids || []; var tr = s.getVideoTracks()[0], set = tr && tr.getSettings ? tr.getSettings() : {}; ix = Math.max(0, ids.indexOf(set.deviceId)); if (ids.length > 1 && U.$('evCamCambiar')) U.$('evCamCambiar').style.visibility = ''; });
       }, function (e) {
-        cerrar();
+        var lado = actual; cerrar();
         var n = e && e.name;
         UI.toast(n === 'NotAllowedError' ? 'Permiso de cámara denegado: habilítelo en el navegador o adjunte una foto' : (n === 'NotFoundError' || n === 'OverconstrainedError' ? 'No se detectó cámara: adjunte una foto' : 'No se pudo abrir la cámara: adjunte una foto'), 'warn', 5000);
-        Evid.archivo(true, i, l, cb);
+        Evid.archivo(true, i, lado, function (r) { cb(r, lado); });
       });
     };
     ov.onclick = function (e) {
-      var t = e.target, a = t && t.getAttribute ? t.getAttribute('data-c') : '';
+      var t = e.target; while (t && t !== ov && !(t.getAttribute && t.getAttribute('data-c'))) t = t.parentNode;
+      var a = t && t !== ov ? t.getAttribute('data-c') : '';
       if (a === 'cancelar') cerrar();
+      else if (a === 'disparar') disparar();
       else if (a === 'cambiar' && ids.length > 1) { ix = (ix + 1) % ids.length; iniciar(); }
-      else if (a === 'capturar') { if (!v.videoWidth) { UI.toast('La cámara aún no está lista', 'warn'); return; } var r = Evid.sello(v, v.videoWidth, v.videoHeight, i, l); cerrar(); cb(r); }
+      else if (a === 'timer') { timer = !timer; DB.cfg.evidTimer = timer; DB.guardarCfg(); pasos(); }
+      else if (a === 'repetir' && ult) { actual = ult; pasos(); aviso('Repita: ' + Evid.nom(ult)); }
+      else if (a === 'ir') { actual = t.getAttribute('data-l'); pasos(); }
     };
+    document.addEventListener('keydown', tecla, true);
+    pasos();
     iniciar();
   },
   abrir: function (b, op) {
@@ -1696,30 +1757,37 @@ var Evid = {
     var tile = function (l) {
       var m = Evid.meta[Evid.k(c, l[0])], est = !m ? '<span class="muted">Sin foto</span>' : (m.drive ? '<span class="ev-ok">☁ Guardada en Drive</span>' : (m.local ? '<span class="ev-pend">⏳ Pendiente de subir</span>' : ''));
       return '<div class="ev-tile" data-lado="' + l[0] + '"><div class="ev-cab"><b>' + U.esc(l[1]) + '</b><span class="muted">' + U.esc(Evid.declarado(i, l[0])) + '</span></div><div class="ev-img" id="evImg_' + l[0] + '">' + (m ? '<span class="muted">Cargando…</span>' : '<span class="ev-vacio">📷</span>') + '</div><div class="ev-est">' + est + '</div>' +
-        '<div class="btns"><button class="btn btn-ok btn-sm" data-ev="tomar" data-l="' + l[0] + '">TOMAR</button><button class="btn btn-sec btn-sm" data-ev="adjuntar" data-l="' + l[0] + '">ADJUNTAR</button>' + (m ? '<button class="btn btn-dan btn-sm" data-ev="quitar" data-l="' + l[0] + '">QUITAR</button>' : '') + '</div></div>';
+        '<div class="btns"><button class="btn ' + (m ? 'btn-sec' : 'btn-ok') + ' btn-sm" data-ev="tomar" data-l="' + l[0] + '">' + (m ? 'REPETIR' : 'TOMAR') + '</button><button class="btn btn-sec btn-sm" data-ev="adjuntar" data-l="' + l[0] + '">ADJUNTAR</button>' + (m ? '<button class="btn btn-dan btn-sm" data-ev="quitar" data-l="' + l[0] + '">QUITAR</button>' : '') + '</div></div>';
     };
     var pintar = function () {
       var g = U.$('evGrid'); if (!g || !vivo) return;
       g.innerHTML = U.map(Evid.LADOS, tile).join('');
       U.each(Evid.LADOS, function (l) { if (!Evid.meta[Evid.k(c, l[0])]) return; Evid.dato(c, l[0], function (d) { var e = U.$('evImg_' + l[0]); if (e) e.innerHTML = d ? '<img src="' + d + '" alt="' + U.esc(l[1]) + '">' : '<span class="muted">En Drive · sin conexión para verla</span>'; }); });
-      var n = Evid.cuenta(c), r = U.$('evRes'); if (r) r.innerHTML = n.n + ' de 4 fotos · ' + n.s + ' en Drive' + (Sync.modo() === 'local' ? ' · <span class="muted">sin conexión con la planilla: se suben al sincronizar</span>' : '');
+      var fa = Evid.faltan(c), mb = document.querySelector('#modalHost [data-mb="0"]'); if (mb) mb.textContent = fa.length ? '📷 TOMAR FOTOS · FALTAN ' + fa.length + (fa.length < 3 ? ' (' + U.map(fa, function (x) { return Evid.nom(x).replace(' (BALANZA)', '').replace('BULTO ', ''); }).join(', ') + ')' : '') : '📷 REPETIR FOTOS · ' + Evid.LADOS.length + '/' + Evid.LADOS.length + ' LISTAS';
+      var n = Evid.cuenta(c), r = U.$('evRes'); if (r) r.innerHTML = n.n + ' de ' + Evid.LADOS.length + ' fotos · ' + n.s + ' en Drive' + (Sync.modo() === 'local' ? ' · <span class="muted">sin conexión con la planilla: se suben al sincronizar</span>' : '');
     };
     var h = '<div class="msg"><b>' + U.esc(i.orden) + '</b> · ' + U.esc(i.docTxt) + ' · Bulto <b>' + U.esc(i.pos) + '</b>' + (i.ot ? ' · ' + U.esc(i.ot) : '') + (i.courier ? ' · ' + U.esc(i.courier) : '') + '<br>Medidas declaradas: <b>' + U.esc(Evid.medTxt(i)) + '</b> · ' + Evid.n(i.peso, 2) + ' kg · peso vol. ' + Evid.n(i.pesoVol, 2) + ' kg (÷' + i.factor + ')</div>' +
       '<div id="evCamEst" class="muted">Detectando cámara…</div><div class="ev-grid" id="evGrid"></div><div id="evRes" class="tot" style="margin-top:6px"></div>' +
       '<div class="fila"><div class="c"><label class="lbl" for="evFmt">FORMATO DEL PDF</label><select id="evFmt" class="inp sm"><option value="A4">Hoja A4 completa por bulto</option><option value="MEDIA"' + (DB.cfg.evidFormato === 'MEDIA' ? ' selected' : '') + '>Media hoja A4 por bulto (2 por hoja)</option></select></div><div class="c"></div></div>';
-    UI.modal({ titulo: 'Evidencia de medidas · ' + i.orden + ' · Bulto ' + i.pos, html: h, botones: [
+    var sesion = function (l, solo) {
+      var listo = function (r, lado) { Evid.guardarFoto(i, lado, r, pintar); pintar(); };
+      if (cam && cam.api && cam.n !== 0) Evid.camara(i, l, listo, { solo: solo, alCerrar: function () { pintar(); var fa = Evid.faltan(c); UI.toast(fa.length ? 'Faltan ' + fa.length + ' foto(s): ' + U.map(fa, Evid.nom).join(', ') : 'Las ' + Evid.LADOS.length + ' fotos están listas', fa.length ? 'warn' : 'ok', 3500); } });
+      else Evid.archivo(true, i, l, function (r) { listo(r, l); UI.toast(Evid.nom(l) + ': foto guardada', 'ok'); });
+    };
+    UI.modal({ titulo: 'Evidencia de medidas y peso · ' + i.orden + ' · Bulto ' + i.pos, html: h, botones: [
+      { txt: '📷 TOMAR FOTOS', cls: 'btn-ok btn-xl ev-main', fn: function () { var fa = Evid.faltan(c); sesion(fa.length ? fa[0] : 'COMPLETO', false); return false; } },
       { txt: 'CERRAR', cls: 'btn-sec', fn: function () { vivo = false; UI.cerrarModal(); if (op.alFin) op.alFin(); return false; } },
       { txt: 'PDF DE ESTE BULTO', cls: 'btn-ok', fn: function () { Evid.pdf([b], U.$('evFmt').value); return false; } }
     ], alAbrir: function (host) {
       pintar();
-      Evid.detectar(function (r) { cam = r; var e = U.$('evCamEst'); if (!e) return; e.innerHTML = !r.api ? 'Este navegador no da acceso directo a la cámara: TOMAR abre la cámara o galería del equipo.' : (r.n === 0 ? 'No se detectó cámara en este equipo: use ADJUNTAR.' : '📷 Cámara ' + (r.n > 0 ? 'detectada (' + r.n + ')' : 'disponible') + '. TOMAR abre la vista previa; el navegador pedirá permiso la primera vez.'); });
+      Evid.detectar(function (r) { cam = r; var e = U.$('evCamEst'); if (!e) return; e.innerHTML = !r.api ? 'Este navegador no da acceso directo a la cámara: TOMAR abre la cámara o galería del equipo.' : (r.n === 0 ? 'No se detectó cámara en este equipo: use ADJUNTAR.' : '📷 Cámara ' + (r.n > 0 ? 'detectada (' + r.n + ')' : 'disponible') + '. «TOMAR FOTOS» recorre las fotos que faltan: toque la imagen para capturar y pasa sola a la siguiente.'); });
       Evid.remoto([c], function () { pintar(); Evid.subir(c, 'COMPLETO', function () { Evid.subirPendientes(function () { pintar(); }); }); });
       U.$('evFmt').onchange = function () { DB.cfg.evidFormato = this.value; DB.guardarCfg(); };
       host.onclick = function (e) {
         var t = e.target; while (t && t !== host && !(t.getAttribute && t.getAttribute('data-ev'))) t = t.parentNode;
         if (!t || t === host) return;
         var a = t.getAttribute('data-ev'), l = t.getAttribute('data-l'), listo = function (r) { Evid.guardarFoto(i, l, r, pintar); pintar(); UI.toast(Evid.nom(l) + ': foto guardada', 'ok'); };
-        if (a === 'tomar') { if (cam && cam.api && cam.n !== 0) Evid.camara(i, l, listo); else Evid.archivo(true, i, l, listo); }
+        if (a === 'tomar') sesion(l, !!Evid.meta[Evid.k(c, l)]);
         else if (a === 'adjuntar') Evid.archivo(false, i, l, listo);
         else if (a === 'quitar') UI.confirmar('¿Quitar la foto de ' + Evid.nom(l) + '? También se elimina de Drive.', function () { Evid.quitar(c, l, function () { Evid.abrir(b, op); }); }, { titulo: 'Quitar foto', si: 'QUITAR' });
       };
@@ -1754,14 +1822,23 @@ var Evid = {
     var bloque = function (inf, fo, y0, alto) {
       var med = fmt === 'MEDIA', M = 10, W = 190, hc = med ? 20 : 30, fs = med ? 8 : 9.5;
       d.setDrawColor(150); d.setLineWidth(0.3); d.rect(M, y0, W, hc);
-      d.setFont('helvetica', 'bold'); d.setFontSize(med ? 10 : 12); d.text('EVIDENCIA DE MEDIDAS · ' + inf.orden + ' · BULTO ' + inf.pos, M + 3, y0 + (med ? 5 : 6.5));
+      d.setFont('helvetica', 'bold'); d.setFontSize(med ? 10 : 12); d.text('EVIDENCIA DE MEDIDAS Y PESO · ' + inf.orden + ' · BULTO ' + inf.pos, M + 3, y0 + (med ? 5 : 6.5));
       d.setFont('helvetica', 'normal'); d.setFontSize(fs);
       var l1 = inf.docTxt + (inf.ot ? '  ·  ' + inf.ot : '') + (inf.courier ? '  ·  Courier ' + inf.courier : '') + (inf.oc ? '  ·  N° orden ' + inf.oc : '');
       var l2 = 'Medidas declaradas: ' + Evid.medTxt(inf) + '  ·  Peso real ' + Evid.n(inf.peso, 2) + ' kg  ·  Volumen ' + Evid.n(inf.volumen, 4) + ' m3  ·  Peso vol. ' + Evid.n(inf.pesoVol, 2) + ' kg (÷' + inf.factor + ')';
       var l3 = (inf.dest ? 'Destino: ' + inf.dest + '  ·  ' : '') + 'Generado ' + U.fechaCL(U.fechaISO(ahora)) + ' ' + U.hora(ahora);
       var ys = med ? [y0 + 9.5, y0 + 13.5, y0 + 17.5] : [y0 + 12.5, y0 + 18, y0 + 23.5];
       d.text(d.splitTextToSize(l1, W - 6)[0], M + 3, ys[0]); d.setFont('helvetica', 'bold'); d.text(d.splitTextToSize(l2, W - 6)[0], M + 3, ys[1]); d.setFont('helvetica', 'normal'); d.text(d.splitTextToSize(l3, W - 6)[0], M + 3, ys[2]);
-      var gy = y0 + hc + 2, gh = alto - hc - 2, cw = (W - 4) / 2, ch = (gh - 4) / 2, cap = med ? 4.5 : 6;
+      var gy = y0 + hc + 2, gh = alto - hc - 2, cw = (W - 4) / 2, ch = (gh - 8) / 3, cap = med ? 4.5 : 6;
+      var bx = M + cw + 4, by = gy + 2 * (ch + 4), fil = [['Ancho', Evid.n(inf.ancho, inf.ancho % 1 ? 1 : 0) + ' cm'], ['Alto', Evid.n(inf.alto, inf.alto % 1 ? 1 : 0) + ' cm'], ['Largo', Evid.n(inf.largo, inf.largo % 1 ? 1 : 0) + ' cm'], ['Peso real', Evid.n(inf.peso, 2) + ' kg'], ['Peso vol.', Evid.n(inf.pesoVol, 2) + ' kg'], ['Volumen', Evid.n(inf.volumen, 4) + ' m3']], rh = (ch - cap - 2) / fil.length;
+      d.setFont('helvetica', 'bold'); d.setFontSize(med ? 7.5 : 9); d.text('DATOS INFORMADOS', bx, by + cap - 1.5);
+      d.setDrawColor(120); d.rect(bx, by + cap, cw, ch - cap);
+      U.each(fil, function (r, k) {
+        var yy = by + cap + 1 + rh * k + rh * 0.68, pe = k === 3;
+        if (pe) { d.setFillColor(255, 236, 170); d.rect(bx + 0.4, by + cap + 1 + rh * k, cw - 0.8, rh, 'F'); }
+        d.setFont('helvetica', pe ? 'bold' : 'normal'); d.setFontSize(Math.min(med ? 9 : 13, rh * 2.1)); d.text(r[0], bx + 3, yy);
+        d.setFont('helvetica', 'bold'); d.text(r[1], bx + cw - 3, yy, { align: 'right' });
+      });
       U.each(Evid.LADOS, function (l, n) {
         var x = M + (n % 2) * (cw + 4), y = gy + Math.floor(n / 2) * (ch + 4), f = fo[l[0]];
         d.setFont('helvetica', 'bold'); d.setFontSize(med ? 7.5 : 9); d.text(l[1] + ' · declarado ' + Evid.declarado(inf, l[0]), x, y + cap - 1.5);
@@ -1777,7 +1854,7 @@ var Evid = {
       if (p) { d.setDrawColor(120); d.setLineDashPattern([2, 2], 0); d.line(5, 148.5, 205, 148.5); d.setLineDashPattern([], 0); }
       bloque(inf, datos[n], y0, alto);
       d.setFont('helvetica', 'normal'); d.setFontSize(7); d.setTextColor(110);
-      if (p === por - 1 || n === infos.length - 1) d.text('Satélite · RDMusico Packing · Las fotos llevan sello con lado, medida declarada, orden, bulto y fecha de captura.', 105, 292, { align: 'center' });
+      if (p === por - 1 || n === infos.length - 1) d.text('Satélite · RDMusico Packing · Las fotos llevan sello con lado o peso declarado, orden, bulto y fecha de captura.', 105, 292, { align: 'center' });
       d.setTextColor(0);
     });
     var nom = nombre || ('evidencia_' + (infos.length === 1 ? infos[0].orden + '_bulto_' + infos[0].numero : infos[0].orden + '_' + infos.length + '_bultos'));
